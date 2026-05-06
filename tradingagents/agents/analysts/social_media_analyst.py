@@ -1,5 +1,5 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news
+from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news, get_degradation_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 
 
@@ -25,6 +25,7 @@ def create_social_media_analyst(llm):
             "rely on news analysis to supplement. Do NOT fabricate sentiment data.\n\n"
             "Make sure to append a Markdown table at the end of the report to organize key points."
             + get_language_instruction()
+            + get_degradation_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(

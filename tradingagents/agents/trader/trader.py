@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage
 from tradingagents.dataflows.a_share_constraints import format_limit_constraint
 
 from tradingagents.agents.schemas import TraderProposal, render_trader_proposal
-from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction
+from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_degradation_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -43,6 +43,7 @@ def create_trader(llm):
                     "at the desired level, flag this clearly.\n\n"
                     "Be decisive and ground every conclusion in specific analyst evidence."
                     + get_language_instruction()
+                    + get_degradation_instruction()
                 ),
             },
             {

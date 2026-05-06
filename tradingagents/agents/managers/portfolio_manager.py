@@ -14,6 +14,7 @@ from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
+    get_degradation_instruction,
     format_past_context,
 )
 from tradingagents.agents.utils.structured import (
@@ -68,7 +69,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}
+Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_degradation_instruction()}
 {format_limit_constraint(limit_up, limit_down, market_type)}
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 

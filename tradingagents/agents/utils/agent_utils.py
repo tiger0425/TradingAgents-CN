@@ -35,6 +35,24 @@ def get_language_instruction() -> str:
     return f" Write your entire response in {lang}."
 
 
+def get_degradation_instruction() -> str:
+    """Return a prompt instruction for handling empty/limited data.
+
+    Returns empty string when English (default), so no extra tokens are used.
+    Only applied to user-facing agents (analysts, trader, managers).
+    Internal debate agents skip this to keep their prompts lean.
+    """
+    from tradingagents.dataflows.config import get_config
+    lang = (get_config().get("output_language") or "English")
+    if lang.strip().lower() == "english":
+        return ""
+    return (
+        " 降级策略：若数据源返回空或不可用，请在报告中明确标注数据局限性，"
+        "并基于已有信息提供有限分析。不得编造数据或虚构未获取到的信息。"
+        "若关键数据缺失导致无法形成有效结论，应坦诚告知并建议延后决策。"
+    )
+
+
 def build_instrument_context(ticker: str) -> str:
     """Describe the exact instrument so agents preserve market-appropriate ticker formats."""
     # A-shares use 6-digit numeric codes; other markets use alphanumeric tickers

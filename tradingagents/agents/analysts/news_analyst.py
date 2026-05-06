@@ -4,6 +4,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_global_news,
     get_language_instruction,
     get_news,
+    get_degradation_instruction,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -40,6 +41,7 @@ def create_news_analyst(llm):
             "Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
             " Make sure to append a Markdown table at the end of the report to organize key points."
             + get_language_instruction()
+            + get_degradation_instruction()
         )
 
         prompt = ChatPromptTemplate.from_messages(
