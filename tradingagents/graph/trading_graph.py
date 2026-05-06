@@ -371,6 +371,45 @@ class TradingAgentsGraph:
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, past_context=past_context
         )
+
+        # Compute A-share limit up/down prices and inject into initial state.
+        # Limit is based on the PREVIOUS trading day's close price.
+        if self.config.get("market_type") == "A_SHARE":
+            try:
+                from tradingagents.dataflows.a_share_constraints import get_limit_prices
+                from tradingagents.dataflows.akshare import _to_sina_symbol
+                from datetime import datetime, timedelta
+                import akshare as ak
+
+                sina_sym = _to_sina_symbol(company_name)
+                td = datetime.strptime(str(trade_date), "%Y-%m-%d")
+                prev_close = None
+                for offset in range(1, 15):
+                    cand = (td - timedelta(days=offset)).strftime("%Y-%m-%d")
+                    df = ak.stock_zh_a_daily(
+                        symbol=sina_sym,
+                        start_date=cand,
+                        end_date=cand,
+                        adjust="qfq",
+                    )
+                    if df is not None and not df.empty:
+                        prev_close = float(df.iloc[0]["close"])
+                        break
+
+                if prev_close is not None:
+                    limit_up, limit_down = get_limit_prices(company_name, prev_close)
+                    init_agent_state["limit_up_price"] = limit_up
+                    init_agent_state["limit_down_price"] = limit_down
+                    init_agent_state["market_type"] = "A_SHARE"
+                    logger.info(
+                        "A-share limits for %s: up=%.2f down=%.2f (prev_close=%.2f)",
+                        company_name, limit_up, limit_down, prev_close,
+                    )
+            except Exception as e:
+                logger.warning("Could not compute limit prices for %s: %s", company_name, e)
+        else:
+            init_agent_state["market_type"] = "US_STOCK"
+
         args = self.propagator.get_graph_args()
 
         # Inject thread_id so same ticker+date resumes, different date starts fresh.
