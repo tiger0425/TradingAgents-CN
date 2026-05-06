@@ -26,7 +26,9 @@ def create_bear_researcher(llm):
             round_instruction = (
                 "**This is a rebuttal round.** Focus on countering the opponent's last argument "
                 "with specific data and reasoning. Introduce at least ONE new piece of evidence "
-                "not previously cited. Be conversational — speak as if you're in a live debate."
+                "not previously cited. Be conversational — speak as if you're in a live debate.\n"
+                "If you find yourself agreeing with the opponent's key points, acknowledge "
+                "the convergence honestly and suggest whether a decision can be reached."
             )
             opponent_reference = f"Last bull argument: {current_response}"
 

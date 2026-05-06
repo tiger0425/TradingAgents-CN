@@ -4,6 +4,10 @@ def create_conservative_debator(llm):
     def conservative_node(state) -> dict:
         risk_debate_state = state["risk_debate_state"]
         history = risk_debate_state.get("history", "")
+        # Truncate history to last ~20 lines (≈2 rounds) for context window protection
+        history_lines = history.strip().split('\n')
+        if len(history_lines) > 20:
+            history = '\n'.join(history_lines[-20:])
         conservative_history = risk_debate_state.get("conservative_history", "")
 
         current_aggressive_response = risk_debate_state.get("current_aggressive_response", "")
@@ -31,7 +35,11 @@ def create_conservative_debator(llm):
             round_instruction = (
                 "This is a REBUTTAL ROUND. Focus on countering the specific points "
                 "raised by the other analysts. Introduce risk metrics or considerations "
-                "the opponent overlooked."
+                "the opponent overlooked.\n"
+                "At least ONE new risk metric, data point, or analytical angle must be introduced "
+                "this round.\n"
+                "If you find common ground with the other analysts on key risk dimensions, "
+                "acknowledge it rather than fabricating disagreement."
             )
             agg_ref = f"Aggressive analyst said: {current_aggressive_response}" if current_aggressive_response.strip() else "(no aggressive argument)"
             neut_ref = f"Neutral analyst said: {current_neutral_response}" if current_neutral_response.strip() else "(no neutral argument)"
