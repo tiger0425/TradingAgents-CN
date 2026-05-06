@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from typing_extensions import TypedDict
 from langgraph.graph import MessagesState
 
@@ -78,3 +78,9 @@ class AgentState(MessagesState):
     position_opened_date: Annotated[str, "Date when current position was opened"] = ""
     limit_up_price: Annotated[float, "A-share daily limit-up price"] = 0.0
     limit_down_price: Annotated[float, "A-share daily limit-down price"] = 0.0
+
+    # Position tracking fields
+    cost_price: Annotated[float, "Average cost price of current position"] = 0.0
+    quantity: Annotated[int, "Number of shares held"] = 0
+    position_pnl: Annotated[float, "Unrealized P&L amount in quote currency"] = 0.0
+    position_pnl_pct: Annotated[Optional[float], "Unrealized P&L percentage (None for zero-cost)"] = None
