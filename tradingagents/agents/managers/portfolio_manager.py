@@ -39,10 +39,10 @@ def create_portfolio_manager(llm):
         market_type = state.get("market_type", "A_SHARE")
         limit_up = state.get("limit_up_price", 0.0)
         limit_down = state.get("limit_down_price", 0.0)
-        position_opened_date = state.get("position_opened_date", "")
-        trade_date = state.get("trade_date", "")
+        position_opened_date = state.get("position_opened_date") or ""
+        trade_date = state.get("trade_date") or ""
 
-        past_context = state.get("past_context", "")
+        past_context = state.get("past_context") or ""
         lessons_line = (
             f"- Lessons from prior decisions and outcomes:\n{past_context}\n"
             if past_context

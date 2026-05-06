@@ -21,6 +21,7 @@ def create_fundamentals_analyst(llm):
             get_balance_sheet,
             get_cashflow,
             get_income_statement,
+            get_insider_transactions,
         ]
 
         system_message = (
@@ -56,10 +57,7 @@ def create_fundamentals_analyst(llm):
 
         result = chain.invoke(state["messages"])
 
-        report = ""
-
-        if len(result.tool_calls) == 0:
-            report = result.content
+        report = result.content if result.content else ""
 
         return {
             "messages": [result],

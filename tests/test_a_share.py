@@ -105,7 +105,7 @@ class TestConstraints:
     def test_get_limit_prices_default(self):
         """Default limit rate should be 10%."""
         from tradingagents.dataflows.a_share_constraints import get_limit_prices
-        up, down = get_limit_prices(100.0)
+        up, down = get_limit_prices("000001", 100.0)
         assert up == 110.0
         assert down == 90.0
 

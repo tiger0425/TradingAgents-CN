@@ -27,7 +27,7 @@ Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
 Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
-Last bear argument: {current_response}
+{'Last bear argument: ' + current_response if current_response.strip() else '(No argument yet — this is the opening round. Present your initial thesis.)'}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
 """
 

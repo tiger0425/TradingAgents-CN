@@ -29,7 +29,7 @@ def get_language_instruction() -> str:
     Internal debate agents stay in English for reasoning quality.
     """
     from tradingagents.dataflows.config import get_config
-    lang = get_config().get("output_language", "English")
+    lang = (get_config().get("output_language") or "English")
     if lang.strip().lower() == "english":
         return ""
     return f" Write your entire response in {lang}."

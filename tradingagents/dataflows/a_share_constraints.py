@@ -4,17 +4,18 @@ These functions compute price constraints based on A-share exchange rules.
 """
 
 
-def get_limit_prices(prev_close: float, name: str = "") -> tuple:
+def get_limit_prices(symbol: str, prev_close: float, name: str = "") -> tuple:
     """计算 A 股涨跌停价格。
 
     Args:
+        symbol: 股票代码（6 位数字），用于判断板块（科创板/创业板/北交所）
         prev_close: 前收盘价
         name: 股票名称（用于检测 ST 股票）
 
     Returns:
         (limit_up, limit_down) 二元组，均为 float
     """
-    limit_rate = 0.10
+    limit_rate = get_limit_rate(symbol, name)
     limit_up = round(prev_close * (1 + limit_rate), 2)
     limit_down = round(prev_close * (1 - limit_rate), 2)
     return limit_up, limit_down
