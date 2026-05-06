@@ -616,7 +616,7 @@ def get_news(
         if df is None or df.empty:
             return f"No news found for {ticker}"
 
-        # Columns: 日期, 时间, 来源, 标题, 简介, 点击量
+        # Columns: 关键词, 新闻标题, 新闻内容, 发布时间, 文章来源, 新闻链接
         start_dt = _to_date(start_date)
         end_dt = _to_date(end_date)
 
@@ -625,29 +625,25 @@ def get_news(
 
         for _, row in df.iterrows():
             try:
-                # Parse the publication date
-                date_str = str(row.get("日期", ""))
-                time_str = str(row.get("时间", ""))
+                # Parse the publication datetime (format: "2026-04-25 10:15:22")
+                pub_datetime = str(row.get("发布时间", ""))
+                date_str = pub_datetime[:10] if len(pub_datetime) >= 10 else ""
+                time_str = pub_datetime[11:19] if len(pub_datetime) >= 19 else ""
 
                 if date_str:
                     pub_dt = datetime.strptime(date_str, "%Y-%m-%d")
                     if not (start_dt <= pub_dt <= end_dt + relativedelta(days=1)):
                         continue
 
-                title = row.get("标题", "No title")
-                source = row.get("来源", "Unknown")
-                summary = row.get("简介", "")
-                clicks = row.get("点击量", "")
+                title = str(row.get("新闻标题", "No title"))
+                source = str(row.get("文章来源", "Unknown"))
+                summary = str(row.get("新闻内容", ""))
 
-                pub_info = f"{date_str}"
-                if time_str:
-                    pub_info += f" {time_str}"
+                pub_info = f"{pub_datetime}" if pub_datetime else date_str
 
-                news_str += f"### {title} (source: {source}, {pub_info})\n"
+                news_str += f"### {title}  (source: {source}, {pub_info})\n"
                 if summary:
                     news_str += f"{summary}\n"
-                if clicks:
-                    news_str += f"Clicks: {clicks}\n"
                 news_str += "\n"
                 count += 1
             except (ValueError, KeyError):
