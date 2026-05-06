@@ -434,6 +434,7 @@ class TradingAgentsGraph:
                     limit_up, limit_down = get_limit_prices(company_name, prev_close)
                     init_agent_state["limit_up_price"] = limit_up
                     init_agent_state["limit_down_price"] = limit_down
+                    init_agent_state["current_price"] = prev_close
                     init_agent_state["market_type"] = "A_SHARE"
                     logger.info(
                         "A-share limits for %s: up=%.2f down=%.2f (prev_close=%.2f)",

@@ -47,20 +47,17 @@ def create_portfolio_manager(llm):
         cost_price = state.get("cost_price", 0.0)
         quantity = state.get("quantity", 0)
 
-        # Build position context if cost_price and quantity are available
         position_context = ""
         if cost_price > 0 and quantity > 0:
-            position_context = f"""
+            current_price = state.get("current_price", 0.0)
+            if current_price > 0:
+                position_context = format_position_for_pm(cost_price, quantity, current_price)
+            else:
+                position_context = f"""
 **当前持仓：**
 - 成本价：{cost_price:.2f}
 - 持有股数：{quantity}
 """
-            # If position_pnl is already computed in state, include it
-            position_pnl = state.get("position_pnl", 0.0)
-            position_pnl_pct = state.get("position_pnl_pct")
-            if position_pnl_pct is not None:
-                pnl_str = f"{position_pnl:+.2f} ({position_pnl_pct:+.2%})"
-                position_context += f"- 浮动盈亏：{pnl_str}\n"
 
         past_context = state.get("past_context") or ""
         lessons_line = format_past_context(past_context)
