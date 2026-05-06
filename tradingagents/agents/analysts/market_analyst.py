@@ -1,6 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
+    get_current_price,
     get_indicators,
     get_language_instruction,
     get_stock_data,
@@ -15,6 +16,7 @@ def create_market_analyst(llm):
         instrument_context = build_instrument_context(state["company_of_interest"])
 
         tools = [
+            get_current_price,
             get_stock_data,
             get_indicators,
         ]
