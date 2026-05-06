@@ -430,3 +430,81 @@ class TestPMPrompt:
         from tradingagents.dataflows.position_utils import format_position_for_pm
         result = format_position_for_pm(0.0, 100, 100.0)
         assert result == ""
+
+
+class TestTradingGraph:
+    """Tests for TradingGraph propagate extension and auto-update."""
+
+    def test_parse_rating_buy(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "**Rating**: Buy"
+        assert parse_rating(text) == "Buy"
+
+    def test_parse_rating_sell(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "**Rating**: Sell"
+        assert parse_rating(text) == "Sell"
+
+    def test_parse_rating_hold(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "**Rating**: Hold\nSome text"
+        assert parse_rating(text) == "Hold"
+
+    def test_parse_rating_overweight(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "**Rating**: Overweight"
+        assert parse_rating(text) == "Overweight"
+
+    def test_parse_rating_underweight(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "**Rating**: Underweight"
+        assert parse_rating(text) == "Underweight"
+
+    def test_parse_rating_not_found(self):
+        from tradingagents.agents.utils.rating import parse_rating
+        text = "No rating here"
+        assert parse_rating(text) == "Hold"
+
+    def test_position_state_save_and_load(self, tmp_path):
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        mgr = PositionStateManager({"position_state_path": str(tmp_path / "pos.json")})
+        mgr.save("600519", 1580.0, 100, "2026-01-15")
+        result = mgr.load("600519")
+        assert result is not None
+        assert result["cost_price"] == 1580.0
+
+    def test_init_creates_position_state_manager(self):
+        """Verify PositionStateManager import works."""
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        assert PositionStateManager is not None
+
+
+class TestCLIInput:
+    """Tests for CLI position input functions."""
+
+    def test_get_position_cost_price_imports(self):
+        from cli.main import get_position_cost_price
+        assert callable(get_position_cost_price)
+
+    def test_get_position_quantity_imports(self):
+        from cli.main import get_position_quantity
+        assert callable(get_position_quantity)
+
+    def test_get_position_opened_date_imports(self):
+        from cli.main import get_position_opened_date
+        assert callable(get_position_opened_date)
+
+    def test_user_selections_has_position_keys(self):
+        import inspect
+        from cli import main
+        source = inspect.getsource(main.get_user_selections)
+        assert "position_cost_price" in source
+        assert "position_quantity" in source
+        assert "position_opened_date" in source
+
+    def test_run_analysis_passes_position_params(self):
+        import inspect
+        from cli import main
+        source = inspect.getsource(main.run_analysis)
+        assert "cost_price=float" in source
+        assert "cost_price > 0 and quantity > 0" in source

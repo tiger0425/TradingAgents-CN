@@ -18,6 +18,8 @@ from tradingagents.llm_clients import create_llm_client
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.agents.utils.memory import TradingMemoryLog
+from tradingagents.agents.utils.position_state import PositionStateManager
+from tradingagents.agents.utils.rating import parse_rating
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.agents.utils.agent_states import (
     AgentState,
@@ -101,6 +103,8 @@ class TradingAgentsGraph:
         self.quick_thinking_llm = quick_client.get_llm()
         
         self.memory_log = TradingMemoryLog(self.config)
+        
+        self.position_state = PositionStateManager(self.config)
 
         # Create tool nodes
         self.tool_nodes = self._create_tool_nodes()
@@ -326,7 +330,10 @@ class TradingAgentsGraph:
         if updates:
             self.memory_log.batch_update_with_outcomes(updates)
 
-    def propagate(self, company_name, trade_date):
+    def propagate(self, company_name, trade_date,
+                  cost_price: float = 0.0,
+                  quantity: int = 0,
+                  position_opened_date: str = ""):
         """Run the trading agents graph for a company on a specific date.
 
         When ``checkpoint_enabled`` is set in config, the graph is recompiled
@@ -337,6 +344,23 @@ class TradingAgentsGraph:
 
         # Resolve any pending memory-log entries for this ticker before the pipeline runs.
         self._resolve_pending_entries(company_name)
+
+        # Load persisted position if user didn't provide new one
+        if cost_price <= 0 and quantity <= 0:
+            loaded = self.position_state.load(company_name)
+            if loaded is not None:
+                cost_price = loaded["cost_price"]
+                quantity = loaded["quantity"]
+                position_opened_date = loaded.get("opened_date", "")
+                logger.info(
+                    "Loaded persisted position for %s: cost=%.2f qty=%d",
+                    company_name, cost_price, quantity,
+                )
+
+        # Store for later use in _run_graph
+        self._pending_cost_price = cost_price
+        self._pending_quantity = quantity
+        self._pending_position_opened_date = position_opened_date
 
         # Recompile with a checkpointer if the user opted in.
         if self.config.get("checkpoint_enabled"):
@@ -357,7 +381,14 @@ class TradingAgentsGraph:
                 logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date)
+            result = self._run_graph(company_name, trade_date)
+            self._auto_update_position(
+                company_name, str(trade_date),
+                result[0]["final_trade_decision"],
+                getattr(self, '_pending_cost_price', 0.0),
+                getattr(self, '_pending_quantity', 0),
+            )
+            return result
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -369,7 +400,10 @@ class TradingAgentsGraph:
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
         init_agent_state = self.propagator.create_initial_state(
-            company_name, trade_date, past_context=past_context
+            company_name, trade_date, past_context=past_context,
+            cost_price=getattr(self, '_pending_cost_price', 0.0),
+            quantity=getattr(self, '_pending_quantity', 0),
+            position_opened_date=getattr(self, '_pending_position_opened_date', ''),
         )
 
         # Compute A-share limit up/down prices and inject into initial state.
@@ -495,3 +529,60 @@ class TradingAgentsGraph:
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""
         return self.signal_processor.process_signal(full_signal)
+
+    def _auto_update_position(self, ticker: str, trade_date: str,
+                              final_decision: str, cost_price: float,
+                              quantity: int) -> None:
+        """Auto-update simulated position based on final decision."""
+        market_type = self.config.get("market_type", "A_SHARE")
+        if market_type != "A_SHARE":
+            return
+
+        existing = self.position_state.load(ticker)
+        if existing and existing.get("updated_at", "").startswith(trade_date):
+            logger.info("Skipping auto-update for %s on %s (already updated)", ticker, trade_date)
+            return
+
+        rating = parse_rating(final_decision)
+
+        if rating in ("Buy", "Overweight"):
+            if quantity == 0:
+                close_price = self._get_analysis_day_close(ticker, trade_date)
+                if close_price is not None:
+                    self.position_state.save(ticker, close_price, 100, trade_date)
+                    logger.info("Auto-opened position for %s at %.2f", ticker, close_price)
+
+        elif rating in ("Sell", "Underweight"):
+            if quantity > 0:
+                from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+                existing = self.position_state.load(ticker)
+                if existing:
+                    opened = existing.get("opened_date", "")
+                    t1_check = format_t_plus_1_constraint(opened, trade_date, "A_SHARE")
+                    if "T+1" in t1_check and "CANNOT" in t1_check.upper():
+                        logger.info("T+1 blocks sell for %s (opened %s)", ticker, opened)
+                        return
+                    close_price = self._get_analysis_day_close(ticker, trade_date)
+                    if close_price is not None:
+                        self.position_state.reset(ticker)
+                        logger.info("Auto-closed position for %s at %.2f", ticker, close_price)
+
+    def _get_analysis_day_close(self, ticker: str, trade_date: str) -> Optional[float]:
+        """Get closing price for ticker on trade_date."""
+        try:
+            from tradingagents.dataflows.akshare import _to_sina_symbol
+            import akshare as ak
+
+            sina_sym = _to_sina_symbol(ticker)
+            df = ak.stock_zh_a_daily(
+                symbol=sina_sym,
+                start_date=trade_date,
+                end_date=trade_date,
+                adjust="qfq",
+            )
+            if df is not None and not df.empty:
+                return float(df.iloc[0]["close"])
+            return None
+        except Exception as e:
+            logger.warning("Could not get close price for %s on %s: %s", ticker, trade_date, e)
+            return None

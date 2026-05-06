@@ -540,6 +540,36 @@ def get_user_selections():
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
 
+    # Step 4.5: Position cost price (optional)
+    console.print(
+        create_question_box(
+            "Step 4.5: Position Cost Price",
+            "Enter your average cost price for this stock (optional, press Enter to skip)"
+        )
+    )
+    position_cost_price = get_position_cost_price()
+
+    # Step 4.6: Position quantity (optional, only if cost price provided)
+    position_quantity = None
+    position_opened_date = None
+    if position_cost_price is not None:
+        console.print(
+            create_question_box(
+                "Step 4.6: Position Quantity",
+                "Enter the number of shares you hold (optional)"
+            )
+        )
+        position_quantity = get_position_quantity()
+
+        # Step 4.7: Position opened date (optional)
+        console.print(
+            create_question_box(
+                "Step 4.7: Position Opened Date",
+                "Enter the date you opened this position (optional)"
+            )
+        )
+        position_opened_date = get_position_opened_date(analysis_date)
+
     # Step 5: Research depth
     console.print(
         create_question_box(
@@ -609,6 +639,9 @@ def get_user_selections():
         "openai_reasoning_effort": reasoning_effort,
         "anthropic_effort": anthropic_effort,
         "output_language": output_language,
+        "position_cost_price": position_cost_price,
+        "position_quantity": position_quantity,
+        "position_opened_date": position_opened_date,
     }
 
 
@@ -634,6 +667,67 @@ def get_analysis_date():
             console.print(
                 "[red]Error: Invalid date format. Please use YYYY-MM-DD[/red]"
             )
+
+
+def get_position_cost_price() -> Optional[float]:
+    """Get cost price from user input. Returns None when skipped."""
+    while True:
+        value = typer.prompt(
+            "输入当前持仓成本价（按 Enter 跳过，仅分析）",
+            default="",
+            show_default=False,
+        ).strip()
+        if not value:
+            return None
+        try:
+            cost = float(value)
+            if cost <= 0:
+                console.print("[red]成本价必须大于 0[/red]")
+                continue
+            return cost
+        except ValueError:
+            console.print("[red]请输入有效数字[/red]")
+
+
+def get_position_quantity() -> Optional[int]:
+    """Get position quantity from user input. Returns None when skipped."""
+    while True:
+        value = typer.prompt(
+            "输入当前持仓股数（按 Enter 跳过）",
+            default="",
+            show_default=False,
+        ).strip()
+        if not value:
+            return None
+        try:
+            qty = int(value)
+            if qty <= 0:
+                console.print("[red]数量必须为正整数[/red]")
+                continue
+            return qty
+        except ValueError:
+            console.print("[red]请输入整数[/red]")
+
+
+def get_position_opened_date(trade_date: str) -> Optional[str]:
+    """Get position opened date. Must be on or before trade_date. Returns None when skipped."""
+    while True:
+        value = typer.prompt(
+            "输入开仓日期 YYYY-MM-DD（按 Enter 跳过）",
+            default="",
+            show_default=False,
+        ).strip()
+        if not value:
+            return None
+        try:
+            opened = datetime.datetime.strptime(value, "%Y-%m-%d")
+            trade = datetime.datetime.strptime(trade_date, "%Y-%m-%d")
+            if opened.date() > trade.date():
+                console.print("[red]开仓日期不能晚于分析日期[/red]")
+                continue
+            return value
+        except ValueError:
+            console.print("[red]日期格式无效，请使用 YYYY-MM-DD[/red]")
 
 
 def save_report_to_disk(final_state, ticker: str, save_path: Path):
@@ -1043,10 +1137,26 @@ def run_analysis(checkpoint: bool = False):
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
+        # Extract position parameters
+        cost_price = selections.get("position_cost_price") or 0.0
+        quantity = selections.get("position_quantity") or 0
+        pos_opened_date = selections.get("position_opened_date") or ""
+
         # Initialize state and get graph args with callbacks
         init_agent_state = graph.propagator.create_initial_state(
-            selections["ticker"], selections["analysis_date"]
+            selections["ticker"], selections["analysis_date"],
+            cost_price=float(cost_price),
+            quantity=int(quantity),
+            position_opened_date=str(pos_opened_date),
         )
+
+        # Log position data if available
+        if cost_price > 0 and quantity > 0:
+            message_buffer.add_message(
+                "System",
+                f"Position loaded: cost=¥{float(cost_price):.2f}, shares={int(quantity)}"
+            )
+
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
         args = graph.propagator.get_graph_args(callbacks=[stats_handler])
