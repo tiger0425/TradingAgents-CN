@@ -36,8 +36,9 @@ from tradingagents.agents.utils.agent_utils import (
     get_income_statement,
     get_news,
     get_insider_transactions,
-    get_global_news
+    get_global_news,
 )
+from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
@@ -168,7 +169,9 @@ class TradingAgentsGraph:
             ),
             "social": ToolNode(
                 [
-                    # News tools for social media analysis
+                    # Social sentiment behavioral metrics (attention, hot ranking, etc.)
+                    get_social_sentiment_tool,
+                    # News tools for cross-validation
                     get_news,
                 ]
             ),

@@ -907,3 +907,77 @@ def get_current_price(
         return f"Error: {e}"
     except Exception as e:
         return f"Error fetching current price for {symbol}: {str(e)}"
+
+
+# ============================================================================
+# 11. Social Sentiment — Behavioral Metrics (East Money + Xueqiu)
+# ============================================================================
+
+def get_social_sentiment(symbol: str) -> str:
+    """Get A-share social sentiment behavioral metrics via akshare."""
+    try:
+        _ensure_akshare()
+        lines = [f"## Social Sentiment Analysis for {symbol}", ""]
+
+        try:
+            df = ak.stock_comment_em()
+            row = df[df["代码"] == symbol] if df is not None else None
+            if row is not None and not row.empty:
+                r = row.iloc[0]
+                name = r.get("名称", symbol)
+                lines[0] = f"## Social Sentiment Analysis for {symbol} ({name})"
+                lines.append("### Attention Index (关注指数)")
+                for col, label in [("关注指数", "Index"), ("关注度变化", "Change"),
+                                   ("最新价", "Latest Price"), ("涨跌幅", "Change %")]:
+                    if col in r.index and pd.notna(r[col]):
+                        lines.append(f"- {label}: {r[col]}")
+        except Exception as e:
+            lines.append(f"*Attention index unavailable: {e}*")
+        lines.append("")
+
+        try:
+            focus_df = ak.stock_comment_detail_scrd_focus_em(symbol=symbol)
+            if focus_df is not None and not focus_df.empty:
+                lines.append("### Attention Trend (近期关注度趋势)")
+                lines.append(focus_df.head(7).to_string(index=False))
+        except Exception as e:
+            lines.append(f"*Attention trend unavailable: {e}*")
+        lines.append("")
+
+        try:
+            desire_df = ak.stock_comment_detail_scrd_desire_em(symbol=symbol)
+            if desire_df is not None and not desire_df.empty:
+                lines.append("### Participation Willingness (参与意愿)")
+                lines.append(desire_df.head(7).to_string(index=False))
+        except Exception as e:
+            lines.append(f"*Participation data unavailable: {e}*")
+        lines.append("")
+
+        try:
+            hot_df = ak.stock_hot_rank_detail_realtime_em()
+            hot_row = hot_df[hot_df["代码"] == symbol] if hot_df is not None else None
+            if hot_row is not None and not hot_row.empty:
+                lines.append("### Real-time Popularity Ranking (实时热度排名)")
+                for _, hr in hot_row.iterrows():
+                    parts = [f"{label}: {hr[col]}" for col, label in
+                             [("排名", "Rank"), ("热度", "Score")]
+                             if col in hr.index and pd.notna(hr[col])]
+                    if parts:
+                        lines.append(f"- {', '.join(parts)}")
+        except Exception as e:
+            lines.append(f"*Hot ranking unavailable: {e}*")
+        lines.append("")
+
+        try:
+            xq_df = ak.stock_hot_follow_xq(symbol=symbol)
+            if xq_df is not None and not xq_df.empty:
+                lines.append("### Xueqiu Community (雪球关注)")
+                lines.append(xq_df.head(10).to_string(index=False))
+        except Exception as e:
+            lines.append(f"*Xueqiu data unavailable: {e}*")
+        lines.append("")
+
+        lines.append(f"*Data source: akshare | Retrieved: {datetime.now():%Y-%m-%d %H:%M:%S}*")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"**Social sentiment data temporarily unavailable.** Error: {e}"
