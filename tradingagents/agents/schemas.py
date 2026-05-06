@@ -72,14 +72,18 @@ class ResearchPlan(BaseModel):
             "The investment recommendation. Exactly one of Buy / Overweight / "
             "Hold / Underweight / Sell. Reserve Hold for situations where the "
             "evidence on both sides is genuinely balanced; otherwise commit to "
-            "the side with the stronger arguments."
+            "the side with the stronger arguments. "
+            "Chinese: 投资建议评级，从 Buy / Overweight / Hold / Underweight / Sell "
+            "中选择一个。仅当多空双方证据确实平衡时才选择 Hold，否则选择论据更强的一方。"
         ),
     )
     rationale: str = Field(
         description=(
             "Conversational summary of the key points from both sides of the "
             "debate, ending with which arguments led to the recommendation. "
-            "Speak naturally, as if to a teammate."
+            "Speak naturally, as if to a teammate. "
+            "Chinese: 对多空双方辩论要点的对话式总结，结尾说明哪些论据最终促成了该建议。"
+            "以自然的语气书写，如同与团队成员交流。"
         ),
     )
     strategic_actions: str = Field(
@@ -116,12 +120,16 @@ class TraderProposal(BaseModel):
     """
 
     action: TraderAction = Field(
-        description="The transaction direction. Exactly one of Buy / Hold / Sell.",
+        description=(
+            "The transaction direction. Exactly one of Buy / Hold / Sell. "
+            "Chinese: 交易方向，从 Buy / Hold / Sell 中选择一个。"
+        ),
     )
     reasoning: str = Field(
         description=(
             "The case for this action, anchored in the analysts' reports and "
-            "the research plan. Two to four sentences."
+            "the research plan. Two to four sentences. "
+            "Chinese: 基于分析师报告和研究计划阐述该交易操作的依据。2-4 句话。"
         ),
     )
     entry_price: Optional[float] = Field(
@@ -180,20 +188,26 @@ class PortfolioDecision(BaseModel):
     rating: PortfolioRating = Field(
         description=(
             "The final position rating. Exactly one of Buy / Overweight / Hold / "
-            "Underweight / Sell, picked based on the analysts' debate."
+            "Underweight / Sell, picked based on the analysts' debate. "
+            "Chinese: 最终持仓评级，从 Buy / Overweight / Hold / Underweight / Sell "
+            "中选择一个，基于分析师辩论结果决定。"
         ),
     )
     executive_summary: str = Field(
         description=(
             "A concise action plan covering entry strategy, position sizing, "
-            "key risk levels, and time horizon. Two to four sentences."
+            "key risk levels, and time horizon. Two to four sentences. "
+            "Chinese: 简洁的行动计划，涵盖入场策略、仓位大小、关键风险水平和时间跨度。"
+            "2-4 句话。"
         ),
     )
     investment_thesis: str = Field(
         description=(
             "Detailed reasoning anchored in specific evidence from the analysts' "
             "debate. If prior lessons are referenced in the prompt context, "
-            "incorporate them; otherwise rely solely on the current analysis."
+            "incorporate them; otherwise rely solely on the current analysis. "
+            "Chinese: 基于分析师辩论中具体证据的详细推理。如果提示上下文中引用了历史经验，"
+            "请将其纳入分析；否则仅基于当前分析进行论述。"
         ),
     )
     price_target: Optional[float] = Field(

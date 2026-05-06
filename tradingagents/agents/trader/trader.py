@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage
 from tradingagents.dataflows.a_share_constraints import format_limit_constraint
 
 from tradingagents.agents.schemas import TraderProposal, render_trader_proposal
-from tradingagents.agents.utils.agent_utils import build_instrument_context
+from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -31,9 +31,18 @@ def create_trader(llm):
             {
                 "role": "system",
                 "content": (
-                    "You are a trading agent analyzing market data to make investment decisions. "
-                    "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
-                    "Anchor your reasoning in the analysts' reports and the research plan."
+                    "You are the Trader — responsible for translating the Research Manager's directional "
+                    "recommendation into a concrete transaction proposal (specific action, entry price, "
+                    "stop-loss, and position size). The Research Manager decides the strategic direction; "
+                    "you execute the tactical details.\n\n"
+                    "**Signal Conflict Resolution:** When analyst reports give contradictory signals, "
+                    "prioritize by: Fundamentals (long-term conviction) > Technical Analysis (medium-term) "
+                    "> News/Sentiment (short-term noise). If conflict is severe, prefer Hold and explain why.\n\n"
+                    "**Price Constraint Compliance:** The asset may have daily price limits. Ensure "
+                    "entry_price and stop_loss fall within the allowed range. If limits prevent execution "
+                    "at the desired level, flag this clearly.\n\n"
+                    "Be decisive and ground every conclusion in specific analyst evidence."
+                    + get_language_instruction()
                 ),
             },
             {

@@ -16,7 +16,27 @@ def create_aggressive_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
-        prompt = f"""As the Aggressive Risk Analyst, your role is to actively champion high-reward, high-risk opportunities, emphasizing bold strategies and competitive advantages. When evaluating the trader's decision or plan, focus intently on the potential upside, growth potential, and innovative benefits—even when these come with elevated risk. Use the provided market data and sentiment analysis to strengthen your arguments and challenge the opposing views. Specifically, respond directly to each point made by the conservative and neutral analysts, countering with data-driven rebuttals and persuasive reasoning. Highlight where their caution might miss critical opportunities or where their assumptions may be overly conservative. Here is the trader's decision:
+        count = risk_debate_state["count"]
+        is_first_round = count == 0
+
+        if is_first_round:
+            round_instruction = (
+                "This is the OPENING ROUND. Present your initial risk assessment "
+                "independently — no arguments from other analysts exist yet. "
+                "Do NOT reference or respond to other viewpoints."
+            )
+            cons_ref = "(no conservative argument yet)"
+            neut_ref = "(no neutral argument yet)"
+        else:
+            round_instruction = (
+                "This is a REBUTTAL ROUND. Focus on countering the specific points "
+                "raised by the other analysts. Introduce risk metrics or considerations "
+                "the opponent overlooked."
+            )
+            cons_ref = f"Conservative analyst said: {current_conservative_response}" if current_conservative_response.strip() else "(no conservative argument)"
+            neut_ref = f"Neutral analyst said: {current_neutral_response}" if current_neutral_response.strip() else "(no neutral argument)"
+
+        prompt = f"""As the Aggressive Risk Analyst, your role is to actively champion high-reward, high-risk opportunities, emphasizing bold strategies and competitive advantages. {round_instruction} When evaluating the trader's decision or plan, focus intently on the potential upside, growth potential, and innovative benefits—even when these come with elevated risk. Use the provided market data and sentiment analysis to strengthen your arguments and challenge the opposing views. Specifically, respond directly to each point made by the conservative and neutral analysts, countering with data-driven rebuttals and persuasive reasoning. Highlight where their caution might miss critical opportunities or where their assumptions may be overly conservative. Here is the trader's decision:
 
 {trader_decision}
 
@@ -26,7 +46,7 @@ Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
-Here is the current conversation history: {history} {'Conservative analyst said: ' + current_conservative_response if current_conservative_response.strip() else 'Conservative analyst: (no argument yet)'}. {'Neutral analyst said: ' + current_neutral_response if current_neutral_response.strip() else 'Neutral analyst: (no argument yet)'}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
+Here is the current conversation history: {history} {cons_ref}. {neut_ref}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
 Engage actively by addressing any specific concerns raised, refuting the weaknesses in their logic, and asserting the benefits of risk-taking to outpace market norms. Maintain a focus on debating and persuading, not just presenting data. Challenge each counterpoint to underscore why a high-risk approach is optimal. Output conversationally as if you are speaking without any special formatting."""
 

@@ -16,7 +16,27 @@ def create_conservative_debator(llm):
 
         trader_decision = state["trader_investment_plan"]
 
-        prompt = f"""As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. You prioritize stability, security, and risk mitigation, carefully assessing potential losses, economic downturns, and market volatility. When evaluating the trader's decision or plan, critically examine high-risk elements, pointing out where the decision may expose the firm to undue risk and where more cautious alternatives could secure long-term gains. Here is the trader's decision:
+        count = risk_debate_state["count"]
+        is_first_round = count == 0
+
+        if is_first_round:
+            round_instruction = (
+                "This is the OPENING ROUND. Present your initial risk assessment "
+                "independently — no arguments from other analysts exist yet. "
+                "Do NOT reference or respond to other viewpoints."
+            )
+            agg_ref = "(no aggressive argument yet)"
+            neut_ref = "(no neutral argument yet)"
+        else:
+            round_instruction = (
+                "This is a REBUTTAL ROUND. Focus on countering the specific points "
+                "raised by the other analysts. Introduce risk metrics or considerations "
+                "the opponent overlooked."
+            )
+            agg_ref = f"Aggressive analyst said: {current_aggressive_response}" if current_aggressive_response.strip() else "(no aggressive argument)"
+            neut_ref = f"Neutral analyst said: {current_neutral_response}" if current_neutral_response.strip() else "(no neutral argument)"
+
+        prompt = f"""As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. {round_instruction} You prioritize stability, security, and risk mitigation, carefully assessing potential losses, economic downturns, and market volatility. When evaluating the trader's decision or plan, critically examine high-risk elements, pointing out where the decision may expose the firm to undue risk and where more cautious alternatives could secure long-term gains. Here is the trader's decision:
 
 {trader_decision}
 
@@ -26,7 +46,7 @@ Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
-Here is the current conversation history: {history} {'Aggressive analyst said: ' + current_aggressive_response if current_aggressive_response.strip() else 'Aggressive analyst: (no argument yet)'}. {'Neutral analyst said: ' + current_neutral_response if current_neutral_response.strip() else 'Neutral analyst: (no argument yet)'}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
+Here is the current conversation history: {history} {agg_ref}. {neut_ref}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
 Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting."""
 

@@ -55,6 +55,24 @@ def build_instrument_context(ticker: str) -> str:
         "Use this exact ticker in every tool call, report, and recommendation."
     )
 
+def format_past_context(past_context: str) -> str:
+    """Format past trading memory context for Portfolio Manager prompt injection.
+
+    Adds structured section headers and separates same-ticker vs cross-ticker lessons.
+    Returns empty string if past_context is empty.
+    """
+    if not past_context or not past_context.strip():
+        return ""
+    lines = [
+        "**历史经验教训（来自过往决策）：**",
+        "",
+        past_context.strip(),
+        "",
+        "---",
+    ]
+    return "\n".join(lines)
+
+
 def create_msg_delete():
     def delete_messages(state):
         """Clear messages and add placeholder for Anthropic compatibility"""

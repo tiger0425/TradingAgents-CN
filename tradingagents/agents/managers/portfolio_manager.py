@@ -14,6 +14,7 @@ from tradingagents.agents.schemas import PortfolioDecision, render_pm_decision
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
+    format_past_context,
 )
 from tradingagents.agents.utils.structured import (
     bind_structured,
@@ -43,11 +44,7 @@ def create_portfolio_manager(llm):
         trade_date = state.get("trade_date") or ""
 
         past_context = state.get("past_context") or ""
-        lessons_line = (
-            f"- Lessons from prior decisions and outcomes:\n{past_context}\n"
-            if past_context
-            else ""
-        )
+        lessons_line = format_past_context(past_context)
 
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
