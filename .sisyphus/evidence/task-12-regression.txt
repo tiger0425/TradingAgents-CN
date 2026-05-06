@@ -1,0 +1,55 @@
+================================================================================
+Task 12 - 回归测试验证报告
+日期: 2026-05-06
+项目: position-cost-guidance (Wave 3)
+================================================================================
+
+一、新持仓功能测试 (test_position_tracking.py)
+--------------------------------------------------------------------------------
+命令: python3 -m pytest tests/test_position_tracking.py -v
+结果: 76 passed, 0 failed
+说明: 全部新测试通过，持仓成本价与操作指导功能正确。
+
+二、已有测试回归检查 (排除新测试)
+--------------------------------------------------------------------------------
+命令: python3 -m pytest tests/ -v --ignore=tests/test_position_tracking.py
+结果: 129 passed, 3 failed (共132项)
+
+三、失败详情分析
+--------------------------------------------------------------------------------
+
+失败 1: TestDeferredReflection::test_fetch_returns_valid_ticker
+  文件: tests/test_memory_log.py:499
+  错误: AssertionError: assert (None is not None)
+  原因: MagicMock(spec=TradingAgentsGraph) 未提供 config 属性，
+        _fetch_returns() 在 line 215 访问 self.config.get("market_type") 时抛出
+        AttributeError: Mock object has no attribute 'config'
+        exception 被捕获后返回 (None, None, None)
+  根因: 该测试创建 mock 时未设置 config。_fetch_returns 的 self.config 访问
+        由 commit 7e77651 (A股收益计算) 引入，早于本任务。
+  判定: 已存在的缺陷，非本次变更导致。
+
+失败 2: TestDeferredReflection::test_fetch_returns_spy_shorter_than_stock
+  文件: tests/test_memory_log.py:535
+  错误: AssertionError: assert (None is not None)
+  原因: 同失败 1，mock 缺少 config 属性导致 exception 被捕获。
+  判定: 已存在的缺陷，非本次变更导致。
+
+失败 3: TestPortfolioManagerInjection::test_pm_prompt_includes_past_context
+  文件: tests/test_memory_log.py:598
+  错误: AssertionError: assert 'Lessons from prior decisions and outcomes' in [prompt]
+  原因: 测试期望英文标题 "Lessons from prior decisions and outcomes"，
+        但 format_past_context() 输出中文 "**历史经验教训（来自过往决策）：**"
+        （由 commit 9d533a8 中文本地化引入，早于本任务）。
+  判定: 已存在的缺陷，非本次变更导致。
+
+四、回归判定
+--------------------------------------------------------------------------------
+本次变更引发的回归: 0 项
+已存在的测试缺陷: 3 项（与 position-cost-guidance 功能无关）
+
+所有 position-cost-guidance 相关功能（持仓状态管理、P&L 计算、
+Trader/PM prompt 注入、CLI 输入、自动开平仓、A股约束）测试全部通过，
+无回归。
+
+================================================================================

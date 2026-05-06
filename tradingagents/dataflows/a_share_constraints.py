@@ -3,6 +3,8 @@ A-share market trading constraints: limit up/down, T+1 rules, and format helpers
 These functions compute price constraints based on A-share exchange rules.
 """
 
+from typing import Optional
+
 
 def get_limit_prices(symbol: str, prev_close: float, name: str = "") -> tuple:
     """计算 A 股涨跌停价格。
@@ -70,6 +72,15 @@ def format_t_plus_1_constraint(
     try:
         opened = datetime.strptime(position_opened_date, "%Y-%m-%d")
         current = datetime.strptime(trade_date, "%Y-%m-%d")
+
+        # Same-day opened position check
+        if position_opened_date == trade_date:
+            return (
+                f"\n\n**T+1 constraint:** Position was opened today ({position_opened_date}). "
+                f"Under A-share T+1 rules, this position CANNOT be sold today. "
+                f"Your proposal MUST NOT include Sell or significant position reduction."
+            )
+
         days_held = (current - opened).days
         if days_held < 1:
             return (
@@ -81,3 +92,54 @@ def format_t_plus_1_constraint(
     except (ValueError, TypeError):
         pass
     return ""
+
+
+def format_position_constraint(
+    cost_price: float,
+    quantity: int,
+    limit_up: float,
+    limit_down: float,
+    current_price: Optional[float] = None,
+) -> str:
+    """返回持仓相关的市场约束提示文本。
+
+    Checks:
+    1. If cost_price > limit_up: position cannot be profitable at current limit
+    2. If cost_price < limit_down: position is deeply underwater at limit
+    3. (Optional) If current_price is provided: check position vs current price
+
+    Returns empty string when no constraints apply (no position or prices unavailable).
+    """
+    if cost_price <= 0 or quantity <= 0:
+        return ""
+
+    lines = []
+
+    if limit_up > 0 and cost_price > limit_up:
+        lines.append(
+            f"- 注意：成本价 {cost_price:.2f} 高于涨停价 {limit_up:.2f}，"
+            f"当前涨停范围内无法盈利。"
+        )
+
+    if limit_down > 0 and cost_price < limit_down:
+        lines.append(
+            f"- 注意：成本价 {cost_price:.2f} 低于跌停价 {limit_down:.2f}，"
+            f"当前跌停范围内浮亏较大。"
+        )
+
+    if current_price is not None and limit_up > 0 and limit_down > 0:
+        if current_price >= limit_up:
+            lines.append(
+                f"- 当前价 {current_price:.2f} 已达涨停价 {limit_up:.2f}，"
+                f"买入可能无法成交。"
+            )
+        elif current_price <= limit_down:
+            lines.append(
+                f"- 当前价 {current_price:.2f} 已达跌停价 {limit_down:.2f}，"
+                f"卖出可能无法成交。"
+            )
+
+    if not lines:
+        return ""
+
+    return "\n**Position Market Constraints:**\n" + "\n".join(lines) + "\n"

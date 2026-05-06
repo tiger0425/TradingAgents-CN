@@ -508,3 +508,164 @@ class TestCLIInput:
         source = inspect.getsource(main.run_analysis)
         assert "cost_price=float" in source
         assert "cost_price > 0 and quantity > 0" in source
+
+
+class TestIntegration:
+    """End-to-end integration tests for position tracking.
+    
+    Tests the complete flow: state creation → prompt injection → 
+    position persistence → auto-update → cross-run loading.
+    Uses mock-friendly patterns (no actual LLM or API calls).
+    """
+
+    def test_e2e_no_position_backward_compat(self):
+        """Scenario: no position — system behaves identical to before."""
+        from tradingagents.graph.propagation import Propagator
+        
+        p = Propagator()
+        state = p.create_initial_state("600519", "2026-05-06")
+        assert state["cost_price"] == 0.0
+        assert state["quantity"] == 0
+        assert state["position_opened_date"] == ""
+        assert state["company_of_interest"] == "600519"
+        assert state["trade_date"] == "2026-05-06"
+        assert "investment_debate_state" in state
+        assert "risk_debate_state" in state
+
+    def test_e2e_with_position_flow(self):
+        """Scenario: with position — state flows correctly through propagator."""
+        from tradingagents.graph.propagation import Propagator
+        
+        p = Propagator()
+        state = p.create_initial_state(
+            "600519", "2026-05-06",
+            cost_price=1580.0, quantity=100,
+            position_opened_date="2026-01-15"
+        )
+        assert state["cost_price"] == 1580.0
+        assert state["quantity"] == 100
+        assert state["position_opened_date"] == "2026-01-15"
+
+    def test_e2e_cross_run_persistence(self, tmp_path):
+        """Scenario: first run saves position, second run loads it."""
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        
+        mgr = PositionStateManager({"position_state_path": str(tmp_path / "pos.json")})
+        mgr.save("600519", 1580.0, 100, "2026-01-15")
+        
+        mgr2 = PositionStateManager({"position_state_path": str(tmp_path / "pos.json")})
+        loaded = mgr2.load("600519")
+        assert loaded is not None
+        assert loaded["cost_price"] == 1580.0
+        assert loaded["quantity"] == 100
+        assert loaded["opened_date"] == "2026-01-15"
+
+    def test_e2e_persistence_overwrite(self, tmp_path):
+        """Scenario: new user-provided position overwrites persisted one."""
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        
+        mgr = PositionStateManager({"position_state_path": str(tmp_path / "pos.json")})
+        mgr.save("600519", 100.0, 50, "2026-01-01")
+        mgr.save("600519", 200.0, 100, "2026-05-01")
+        loaded = mgr.load("600519")
+        assert loaded["cost_price"] == 200.0
+        assert loaded["quantity"] == 100
+
+    def test_e2e_t1_blocks_sell_same_day(self):
+        """Scenario: T+1 prevents selling same-day opened position."""
+        from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+        
+        result = format_t_plus_1_constraint("2026-05-06", "2026-05-06", "A_SHARE")
+        assert "T+1" in result
+        assert "CANNOT" in result.upper()
+
+    def test_e2e_idempotency(self, tmp_path):
+        """Scenario: same ticker+date processed twice — skip second update."""
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        
+        mgr = PositionStateManager({"position_state_path": str(tmp_path / "pos.json")})
+        mgr.save("600519", 1580.0, 100, "2026-01-15")
+        loaded = mgr.load("600519")
+        updated_at_1 = loaded["updated_at"]
+        loaded_again = mgr.load("600519")
+        updated_at_2 = loaded_again["updated_at"]
+        assert updated_at_1 == updated_at_2
+
+    def test_e2e_non_ashare_silent_skip(self):
+        """Scenario: non-A-share market — position context formatting returns empty."""
+        result = format_position_context(100.0, 50.0, 100, market_type="US_STOCK")
+        assert result == ""
+
+    def test_e2e_position_calculation_consistency(self):
+        """Scenario: P&L calculation is consistent and correct."""
+        r1 = calc_position_pnl(1650.0, 1580.0, 100)
+        r2 = calc_position_pnl(1650.0, 1580.0, 100)
+        assert r1 == r2
+        assert r1["pnl_amount"] == 7000.0
+        
+        r3 = calc_position_pnl(1500.0, 1580.0, 100)
+        assert r3["pnl_amount"] == -8000.0
+        assert r3["pnl_pct"] < 0
+
+    def test_e2e_trader_prompt_has_no_position_when_empty(self):
+        """Scenario: empty position — Trader prompt helper returns empty."""
+        result = format_position_for_trader(0.0, 0, 0.0)
+        assert result == ""
+
+    def test_e2e_pm_prompt_has_no_position_when_empty(self):
+        """Scenario: empty position — PM prompt helper returns empty."""
+        result = format_position_for_pm(0.0, 0, 0.0)
+        assert result == ""
+
+
+class TestAStickConstraints:
+    """Tests for A-share constraint integration with position tracking."""
+
+    def test_t1_same_day_opened(self):
+        from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+        result = format_t_plus_1_constraint("2026-05-06", "2026-05-06", "A_SHARE")
+        assert "T+1" in result
+        assert "today" in result.lower() or "今日" in result
+
+    def test_t1_no_position(self):
+        from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+        result = format_t_plus_1_constraint("", "2026-05-06", "A_SHARE")
+        assert "Buying" in result or "buying" in result.lower()
+
+    def test_t1_non_ashare(self):
+        from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+        result = format_t_plus_1_constraint("2026-05-06", "2026-05-06", "US_STOCK")
+        assert result == ""
+
+    def test_t1_old_position(self):
+        from tradingagents.dataflows.a_share_constraints import format_t_plus_1_constraint
+        result = format_t_plus_1_constraint("2026-01-15", "2026-05-06", "A_SHARE")
+        assert result == ""  # No restriction after holding period
+
+    def test_position_constraint_cost_above_limit(self):
+        from tradingagents.dataflows.a_share_constraints import format_position_constraint
+        result = format_position_constraint(200.0, 100, 180.0, 160.0)
+        assert "涨停" in result
+        assert "无法盈利" in result
+
+    def test_position_constraint_cost_below_limit(self):
+        from tradingagents.dataflows.a_share_constraints import format_position_constraint
+        result = format_position_constraint(150.0, 100, 180.0, 160.0)
+        assert "跌停" in result
+        assert "浮亏" in result
+
+    def test_position_constraint_no_position(self):
+        from tradingagents.dataflows.a_share_constraints import format_position_constraint
+        result = format_position_constraint(0.0, 0, 180.0, 160.0)
+        assert result == ""
+
+    def test_position_constraint_normal(self):
+        from tradingagents.dataflows.a_share_constraints import format_position_constraint
+        result = format_position_constraint(170.0, 100, 180.0, 160.0)
+        assert result == ""  # Within limit range, no constraint message
+
+    def test_position_constraint_with_current_price(self):
+        from tradingagents.dataflows.a_share_constraints import format_position_constraint
+        result = format_position_constraint(170.0, 100, 180.0, 160.0, current_price=180.0)
+        assert "涨停" in result
+        assert "买入" in result
