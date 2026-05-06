@@ -74,20 +74,28 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
         data = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
     else:
         import akshare as ak
-        df = ak.stock_zh_a_hist(
-            symbol=symbol,
-            period="daily",
-            start_date=start_str.replace("-", ""),
-            end_date=end_str.replace("-", ""),
+        # Convert A-share 6-digit code to Sina format (sh/sz prefix)
+        safe_symbol = safe_symbol.strip()
+        if safe_symbol[0] == "6":
+            sina_sym = f"sh{safe_symbol}"
+        elif safe_symbol[0] in ("0", "3"):
+            sina_sym = f"sz{safe_symbol}"
+        else:
+            sina_sym = safe_symbol
+
+        df = ak.stock_zh_a_daily(
+            symbol=sina_sym,
+            start_date=start_str,
+            end_date=end_str,
             adjust="qfq",
         )
         data = df.rename(columns={
-            "日期": "Date",
-            "开盘": "Open",
-            "最高": "High",
-            "最低": "Low",
-            "收盘": "Close",
-            "成交量": "Volume",
+            "date": "Date",
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
         })
         data = data[["Date", "Open", "High", "Low", "Close", "Volume"]]
         data.to_csv(data_file, index=False, encoding="utf-8")

@@ -51,6 +51,29 @@ def _to_date(date_str: str) -> datetime:
     return datetime.strptime(date_str, "%Y-%m-%d")
 
 
+def _to_sina_symbol(symbol: str) -> str:
+    """Convert 6-digit A-share code to Sina format with sh/sz prefix.
+
+    Shanghai (SSE) codes start with '6' → sh{symbol}
+    Shenzhen (SZSE) codes start with '0' or '3' → sz{symbol}
+    """
+    symbol = symbol.strip()
+    if not (len(symbol) == 6 and symbol.isdigit()):
+        raise ValueError(
+            f"Invalid A-share symbol: '{symbol}'. Expected 6-digit numeric code."
+        )
+    first = symbol[0]
+    if first == "6":
+        return f"sh{symbol}"
+    elif first in ("0", "3"):
+        return f"sz{symbol}"
+    else:
+        raise ValueError(
+            f"Unknown exchange for symbol: '{symbol}'. "
+            f"First digit must be 6 (SSE) or 0/3 (SZSE)."
+        )
+
+
 def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
     """Fetch and cache A-share OHLCV data for stockstats consumption.
 
@@ -61,6 +84,7 @@ def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
     _ensure_akshare()
     config = get_config()
 
+    sina_symbol = _to_sina_symbol(symbol)
     curr_dt = _to_date(curr_date)
     today = datetime.now()
     start_dt = today - relativedelta(years=5)
@@ -71,31 +95,30 @@ def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
     os.makedirs(config["data_cache_dir"], exist_ok=True)
     cache_file = os.path.join(
         config["data_cache_dir"],
-        f"{symbol}-akshare-data-{start_str}-{end_str}.csv",
+        f"{symbol}-akshare-sina-{start_str}-{end_str}.csv",
     )
 
     if os.path.exists(cache_file):
         data = pd.read_csv(cache_file, on_bad_lines="skip", encoding="utf-8")
     else:
-        raw = ak.stock_zh_a_hist(
-            symbol=symbol,
-            period="daily",
-            start_date=_ak_date(start_str),
-            end_date=_ak_date(end_str),
-            adjust="qfq",  # 前复权 — forward-adjusted
+        raw = ak.stock_zh_a_daily(
+            symbol=sina_symbol,
+            start_date=start_str,
+            end_date=end_str,
+            adjust="qfq",
         )
         if raw is None or raw.empty:
             raise ValueError(f"No OHLCV data returned for {symbol}")
 
-        # Rename akshare columns to match stockstats expected names
+        # Sina source returns English lowercase column names
         raw = raw.rename(
             columns={
-                "日期": "Date",
-                "开盘": "Open",
-                "最高": "High",
-                "最低": "Low",
-                "收盘": "Close",
-                "成交量": "Volume",
+                "date": "Date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
             }
         )
         raw.to_csv(cache_file, index=False, encoding="utf-8")
@@ -127,33 +150,33 @@ def get_stock_data(
     start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
     end_date: Annotated[str, "End date in yyyy-mm-dd format"],
 ) -> str:
-    """Retrieve A-share OHLCV historical price data via akshare.
+    """Retrieve A-share OHLCV historical price data via akshare (Sina source).
 
     Returns CSV-formatted string with header comment lines.
     """
     try:
         _ensure_akshare()
+        sina_symbol = _to_sina_symbol(symbol)
 
-        df = ak.stock_zh_a_hist(
-            symbol=symbol,
-            period="daily",
-            start_date=_ak_date(start_date),
-            end_date=_ak_date(end_date),
+        df = ak.stock_zh_a_daily(
+            symbol=sina_symbol,
+            start_date=start_date,
+            end_date=end_date,
             adjust="qfq",
         )
 
         if df is None or df.empty:
             return f"No data found for symbol '{symbol}' between {start_date} and {end_date}"
 
-        # Map akshare Chinese column names to standard English names
+        # Sina source returns English lowercase column names
         df = df.rename(
             columns={
-                "日期": "Date",
-                "开盘": "Open",
-                "最高": "High",
-                "最低": "Low",
-                "收盘": "Close",
-                "成交量": "Volume",
+                "date": "Date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
             }
         )
 
@@ -170,7 +193,7 @@ def get_stock_data(
 
         header = f"# Stock data for {symbol} from {start_date} to {end_date}\n"
         header += f"# Total records: {len(df)}\n"
-        header += f"# Data source: akshare (A-share, forward-adjusted)\n"
+        header += f"# Data source: akshare (Sina, forward-adjusted)\n"
         header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
         return header + csv_string
