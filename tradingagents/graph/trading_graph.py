@@ -205,21 +205,31 @@ class TradingAgentsGraph:
             end = start + timedelta(days=holding_days + 7)  # buffer for weekends/holidays
             end_str = end.strftime("%Y-%m-%d")
 
-            stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
+            market_type = self.config.get("market_type", "US_STOCK")
             benchmark_ticker = self.config.get("benchmark_ticker", "SPY")
-            benchmark = yf.Ticker(benchmark_ticker).history(start=trade_date, end=end_str)
 
-            if len(stock) < 2 or len(benchmark) < 2:
+            if market_type == "A_SHARE":
+                stock_closes = self._get_ashare_close_series(ticker, trade_date, end_str)
+                bench_closes = self._get_ashare_benchmark_close_series(
+                    benchmark_ticker, trade_date, end_str
+                )
+            else:
+                stock = yf.Ticker(ticker).history(start=trade_date, end=end_str)
+                benchmark = yf.Ticker(benchmark_ticker).history(start=trade_date, end=end_str)
+                stock_closes = stock["Close"].values if len(stock) >= 2 else None
+                bench_closes = benchmark["Close"].values if len(benchmark) >= 2 else None
+
+            if stock_closes is None or bench_closes is None or len(stock_closes) < 2 or len(bench_closes) < 2:
                 return None, None, None
 
-            actual_days = min(holding_days, len(stock) - 1, len(benchmark) - 1)
+            actual_days = min(holding_days, len(stock_closes) - 1, len(bench_closes) - 1)
             raw = float(
-                (stock["Close"].iloc[actual_days] - stock["Close"].iloc[0])
-                / stock["Close"].iloc[0]
+                (stock_closes[actual_days] - stock_closes[0])
+                / stock_closes[0]
             )
             bench_ret = float(
-                (benchmark["Close"].iloc[actual_days] - benchmark["Close"].iloc[0])
-                / benchmark["Close"].iloc[0]
+                (bench_closes[actual_days] - bench_closes[0])
+                / bench_closes[0]
             )
             alpha = raw - bench_ret
             return raw, alpha, actual_days
@@ -229,6 +239,53 @@ class TradingAgentsGraph:
                 ticker, trade_date, e,
             )
             return None, None, None
+
+    @staticmethod
+    def _get_ashare_close_series(ticker: str, start_date: str, end_date: str):
+        """Get closing price series for an A-share stock via akshare."""
+        import akshare as ak
+        from tradingagents.dataflows.akshare import _to_sina_symbol
+
+        sina_sym = _to_sina_symbol(ticker)
+        df = ak.stock_zh_a_daily(
+            symbol=sina_sym, start_date=start_date, end_date=end_date, adjust="qfq"
+        )
+        if df is None or df.empty:
+            return None
+        df = df.sort_values("date")
+        return df["close"].values
+
+    @staticmethod
+    def _get_ashare_benchmark_close_series(
+        benchmark_ticker: str, start_date: str, end_date: str
+    ):
+        """Get closing price series for an A-share benchmark index via akshare."""
+        import akshare as ak
+        from datetime import date as dt_date
+
+        # Convert A-share index codes to Sina format:
+        #   "000300" → "sh000300" (CSI 300, Shanghai)
+        #   "399001" → "sz399001" (SZSE Component Index, Shenzhen)
+        if benchmark_ticker.startswith("000"):
+            index_sym = f"sh{benchmark_ticker}"
+        elif benchmark_ticker.startswith("399"):
+            index_sym = f"sz{benchmark_ticker}"
+        else:
+            # Fallback for non-standard codes: assume Shanghai
+            index_sym = f"sh{benchmark_ticker}"
+
+        df = ak.stock_zh_index_daily(symbol=index_sym)
+        if df is None or df.empty:
+            return None
+
+        sd = dt_date.fromisoformat(start_date)
+        ed = dt_date.fromisoformat(end_date)
+        df = df[(df["date"] >= sd) & (df["date"] <= ed)]
+        if df.empty:
+            return None
+
+        df = df.sort_values("date")
+        return df["close"].values
 
     def _resolve_pending_entries(self, ticker: str) -> None:
         """Resolve pending log entries for ticker at the start of a new run.
