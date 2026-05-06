@@ -32,6 +32,7 @@ from .akshare import (
     get_news as get_akshare_news,
     get_global_news as get_akshare_global_news,
     get_insider_transactions as get_akshare_insider_transactions,
+    get_current_price as get_akshare_current_price,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
@@ -41,9 +42,10 @@ from .config import get_config
 # Tools organized by category
 TOOLS_CATEGORIES = {
     "core_stock_apis": {
-        "description": "OHLCV stock price data",
+        "description": "OHLCV stock price data and real-time quotes",
         "tools": [
-            "get_stock_data"
+            "get_stock_data",
+            "get_current_price",
         ]
     },
     "technical_indicators": {
@@ -83,6 +85,10 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "akshare": get_akshare_stock,
         "alpha_vantage": get_alpha_vantage_stock,
+        "yfinance": get_YFin_data_online,
+    },
+    "get_current_price": {
+        "akshare": get_akshare_current_price,
         "yfinance": get_YFin_data_online,
     },
     # technical_indicators

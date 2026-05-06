@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 import os
+import time
 
 from .config import get_config
 
@@ -810,3 +811,80 @@ def get_insider_transactions(
         return f"Error: {e}"
     except Exception as e:
         return f"Error retrieving insider/management transactions for {ticker}: {str(e)}"
+
+# ============================================================================
+# 10. Real-time Stock Quote
+# ============================================================================
+
+# Cache for stock_zh_a_spot() to avoid repeated full-market downloads.
+# Stores (timestamp, DataFrame) tuple; expires after _SPOT_CACHE_TTL seconds.
+_SPOT_CACHE_TTL = 30  # seconds
+_spot_cache: tuple = (0, None)
+
+
+def get_current_price(
+    symbol: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+) -> str:
+    """Retrieve real-time stock quote for an A-share stock via akshare.
+
+    Uses Sina data source (stock_zh_a_spot) which returns live market data
+    including latest price, change, volume, and timestamp.
+
+    Returns Markdown-formatted string.
+    """
+    try:
+        _ensure_akshare()
+        sina_symbol = _to_sina_symbol(symbol)
+
+        global _spot_cache
+        cache_ts, cache_df = _spot_cache
+        now = time.time()
+
+        if cache_df is not None and (now - cache_ts) < _SPOT_CACHE_TTL:
+            df = cache_df
+        else:
+            df = ak.stock_zh_a_spot()
+            _spot_cache = (now, df)
+
+        if df is None or df.empty:
+            return f"No real-time data available"
+
+        row = df[df["代码"] == sina_symbol]
+        if row.empty:
+            return f"No real-time quote found for symbol '{symbol}'"
+
+        r = row.iloc[0]
+        name = r.get("名称", symbol)
+        price = r.get("最新价", "N/A")
+        change = r.get("涨跌额", "N/A")
+        change_pct = r.get("涨跌幅", "N/A")
+        open_price = r.get("今开", "N/A")
+        high = r.get("最高", "N/A")
+        low = r.get("最低", "N/A")
+        prev_close = r.get("昨收", "N/A")
+        volume = r.get("成交量", "N/A")
+        amount = r.get("成交额", "N/A")
+        timestamp = r.get("时间戳", "N/A")
+
+        lines = [
+            f"# Real-time Quote for {symbol} ({name})",
+            f"**Current Price**: {price}",
+            f"**Change**: {change} ({change_pct}%)",
+            f"**Open**: {open_price}",
+            f"**High**: {high}",
+            f"**Low**: {low}",
+            f"**Previous Close**: {prev_close}",
+            f"**Volume**: {volume}",
+            f"**Turnover**: {amount}",
+            f"**Data Time**: {timestamp}",
+            f"",
+            f"*Data source: akshare (Sina, real-time)*",
+            f"*Retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+        ]
+
+        return "\n".join(lines)
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching current price for {symbol}: {str(e)}"
