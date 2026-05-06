@@ -33,6 +33,7 @@
 
 - [2026-05] **A 股日历与指标 Bug 修复**：修复交易日历类型比较（`pd.Timestamp` → `.date()`），优化技术指标缺失值提示（区分"交易日数据未到"与"非交易日"）
 - [2026-05] **A 股适配增强**：新增实时行情工具（基于 Sina `stock_zh_a_spot`），历史数据切换至 Sina 源（`stock_zh_a_daily`，英文字段名），`_fetch_returns()` 接入 akshare 计算 A 股收益与 Alpha，`akshare` 加入项目依赖
+- [2026-05] **持仓跟踪与操作指导**：新增成本价和数量输入，系统自动计算浮动盈亏并注入 Trader 和 Portfolio Manager prompt，实现盈亏分析、止盈止损建议、加仓减仓指导和风险调整四合一操作指导。持仓数据跨运行持久化，支持模拟自动更新。
 - [2026-04] **TradingAgents v0.2.4** 发布，新增结构化输出智能体（Research Manager、Trader、Portfolio Manager）、LangGraph 检查点恢复、持久化决策日志、DeepSeek/Qwen/GLM/Azure 供应商支持、Docker 及 Windows UTF-8 编码修复。详见 [CHANGELOG.md](CHANGELOG.md)。
 - [2026-03] **TradingAgents v0.2.3** 发布，新增多语言支持、GPT-5.4 系列模型、统一模型目录、回测日期准确性和代理支持。
 - [2026-03] **TradingAgents v0.2.2** 发布，新增 GPT-5.4/Gemini 3.1/Claude 4.6 模型覆盖、五级评分体系、OpenAI Responses API、Anthropic effort 控制和跨平台稳定性。
@@ -182,6 +183,7 @@ python -m cli.main     # alternative: run directly from source
 ```
 
 您将看到一个界面，您可以在其中选择所需的股票代码、分析日期、LLM 供应商、研究深度等选项。
+在分析师选择之后，新增了可选的持仓成本价、持股数量和开仓日期输入步骤（按 Enter 跳过，仅使用纯市场分析）。
 
 <p align="center">
   <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
@@ -215,6 +217,12 @@ ta = TradingAgentsGraph(debug=True, config=DEFAULT_CONFIG.copy())
 
 # 前向传播
 _, decision = ta.propagate("NVDA", "2026-01-15")
+print(decision)
+```
+
+```python
+# 带持仓成本价和数量 — 系统自动计算浮动盈亏并注入操作指导
+_, decision = ta.propagate("600519", "2026-05-06", cost_price=1580.0, quantity=100)
 print(decision)
 ```
 
@@ -394,12 +402,74 @@ print(quote)
 | **交易日历** | 通过 akshare 使用新浪财经日历（`is_trade_day()` 等） |
 | **6 位代码** | 上海：`.SS` 后缀 / `sh` 前缀（Sina）；深圳：`.SZ` 后缀 / `sz` 前缀（Sina） |
 
+### Position Tracking（持仓跟踪）
+
+从 2026-05 起支持输入持仓成本价和数量，系统自动将持仓盈亏状态注入决策智能体的 prompt，生成个性化的操作指导。
+
+#### Python API 使用
+
+```python
+from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.default_config import DEFAULT_CONFIG
+
+ta = TradingAgentsGraph(config=DEFAULT_CONFIG.copy())
+
+# 不传持仓参数 — 纯市场分析，与之前行为一致（向后兼容）
+_, decision = ta.propagate("600519", "2026-05-06")
+
+# 传持仓参数 — 系统结合持仓盈亏给出操作指导
+_, decision = ta.propagate("600519", "2026-05-06",
+                           cost_price=1580.0,
+                           quantity=100,
+                           position_opened_date="2026-01-15")
+print(decision)
+```
+
+#### CLI 交互输入
+
+分析流程中新增 3 个可选步骤（在分析师选择之后）：
+
+| 步骤 | 提示 | 校验规则 |
+|------|------|---------|
+| Step 4.5 | 输入当前持仓成本价 | 必须为正浮点数，Enter 跳过 |
+| Step 4.6 | 输入当前持仓股数 | 必须为正整数，Enter 跳过 |
+| Step 4.7 | 输入开仓日期 YYYY-MM-DD | 格式合法且不晚于分析日期，Enter 跳过 |
+
+所有步骤均为可选，按 Enter 跳过即降级为纯市场分析模式。
+
+#### 操作指导内容
+
+当提供持仓数据后，系统在以下环节注入持仓上下文：
+
+| 智能体 | 注入内容 |
+|--------|---------|
+| **Trader** | 当前持仓成本价、股数，提示因子化现有持仓做出交易方案 |
+| **Portfolio Manager** | 详细持仓盈亏分析，含浮盈超 10% 止盈提示、浮亏超 10% 止损评估、震荡区间观望建议及风险立场调整 |
+
+#### 模拟持仓自动更新
+
+系统分析完成后，根据 Portfolio Manager 的最终决策自动更新模拟持仓：
+
+| 决策 | 自动操作 |
+|------|---------|
+| Buy / Overweight | 以分析日收盘价开仓 100 股（仅当无持仓时） |
+| Sell / Underweight | 以分析日收盘价平仓（受 T+1 约束检查保护） |
+| Hold | 持仓不变 |
+
+自动更新具有幂等性：同一 ticker 同一天不会重复更新。
+
+#### 持仓持久化
+
+持仓数据存储于 `~/.tradingagents/memory/position_state.json`，使用原子写入防止文件损坏。下次分析时自动加载上次的持仓信息，无需重复输入。
+
 ### What's Not Yet Supported
 
 - 分钟级 K 线数据（实时行情快照已支持）
 - 北向资金流向分析
 - 板块轮动策略
-- A 股数据完整回测框架
+- 分批建仓的 FIFO/LIFO 成本追踪
+- 多股票组合持仓管理
+- 真实券商 API 对接
 
 ---
 
