@@ -25,6 +25,7 @@ from tradingagents.dataflows.a_share_constraints import (
     format_limit_constraint,
     format_t_plus_1_constraint,
 )
+from tradingagents.dataflows.position_utils import format_position_for_pm
 
 
 def create_portfolio_manager(llm):
@@ -43,6 +44,23 @@ def create_portfolio_manager(llm):
         limit_down = state.get("limit_down_price", 0.0)
         position_opened_date = state.get("position_opened_date") or ""
         trade_date = state.get("trade_date") or ""
+        cost_price = state.get("cost_price", 0.0)
+        quantity = state.get("quantity", 0)
+
+        # Build position context if cost_price and quantity are available
+        position_context = ""
+        if cost_price > 0 and quantity > 0:
+            position_context = f"""
+**当前持仓：**
+- 成本价：{cost_price:.2f}
+- 持有股数：{quantity}
+"""
+            # If position_pnl is already computed in state, include it
+            position_pnl = state.get("position_pnl", 0.0)
+            position_pnl_pct = state.get("position_pnl_pct")
+            if position_pnl_pct is not None:
+                pnl_str = f"{position_pnl:+.2f} ({position_pnl_pct:+.2%})"
+                position_context += f"- 浮动盈亏：{pnl_str}\n"
 
         past_context = state.get("past_context") or ""
         lessons_line = format_past_context(past_context)
@@ -71,6 +89,7 @@ def create_portfolio_manager(llm):
 
 Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_degradation_instruction()}
 {format_limit_constraint(limit_up, limit_down, market_type)}
+{position_context}
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 
         final_trade_decision = invoke_structured_or_freetext(

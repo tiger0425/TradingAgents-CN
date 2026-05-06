@@ -312,3 +312,121 @@ class TestPositionFormatting:
     def test_format_context_default_market_type(self):
         result = format_position_context(55.0, 50.0, 100)
         assert "成本价" in result
+
+
+class TestPropagatorState:
+    """Tests for Propagator initial state injection."""
+
+    def test_propagator_with_position(self):
+        from tradingagents.graph.propagation import Propagator
+
+        p = Propagator()
+        state = p.create_initial_state(
+            "600519", "2026-05-06",
+            cost_price=1580.0, quantity=100,
+            position_opened_date="2026-01-15",
+        )
+        assert state["cost_price"] == 1580.0
+        assert state["quantity"] == 100
+        assert state["position_opened_date"] == "2026-01-15"
+
+    def test_propagator_without_position(self):
+        from tradingagents.graph.propagation import Propagator
+
+        p = Propagator()
+        state = p.create_initial_state("600519", "2026-05-06")
+        assert state["cost_price"] == 0.0
+        assert state["quantity"] == 0
+        assert state["position_opened_date"] == ""
+
+    def test_propagator_partial_position(self):
+        from tradingagents.graph.propagation import Propagator
+
+        p = Propagator()
+        state = p.create_initial_state("600519", "2026-05-06", cost_price=100.0)
+        assert state["cost_price"] == 100.0
+        assert state["quantity"] == 0  # Default when not provided
+
+    def test_propagator_past_context_unchanged(self):
+        from tradingagents.graph.propagation import Propagator
+
+        p = Propagator()
+        state = p.create_initial_state("600519", "2026-05-06", past_context="some context")
+        assert state["past_context"] == "some context"
+        assert state["cost_price"] == 0.0  # Default when not provided
+
+
+class TestTraderPrompt:
+    """Tests for Trader prompt position injection."""
+
+    def test_trader_prompt_has_position_awareness_code(self):
+        """Verify trader.py references position state fields."""
+        import inspect
+        from tradingagents.agents.trader import trader as trader_module
+        source = inspect.getsource(trader_module)
+        assert "cost_price" in source
+        assert "quantity" in source
+
+    def test_trader_position_formatting_with_position(self):
+        """Verify format_position_for_trader works with position data."""
+        result = format_position_for_trader(1580.0, 100, 1650.0)
+        assert "成本价" in result
+        assert "100 股" in result
+        assert "浮动盈亏" in result
+        assert "+7000.00" in result  # (1650-1580)*100
+
+    def test_trader_position_formatting_no_position(self):
+        """Verify format_position_for_trader returns empty string with no position."""
+        result = format_position_for_trader(0.0, 0, 0.0)
+        assert result == ""
+
+    def test_trader_position_formatting_zero_cost(self):
+        """Verify format_position_for_trader returns empty when cost_price is zero."""
+        result = format_position_for_trader(0.0, 100, 100.0)
+        assert result == ""
+
+    def test_trader_position_formatting_zero_qty(self):
+        """Verify format_position_for_trader returns empty when quantity is zero."""
+        result = format_position_for_trader(50.0, 0, 100.0)
+        assert result == ""
+
+
+class TestPMPrompt:
+    """Tests for Portfolio Manager prompt position injection."""
+
+    def test_pm_prompt_has_position_code_reference(self):
+        """Verify portfolio_manager.py references position state fields."""
+        import inspect
+        from tradingagents.agents.managers import portfolio_manager as pm_module
+        source = inspect.getsource(pm_module)
+        assert "cost_price" in source
+        assert "quantity" in source
+        assert "position_pnl" in source or "position_context" in source
+
+    def test_pm_position_formatting_with_profit(self):
+        """Verify format_position_for_pm with profit scenario."""
+        from tradingagents.dataflows.position_utils import format_position_for_pm
+        result = format_position_for_pm(100.0, 100, 115.0)
+        assert "15.00%" in result
+        assert "止盈" in result
+        assert "保守" in result
+
+    def test_pm_position_formatting_with_loss(self):
+        """Verify format_position_for_pm with loss scenario."""
+        from tradingagents.dataflows.position_utils import format_position_for_pm
+        result = format_position_for_pm(100.0, 100, 85.0)
+        assert "15.00%" in result
+        assert "止损" in result
+        assert "理性评估" in result
+
+    def test_pm_no_position_empty(self):
+        """Verify format_position_for_pm returns empty for no position."""
+        from tradingagents.dataflows.position_utils import format_position_for_pm
+        result = format_position_for_pm(0.0, 0, 100.0)
+        assert result == ""
+
+    def test_pm_no_position_empty_with_defaults(self):
+        """Returns empty string when cost_price is 0."""
+        from tradingagents.dataflows.position_utils import format_position_for_pm
+        result = format_position_for_pm(0.0, 100, 100.0)
+        assert result == ""

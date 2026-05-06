@@ -26,6 +26,28 @@ def create_trader(llm):
         market_type = state.get("market_type", "A_SHARE")
         limit_up = state.get("limit_up_price", 0.0)
         limit_down = state.get("limit_down_price", 0.0)
+        cost_price = state.get("cost_price", 0.0)
+        quantity = state.get("quantity", 0)
+
+        # Build position awareness note for the system message
+        if cost_price > 0 and quantity > 0:
+            position_note = (
+                f"\n\n**Existing Position:** You currently hold {quantity} shares at "
+                f"an average cost of {cost_price:.2f}. Factor this existing position into "
+                f"your transaction proposal — consider whether to add, reduce, or hold."
+            )
+        else:
+            position_note = ""
+
+        # Build position context for the user message
+        if cost_price > 0 and quantity > 0:
+            position_context = (
+                f"\n\n**Current Position:**\n"
+                f"- Cost Price: {cost_price:.2f}\n"
+                f"- Shares: {quantity}\n"
+            )
+        else:
+            position_context = ""
 
         messages = [
             {
@@ -42,6 +64,7 @@ def create_trader(llm):
                     "entry_price and stop_loss fall within the allowed range. If limits prevent execution "
                     "at the desired level, flag this clearly.\n\n"
                     "Be decisive and ground every conclusion in specific analyst evidence."
+                    + position_note
                     + get_language_instruction()
                     + get_degradation_instruction()
                 ),
@@ -55,6 +78,7 @@ def create_trader(llm):
                     f"social media sentiment. Use this plan as a foundation for evaluating your next "
                     f"trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
                     f"Leverage these insights to make an informed and strategic decision."
+                    f"{position_context}"
                     f"{format_limit_constraint(limit_up, limit_down, market_type)}"
                 ),
             },
