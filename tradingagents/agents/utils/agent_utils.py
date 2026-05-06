@@ -35,11 +35,23 @@ def get_language_instruction() -> str:
 
 
 def build_instrument_context(ticker: str) -> str:
-    """Describe the exact instrument so agents preserve exchange-qualified tickers."""
+    """Describe the exact instrument so agents preserve market-appropriate ticker formats."""
+    # A-shares use 6-digit numeric codes; other markets use alphanumeric tickers
+    if ticker and ticker.isdigit() and len(ticker) == 6:
+        exchange_hint = (
+            f"This is a 6-digit A-share code. "
+            f"For Shanghai-listed stocks append `.SS` (e.g. `{ticker}.SS`), "
+            f"for Shenzhen append `.SZ` (e.g. `{ticker}.SZ`). "
+            f"Use the raw 6-digit code for domestic data sources (akshare)."
+        )
+    else:
+        exchange_hint = (
+            "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
+        )
     return (
         f"The instrument to analyze is `{ticker}`. "
-        "Use this exact ticker in every tool call, report, and recommendation, "
-        "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
+        f"{exchange_hint} "
+        "Use this exact ticker in every tool call, report, and recommendation."
     )
 
 def create_msg_delete():

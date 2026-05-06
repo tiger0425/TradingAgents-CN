@@ -19,6 +19,10 @@ from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
 )
+from tradingagents.dataflows.a_share_constraints import (
+    format_limit_constraint,
+    format_t_plus_1_constraint,
+)
 
 
 def create_portfolio_manager(llm):
@@ -31,6 +35,12 @@ def create_portfolio_manager(llm):
         risk_debate_state = state["risk_debate_state"]
         research_plan = state["investment_plan"]
         trader_plan = state["trader_investment_plan"]
+
+        market_type = state.get("market_type", "A_SHARE")
+        limit_up = state.get("limit_up_price", 0.0)
+        limit_down = state.get("limit_down_price", 0.0)
+        position_opened_date = state.get("position_opened_date", "")
+        trade_date = state.get("trade_date", "")
 
         past_context = state.get("past_context", "")
         lessons_line = (
@@ -61,7 +71,9 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
+Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}
+{format_limit_constraint(limit_up, limit_down, market_type)}
+{format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,

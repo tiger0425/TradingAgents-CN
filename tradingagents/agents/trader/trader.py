@@ -6,6 +6,8 @@ import functools
 
 from langchain_core.messages import AIMessage
 
+from tradingagents.dataflows.a_share_constraints import format_limit_constraint
+
 from tradingagents.agents.schemas import TraderProposal, render_trader_proposal
 from tradingagents.agents.utils.agent_utils import build_instrument_context
 from tradingagents.agents.utils.structured import (
@@ -21,6 +23,9 @@ def create_trader(llm):
         company_name = state["company_of_interest"]
         instrument_context = build_instrument_context(company_name)
         investment_plan = state["investment_plan"]
+        market_type = state.get("market_type", "A_SHARE")
+        limit_up = state.get("limit_up_price", 0.0)
+        limit_down = state.get("limit_down_price", 0.0)
 
         messages = [
             {
@@ -40,6 +45,7 @@ def create_trader(llm):
                     f"social media sentiment. Use this plan as a foundation for evaluating your next "
                     f"trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
                     f"Leverage these insights to make an informed and strategic decision."
+                    f"{format_limit_constraint(limit_up, limit_down, market_type)}"
                 ),
             },
         ]

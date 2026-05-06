@@ -1,0 +1,789 @@
+"""
+AKShare data vendor module for TradingAgents.
+Provides A-share (China stock market) data through the akshare library.
+All functions return str type for compatibility with the TradingAgents tool system.
+
+Dependencies:
+    - akshare: A-share financial data interface
+    - stockstats: Technical indicator calculation (via wrap)
+    - pandas: DataFrame manipulation
+"""
+
+from typing import Annotated
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+import pandas as pd
+import os
+
+from .config import get_config
+
+# ---------------------------------------------------------------------------
+# Lazy import guard — akshare is large and may not be installed everywhere
+# ---------------------------------------------------------------------------
+try:
+    import akshare as ak
+except ImportError:
+    ak = None
+
+# stockstats is a required dependency for technical indicator calculations
+from stockstats import wrap
+
+
+# ============================================================================
+# Internal helpers
+# ============================================================================
+
+def _ensure_akshare():
+    """Raise a user-friendly error if akshare is not installed."""
+    if ak is None:
+        raise ImportError(
+            "akshare is not installed. Please install it with: pip install akshare"
+        )
+
+
+def _ak_date(date_str: str) -> str:
+    """Convert 'yyyy-mm-dd' to akshare's expected 'yyyymmdd' format."""
+    return date_str.replace("-", "")
+
+
+def _to_date(date_str: str) -> datetime:
+    """Parse 'yyyy-mm-dd' to datetime."""
+    return datetime.strptime(date_str, "%Y-%m-%d")
+
+
+def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
+    """Fetch and cache A-share OHLCV data for stockstats consumption.
+
+    Downloads ~5 years of daily data up to curr_date, caches per symbol,
+    and filters out rows after curr_date to prevent look-ahead bias.
+    Returns a DataFrame with columns: Date, Open, High, Low, Close, Volume.
+    """
+    _ensure_akshare()
+    config = get_config()
+
+    curr_dt = _to_date(curr_date)
+    today = datetime.now()
+    start_dt = today - relativedelta(years=5)
+
+    start_str = start_dt.strftime("%Y-%m-%d")
+    end_str = today.strftime("%Y-%m-%d")
+
+    os.makedirs(config["data_cache_dir"], exist_ok=True)
+    cache_file = os.path.join(
+        config["data_cache_dir"],
+        f"{symbol}-akshare-data-{start_str}-{end_str}.csv",
+    )
+
+    if os.path.exists(cache_file):
+        data = pd.read_csv(cache_file, on_bad_lines="skip", encoding="utf-8")
+    else:
+        raw = ak.stock_zh_a_hist(
+            symbol=symbol,
+            period="daily",
+            start_date=_ak_date(start_str),
+            end_date=_ak_date(end_str),
+            adjust="qfq",  # 前复权 — forward-adjusted
+        )
+        if raw is None or raw.empty:
+            raise ValueError(f"No OHLCV data returned for {symbol}")
+
+        # Rename akshare columns to match stockstats expected names
+        raw = raw.rename(
+            columns={
+                "日期": "Date",
+                "开盘": "Open",
+                "最高": "High",
+                "最低": "Low",
+                "收盘": "Close",
+                "成交量": "Volume",
+            }
+        )
+        raw.to_csv(cache_file, index=False, encoding="utf-8")
+        data = raw
+
+    # Clean and normalise for stockstats
+    data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data = data.dropna(subset=["Date"])
+
+    price_cols = ["Open", "High", "Low", "Close", "Volume"]
+    for c in price_cols:
+        if c in data.columns:
+            data[c] = pd.to_numeric(data[c], errors="coerce")
+    data = data.dropna(subset=["Close"])
+    data[price_cols] = data[price_cols].ffill().bfill()
+
+    # Prevent look-ahead bias
+    data = data[data["Date"] <= pd.Timestamp(curr_date)]
+
+    return data
+
+
+# ============================================================================
+# 1. Core Stock Data — OHLCV
+# ============================================================================
+
+def get_stock_data(
+    symbol: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
+    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+) -> str:
+    """Retrieve A-share OHLCV historical price data via akshare.
+
+    Returns CSV-formatted string with header comment lines.
+    """
+    try:
+        _ensure_akshare()
+
+        df = ak.stock_zh_a_hist(
+            symbol=symbol,
+            period="daily",
+            start_date=_ak_date(start_date),
+            end_date=_ak_date(end_date),
+            adjust="qfq",
+        )
+
+        if df is None or df.empty:
+            return f"No data found for symbol '{symbol}' between {start_date} and {end_date}"
+
+        # Map akshare Chinese column names to standard English names
+        df = df.rename(
+            columns={
+                "日期": "Date",
+                "开盘": "Open",
+                "最高": "High",
+                "最低": "Low",
+                "收盘": "Close",
+                "成交量": "Volume",
+            }
+        )
+
+        # Keep only OHLCV columns
+        cols = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        df = df[[c for c in cols if c in df.columns]]
+
+        # Round price columns
+        for col in ["Open", "High", "Low", "Close"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
+
+        csv_string = df.to_csv(index=False)
+
+        header = f"# Stock data for {symbol} from {start_date} to {end_date}\n"
+        header += f"# Total records: {len(df)}\n"
+        header += f"# Data source: akshare (A-share, forward-adjusted)\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + csv_string
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching data for {symbol}: {str(e)}"
+
+
+# ============================================================================
+# 2. Technical Indicators
+# ============================================================================
+
+# Indicator descriptions — same semantics as yfinance best_ind_params
+_INDICATOR_DESCRIPTIONS = {
+    "close_50_sma": (
+        "50 SMA: A medium-term trend indicator. "
+        "Usage: Identify trend direction and serve as dynamic support/resistance. "
+        "Tips: It lags price; combine with faster indicators for timely signals."
+    ),
+    "close_200_sma": (
+        "200 SMA: A long-term trend benchmark. "
+        "Usage: Confirm overall market trend and identify golden/death cross setups. "
+        "Tips: It reacts slowly; best for strategic trend confirmation rather than frequent trading entries."
+    ),
+    "close_10_ema": (
+        "10 EMA: A responsive short-term average. "
+        "Usage: Capture quick shifts in momentum and potential entry points. "
+        "Tips: Prone to noise in choppy markets; use alongside longer averages for filtering false signals."
+    ),
+    "macd": (
+        "MACD: Computes momentum via differences of EMAs. "
+        "Usage: Look for crossovers and divergence as signals of trend changes. "
+        "Tips: Confirm with other indicators in low-volatility or sideways markets."
+    ),
+    "macds": (
+        "MACD Signal: An EMA smoothing of the MACD line. "
+        "Usage: Use crossovers with the MACD line to trigger trades. "
+        "Tips: Should be part of a broader strategy to avoid false positives."
+    ),
+    "macdh": (
+        "MACD Histogram: Shows the gap between the MACD line and its signal. "
+        "Usage: Visualize momentum strength and spot divergence early. "
+        "Tips: Can be volatile; complement with additional filters in fast-moving markets."
+    ),
+    "rsi": (
+        "RSI: Measures momentum to flag overbought/oversold conditions. "
+        "Usage: Apply 70/30 thresholds and watch for divergence to signal reversals. "
+        "Tips: In strong trends, RSI may remain extreme; always cross-check with trend analysis."
+    ),
+    "boll": (
+        "Bollinger Middle: A 20 SMA serving as the basis for Bollinger Bands. "
+        "Usage: Acts as a dynamic benchmark for price movement. "
+        "Tips: Combine with the upper and lower bands to effectively spot breakouts or reversals."
+    ),
+    "boll_ub": (
+        "Bollinger Upper Band: Typically 2 standard deviations above the middle line. "
+        "Usage: Signals potential overbought conditions and breakout zones. "
+        "Tips: Confirm signals with other tools; prices may ride the band in strong trends."
+    ),
+    "boll_lb": (
+        "Bollinger Lower Band: Typically 2 standard deviations below the middle line. "
+        "Usage: Indicates potential oversold conditions. "
+        "Tips: Use additional analysis to avoid false reversal signals."
+    ),
+    "atr": (
+        "ATR: Averages true range to measure volatility. "
+        "Usage: Set stop-loss levels and adjust position sizes based on current market volatility. "
+        "Tips: It's a reactive measure, so use it as part of a broader risk management strategy."
+    ),
+    "vwma": (
+        "VWMA: A moving average weighted by volume. "
+        "Usage: Confirm trends by integrating price action with volume data. "
+        "Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
+    ),
+    "mfi": (
+        "MFI: The Money Flow Index is a momentum indicator that uses both price and volume "
+        "to measure buying and selling pressure. "
+        "Usage: Identify overbought (>80) or oversold (<20) conditions and confirm the strength "
+        "of trends or reversals. "
+        "Tips: Use alongside RSI or MACD to confirm signals; divergence between price and MFI "
+        "can indicate potential reversals."
+    ),
+}
+
+
+def get_indicators(
+    symbol: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    indicator: Annotated[str, "technical indicator to get the analysis and report of"],
+    curr_date: Annotated[str, "The current trading date you are trading on, yyyy-mm-dd"],
+    look_back_days: Annotated[int, "how many days to look back"] = 30,
+) -> str:
+    """Retrieve a technical indicator time-series for an A-share stock.
+
+    Uses stockstats over akshare-sourced OHLCV data. Returns a text report
+    with one (date, value) pair per trading day in the look-back window.
+    """
+    indicator = indicator.lower().strip()
+
+    if indicator not in _INDICATOR_DESCRIPTIONS:
+        raise ValueError(
+            f"Indicator '{indicator}' is not supported. "
+            f"Please choose from: {list(_INDICATOR_DESCRIPTIONS.keys())}"
+        )
+
+    curr_dt = _to_date(curr_date)
+    before_dt = curr_dt - relativedelta(days=look_back_days)
+
+    try:
+        # Fetch once, compute indicator for all dates in one pass
+        data = _load_ohlcv_akshare(symbol, curr_date)
+        df = wrap(data)
+        df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+        df[indicator]  # triggers stockstats calculation
+
+        # Build dict: date → indicator value
+        indicator_map = {}
+        for _, row in df.iterrows():
+            date_str = row["Date"]
+            val = row[indicator]
+            indicator_map[date_str] = "N/A" if pd.isna(val) else str(val)
+
+        # Walk backwards from curr_date and look up values
+        ind_string = ""
+        cursor = curr_dt
+        while cursor >= before_dt:
+            date_str = cursor.strftime("%Y-%m-%d")
+            value = indicator_map.get(date_str, "N/A: Not a trading day (weekend or holiday)")
+            ind_string += f"{date_str}: {value}\n"
+            cursor -= relativedelta(days=1)
+
+    except Exception as e:
+        # Fallback: compute one date at a time via _get_single_indicator
+        ind_string = ""
+        cursor = curr_dt
+        while cursor >= before_dt:
+            date_str = cursor.strftime("%Y-%m-%d")
+            value = _get_single_indicator(symbol, indicator, date_str)
+            ind_string += f"{date_str}: {value}\n"
+            cursor -= relativedelta(days=1)
+
+    result = (
+        f"## {indicator} values from {before_dt.strftime('%Y-%m-%d')} to "
+        f"{curr_date}:\n\n"
+        + ind_string
+        + "\n"
+        + _INDICATOR_DESCRIPTIONS.get(
+            indicator, "No description available."
+        )
+    )
+
+    return result
+
+
+def _get_single_indicator(symbol: str, indicator: str, curr_date: str) -> str:
+    """Fallback: compute one indicator value for a single date."""
+    try:
+        data = _load_ohlcv_akshare(symbol, curr_date)
+        df = wrap(data)
+        df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+        df[indicator]
+        matching = df[df["Date"].str.startswith(curr_date)]
+        if not matching.empty:
+            val = matching[indicator].values[0]
+            return str(val) if not pd.isna(val) else "N/A"
+        return "N/A: Not a trading day (weekend or holiday)"
+    except Exception:
+        return "N/A"
+
+
+# ============================================================================
+# 3. Fundamentals
+# ============================================================================
+
+def get_fundamentals(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """Retrieve comprehensive fundamental data for an A-share stock.
+
+    Uses akshare's stock_financial_analysis_indicator (Sina source) which
+    provides 100+ financial metrics. Returns a text report.
+    """
+    try:
+        _ensure_akshare()
+
+        # Derive year from curr_date, default to previous year
+        if curr_date:
+            year = _to_date(curr_date).year
+        else:
+            year = datetime.now().year - 1
+
+        # akshare Sina financial analysis indicator
+        df = ak.stock_financial_analysis_indicator(symbol=ticker, start_year=str(year))
+
+        if df is None or df.empty:
+            return f"No fundamentals data found for symbol '{ticker}'"
+
+        # The DataFrame has columns like: 日期, 摊薄每股收益, 加权每股收益, ...
+        # Try to use the most recent row
+        latest = df.iloc[-1] if len(df) > 0 else df.iloc[0]
+
+        # Select key fields (Chinese → English mapping for readability)
+        field_map = {
+            "日期": "Report Date",
+            "摊薄每股收益(元)": "EPS (Diluted)",
+            "加权每股收益(元)": "EPS (Weighted)",
+            "每股净资产(元)": "Book Value Per Share",
+            "净资产收益率(%)": "ROE (%)",
+            "总资产收益率(%)": "ROA (%)",
+            "毛利率(%)": "Gross Margin (%)",
+            "净利率(%)": "Net Margin (%)",
+            "资产负债率(%)": "Debt to Asset Ratio (%)",
+            "营业收入(元)": "Revenue",
+            "营业利润(元)": "Operating Profit",
+            "利润总额(元)": "Total Profit",
+            "净利润(元)": "Net Income",
+            "总资产(元)": "Total Assets",
+            "总负债(元)": "Total Liabilities",
+            "股东权益(元)": "Shareholder Equity",
+            "每股现金流(元)": "Cash Flow Per Share",
+            # A 股特有指标增强
+            "营业收入同比增长率(%)": "Revenue Growth YoY (%)",
+            "净利润同比增长率(%)": "Net Income Growth YoY (%)",
+            "扣非净利润(元)": "Recurring Net Income",
+            "每股未分配利润(元)": "Undistributed Profit Per Share",
+            "每股公积金(元)": "Capital Reserve Per Share",
+            "存货周转率(次)": "Inventory Turnover",
+            "应收账款周转率(次)": "Receivables Turnover",
+            "流动比率": "Current Ratio",
+            "速动比率": "Quick Ratio",
+            "总资产周转率(次)": "Asset Turnover",
+            "营业成本(元)": "Operating Cost",
+            "销售费用(元)": "Selling Expenses",
+            "管理费用(元)": "Admin Expenses",
+            "财务费用(元)": "Financial Expenses",
+        }
+
+        lines = []
+        mapped_keys = set()
+        for cn_name, en_name in field_map.items():
+            if cn_name in latest.index:
+                val = latest[cn_name]
+                if pd.notna(val):
+                    lines.append(f"{en_name}: {val}")
+                    mapped_keys.add(cn_name)
+
+        # 补充字段：自动追加未在 field_map 中的其他有效列作为额外参考信息
+        extra = []
+        for idx in latest.index:
+            if idx not in mapped_keys and pd.notna(latest[idx]):
+                extra.append(f"{idx}: {latest[idx]}")
+        if extra:
+            lines.append("")
+            lines.append("--- 补充字段 ---")
+            lines.extend(extra)
+
+        # If no mapped fields found, dump all available fields
+        if not lines:
+            for idx, val in latest.items():
+                if pd.notna(val):
+                    lines.append(f"{idx}: {val}")
+
+        header = f"# Company Fundamentals for {ticker}\n"
+        header += f"# Data source: akshare (Sina Financial Analysis)\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + "\n".join(lines)
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error retrieving fundamentals for {ticker}: {str(e)}"
+
+
+# ============================================================================
+# 4–6. Financial Statements (Balance Sheet, Cash Flow, Income Statement)
+# ============================================================================
+
+def _get_financial_report_sina(
+    ticker: str,
+    report_type: str,
+    freq: str,
+    curr_date: str,
+    label: str,
+) -> str:
+    """Shared implementation for all three financial statements via Sina.
+
+    Args:
+        ticker: 6-digit A-share code.
+        report_type: "资产负债表", "利润表", or "现金流量表".
+        freq: "annual" or "quarterly" (for display only; Sina API returns what's available).
+        curr_date: cutoff date for look-ahead bias prevention.
+        label: Human-readable label for the header (e.g. "Balance Sheet").
+
+    Returns:
+        CSV-formatted string with header.
+    """
+    try:
+        _ensure_akshare()
+
+        df = ak.stock_financial_report_sina(stock=ticker, symbol_type=report_type)
+
+        if df is None or df.empty:
+            return f"No {label.lower()} data found for symbol '{ticker}'"
+
+        # Filter columns (reporting periods) by curr_date to prevent look-ahead bias
+        if curr_date:
+            cutoff = pd.Timestamp(curr_date)
+            # Financial report columns are dates representing fiscal period ends
+            valid_cols = [df.columns[0]]  # always keep the first column (item names)
+            for col in df.columns[1:]:
+                try:
+                    col_dt = pd.Timestamp(col)
+                    if col_dt <= cutoff:
+                        valid_cols.append(col)
+                except (ValueError, TypeError):
+                    valid_cols.append(col)
+            df = df[valid_cols]
+
+        csv_string = df.to_csv(index=False)
+
+        header = f"# {label} for {ticker} ({freq})\n"
+        header += f"# Data source: akshare (Sina Financial Reports)\n"
+        header += f"# Report type: {report_type}\n"
+        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+        return header + csv_string
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error retrieving {label.lower()} for {ticker}: {str(e)}"
+
+
+def get_balance_sheet(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """Retrieve balance sheet data for an A-share stock."""
+    return _get_financial_report_sina(
+        ticker=ticker,
+        report_type="资产负债表",
+        freq=freq,
+        curr_date=curr_date,
+        label="Balance Sheet",
+    )
+
+
+def get_cashflow(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """Retrieve cash flow statement data for an A-share stock."""
+    return _get_financial_report_sina(
+        ticker=ticker,
+        report_type="现金流量表",
+        freq=freq,
+        curr_date=curr_date,
+        label="Cash Flow",
+    )
+
+
+def get_income_statement(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    freq: Annotated[str, "reporting frequency: annual/quarterly"] = "quarterly",
+    curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
+) -> str:
+    """Retrieve income statement data for an A-share stock."""
+    return _get_financial_report_sina(
+        ticker=ticker,
+        report_type="利润表",
+        freq=freq,
+        curr_date=curr_date,
+        label="Income Statement",
+    )
+
+
+# ============================================================================
+# 7. Stock News
+# ============================================================================
+
+def get_news(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+    start_date: Annotated[str, "Start date in yyyy-mm-dd format"],
+    end_date: Annotated[str, "End date in yyyy-mm-dd format"],
+) -> str:
+    """Retrieve news articles for an A-share stock from East Money (东方财富).
+
+    Returns Markdown-formatted string.
+    """
+    try:
+        _ensure_akshare()
+
+        df = ak.stock_news_em(symbol=ticker)
+
+        if df is None or df.empty:
+            return f"No news found for {ticker}"
+
+        # Columns: 日期, 时间, 来源, 标题, 简介, 点击量
+        start_dt = _to_date(start_date)
+        end_dt = _to_date(end_date)
+
+        news_str = ""
+        count = 0
+
+        for _, row in df.iterrows():
+            try:
+                # Parse the publication date
+                date_str = str(row.get("日期", ""))
+                time_str = str(row.get("时间", ""))
+
+                if date_str:
+                    pub_dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    if not (start_dt <= pub_dt <= end_dt + relativedelta(days=1)):
+                        continue
+
+                title = row.get("标题", "No title")
+                source = row.get("来源", "Unknown")
+                summary = row.get("简介", "")
+                clicks = row.get("点击量", "")
+
+                pub_info = f"{date_str}"
+                if time_str:
+                    pub_info += f" {time_str}"
+
+                news_str += f"### {title} (source: {source}, {pub_info})\n"
+                if summary:
+                    news_str += f"{summary}\n"
+                if clicks:
+                    news_str += f"Clicks: {clicks}\n"
+                news_str += "\n"
+                count += 1
+            except (ValueError, KeyError):
+                continue
+
+        if count == 0:
+            return f"No news found for {ticker} between {start_date} and {end_date}"
+
+        header = f"## {ticker} News, from {start_date} to {end_date}:\n\n"
+        return header + news_str
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching news for {ticker}: {str(e)}"
+
+
+# ============================================================================
+# 8. Global / Macro News
+# ============================================================================
+
+def get_global_news(
+    curr_date: Annotated[str, "Current date in yyyy-mm-dd format"],
+    look_back_days: Annotated[int, "Number of days to look back"] = 7,
+    limit: Annotated[int, "Maximum number of articles to return"] = 5,
+) -> str:
+    """Retrieve global/macro financial news relevant to A-share markets.
+
+    Uses akshare's stock_info_global_em() (East Money global financial news)
+    as the primary source, with fallback to stock_info_sse().
+
+    Returns Markdown-formatted string.
+    """
+    try:
+        _ensure_akshare()
+
+        curr_dt = _to_date(curr_date)
+        start_dt = curr_dt - relativedelta(days=look_back_days)
+
+        all_news = []
+
+        # Primary source: East Money global financial info
+        try:
+            global_df = ak.stock_info_global_em()
+            if global_df is not None and not global_df.empty:
+                # Columns vary by API version; try common column names
+                for _, row in global_df.head(limit * 2).iterrows():
+                    title = (
+                        row.get("标题", "")
+                        or row.get("title", "")
+                        or row.get("名称", "")
+                    )
+                    content = (
+                        row.get("内容", "")
+                        or row.get("content", "")
+                        or row.get("最新价", "")
+                    )
+                    source = (
+                        row.get("来源", "")
+                        or row.get("source", "")
+                        or "Global Market"
+                    )
+                    if title:
+                        all_news.append({
+                            "title": str(title),
+                            "summary": str(content) if content else "",
+                            "source": str(source),
+                        })
+        except Exception:
+            pass  # Fallback below
+
+        # Fallback: use SSE announcements as macro indicators
+        if not all_news:
+            try:
+                sse_df = ak.stock_info_sse()
+                if sse_df is not None and not sse_df.empty:
+                    for _, row in sse_df.head(limit * 2).iterrows():
+                        title = row.get("公告标题", "") or row.get("证券简称", "")
+                        content = row.get("公告内容", "") or row.get("证券代码", "")
+                        if title:
+                            all_news.append({
+                                "title": str(title),
+                                "summary": str(content) if content else "",
+                                "source": "Shanghai Stock Exchange",
+                            })
+            except Exception:
+                pass
+
+        if not all_news:
+            return f"No global news found for {curr_date}"
+
+        # Build Markdown output
+        news_str = ""
+        shown = 0
+        for item in all_news:
+            if shown >= limit:
+                break
+            news_str += f"### {item['title']} (source: {item['source']})\n"
+            if item["summary"]:
+                news_str += f"{item['summary']}\n"
+            news_str += "\n"
+            shown += 1
+
+        if shown == 0:
+            return f"No global news found for period around {curr_date}"
+
+        start_str = start_dt.strftime("%Y-%m-%d")
+        header = f"## Global Market News, from {start_str} to {curr_date}:\n\n"
+
+        return header + news_str
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching global news: {str(e)}"
+
+
+# ============================================================================
+# 9. Insider / Management Transactions
+# ============================================================================
+
+def get_insider_transactions(
+    ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
+) -> str:
+    """Retrieve management shareholding changes for an A-share stock.
+
+    A-shares don't have "insider transactions" in the SEC sense.
+    Instead we use akshare's stock_hold_management_detail_em() which reports
+    changes in management/director shareholdings.
+
+    Returns Markdown-formatted string.
+    """
+    try:
+        _ensure_akshare()
+
+        df = ak.stock_hold_management_detail_em(symbol=ticker)
+
+        if df is None or df.empty:
+            return f"No management shareholding change data found for symbol '{ticker}'"
+
+        # Typical columns from East Money:
+        # 股东名称, 持股数量, 变动数量, 变动比例, 变动日期, 变动原因, etc.
+        tx_str = ""
+        count = 0
+
+        for _, row in df.iterrows():
+            name = row.get("股东名称", "") or row.get("高管姓名", "") or "Unknown"
+            shares = row.get("持股数量", "") or row.get("变动后持股数", "")
+            change = row.get("变动数量", "")
+            change_ratio = row.get("变动比例", "")
+            date = row.get("变动日期", "")
+            reason = row.get("变动原因", "")
+
+            tx_str += f"### {name}\n"
+            if date:
+                tx_str += f"- Date: {date}\n"
+            if shares:
+                tx_str += f"- Shares Held: {shares}\n"
+            if change:
+                tx_str += f"- Change: {change}\n"
+            if change_ratio:
+                tx_str += f"- Change Ratio: {change_ratio}\n"
+            if reason:
+                tx_str += f"- Reason: {reason}\n"
+            tx_str += "\n"
+            count += 1
+
+        if count == 0:
+            return f"No management shareholding change data found for symbol '{ticker}'"
+
+        header = (
+            f"# Management Shareholding Changes for {ticker}\n"
+            f"# Data source: akshare (East Money)\n"
+            f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        )
+
+        return header + tx_str
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error retrieving insider/management transactions for {ticker}: {str(e)}"

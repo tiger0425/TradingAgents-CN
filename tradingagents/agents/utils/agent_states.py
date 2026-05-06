@@ -71,3 +71,10 @@ class AgentState(MessagesState):
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]
+
+    # A股特有字段（可选，美股场景不填）
+    market_type: Annotated[str, "Market type: 'A_SHARE' or 'US_STOCK'"] = "A_SHARE"
+    benchmark_ticker: Annotated[str, "Benchmark index for alpha calculation"] = "000300"
+    position_opened_date: Annotated[str, "Date when current position was opened"] = ""
+    limit_up_price: Annotated[float, "A-share daily limit-up price"] = 0.0
+    limit_down_price: Annotated[float, "A-share daily limit-down price"] = 0.0

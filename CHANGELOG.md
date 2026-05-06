@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+## [0.2.5-cn] — 2026-05-06
+
+### Added
+
+- **akshare A 股数据供应商模块** — 完整实现 9 个 vendor 方法接入中国 A 股市场：
+  - `get_stock_data`：通过 `ak.stock_zh_a_hist(adjust="qfq")` 获取前复权日 K 线，返回 CSV 格式
+  - `get_indicators`：复用 stockstats 管线计算 MACD/RSI/BOLL 等 12 种技术指标
+  - `get_fundamentals`：通过新浪财务分析接口获取 30+ 项财务指标（ROE/ROA/毛利率/净利率等），中文→英文列名映射
+  - `get_balance_sheet`、`get_cashflow`、`get_income_statement`：三大报表通过新浪财报接口获取，支持日期截止过滤防止前视偏差
+  - `get_news`：东方财富个股新闻，支持日期范围过滤
+  - `get_global_news`：东方财富全球财经资讯，备选上交所公告源
+  - `get_insider_transactions`：大股东/管理层持股变动数据
+- **A 股交易日历模块** — `a_share_calendar.py` 封装 `ak.tool_trade_date_hist_sina()` 提供 `is_trade_day()`、`next_trade_day()`、`prev_trade_day()`，异常时回退到周末启发式判断
+- **A 股市场规则约束模块** — `a_share_constraints.py` 包含：
+  - 涨跌停价格计算（主板 ±10%、科创/创业板 ±20%、北交所 ±30%、ST ±5%）
+  - `format_limit_constraint()` 生成 LLM prompt 中的限价约束文本
+  - `format_t_plus_1_constraint()` 生成 T+1 约束文本（持仓不足 1 交易日禁止卖出）
+- **AgentState 扩展** — 新增 `market_type`、`benchmark_ticker`、`position_opened_date`、`limit_up_price`、`limit_down_price` 5 个可选字段，美股场景无需填写
+- **约束注入** — 涨跌停约束注入 Trader agent 和 Portfolio Manager 的 LLM prompt 中；对 `market_type: "US_STOCK"` 返回空字符串，完全向后兼容
+- **中文输出支持** — `output_language` 默认设为 `"Chinese"`，analyst 报告和 PM 最终决策自动输出中文
+- **A 股集成测试套件** — `tests/test_a_share.py` 包含 24 个测试用例，覆盖路由、数据获取（4 只不同类型 A 股）、交易日历、约束函数（9 个场景）、AgentState 结构检查和模块导入完整性
+
+### Changed
+
+- **默认数据供应商从 yfinance 切换为 akshare** — `interface.py` 的 `VENDOR_LIST` 和 `VENDOR_METHODS` 注册 akshare 为首位，`route_to_vendor()` 自动 fallback 链为 akshare → yfinance → alpha_vantage
+- **基准指数配置化** — `default_config.py` 新增 `benchmark_ticker`（默认 `000300` 沪深300）和 `benchmark_name`（默认 `沪深300`），`trading_graph.py:_fetch_returns()` 和 `reflection.py` 中的硬编码 `SPY` 替换为配置读取
+- **stockstats 数据源替换** — `stockstats_utils.py:load_ohlcv()` 中 `yf.download()` 替换为 `ak.stock_zh_a_hist()`，中文列名映射为英文（日期→Date、开盘→Open 等），缓存文件名独立为 `akshare-data` 前缀
+- **市场感知的代码格式提示** — `build_instrument_context()` 自动检测 6 位 A 股代码，输出 `.SS`/`.SZ` 后缀规则提示
+- **README 文档** — 新增 "A-Share Market Support (A 股支持)" 章节，包含安装、配置、使用示例、市场规则说明
+
+### Fixed
+
+- 硬编码 SPY 基准无法用于 A 股场景的问题
+- yfinance 作为唯一数据供应商无法获取 A 股数据的问题
+- Agent prompt 中缺少 A 股市场规则约束的问题
+
+### Contributors
+
+- @six (YifuAIForge) — A 股适配设计与实现
+
 ## [0.2.4] — 2026-04-25
 
 ### Added

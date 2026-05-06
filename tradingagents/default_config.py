@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {
     "checkpoint_enabled": False,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
-    "output_language": "English",
+    "output_language": "Chinese",
     # Debate and discussion settings
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
@@ -38,11 +38,16 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
-        "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
-        "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "core_stock_apis": "akshare",       # Options: akshare, alpha_vantage, yfinance
+        "technical_indicators": "akshare",  # Options: akshare, alpha_vantage, yfinance
+        "fundamental_data": "akshare",      # Options: akshare, alpha_vantage, yfinance
+        "news_data": "akshare",             # Options: akshare, alpha_vantage, yfinance
     },
+    # Benchmark index for alpha calculation
+    "benchmark_ticker": "000300",       # A-share: 沪深300 CSI 300 index
+    "benchmark_name": "沪深300",
+    # Market type: "A_SHARE" or "US_STOCK"
+    "market_type": "A_SHARE",
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
