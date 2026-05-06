@@ -318,12 +318,22 @@ def get_indicators(
             val = row[indicator]
             indicator_map[date_str] = "N/A" if pd.isna(val) else str(val)
 
+        try:
+            from .a_share_calendar import is_trade_day
+        except ImportError:
+            is_trade_day = lambda d: True  # fallback: assume all dates potentially have data
+
         # Walk backwards from curr_date and look up values
         ind_string = ""
         cursor = curr_dt
         while cursor >= before_dt:
             date_str = cursor.strftime("%Y-%m-%d")
-            value = indicator_map.get(date_str, "N/A: Not a trading day (weekend or holiday)")
+            if date_str in indicator_map:
+                value = indicator_map[date_str]
+            elif is_trade_day(date_str):
+                value = "N/A: Data not yet available (trading day)"
+            else:
+                value = "N/A: Not a trading day (weekend or holiday)"
             ind_string += f"{date_str}: {value}\n"
             cursor -= relativedelta(days=1)
 
@@ -353,6 +363,11 @@ def get_indicators(
 def _get_single_indicator(symbol: str, indicator: str, curr_date: str) -> str:
     """Fallback: compute one indicator value for a single date."""
     try:
+        from .a_share_calendar import is_trade_day
+    except ImportError:
+        is_trade_day = lambda d: True
+
+    try:
         data = _load_ohlcv_akshare(symbol, curr_date)
         df = wrap(data)
         df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
@@ -361,9 +376,13 @@ def _get_single_indicator(symbol: str, indicator: str, curr_date: str) -> str:
         if not matching.empty:
             val = matching[indicator].values[0]
             return str(val) if not pd.isna(val) else "N/A"
+        if is_trade_day(curr_date):
+            return "N/A: Data not yet available (trading day)"
         return "N/A: Not a trading day (weekend or holiday)"
     except Exception:
-        return "N/A"
+        if is_trade_day(curr_date):
+            return "N/A: Data fetch failed (trading day)"
+        return "N/A: Not a trading day (weekend or holiday)"
 
 
 # ============================================================================

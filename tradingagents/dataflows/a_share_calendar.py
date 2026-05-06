@@ -35,7 +35,7 @@ def is_trade_day(date_str: str) -> bool:
     """
     try:
         calendar = _load_calendar()
-        target = pd.Timestamp(date_str)
+        target = pd.Timestamp(date_str).date()
         return target in calendar["trade_date"].values
     except Exception:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -55,7 +55,7 @@ def next_trade_day(date_str: str) -> str:
     """
     try:
         calendar = _load_calendar()
-        target = pd.Timestamp(date_str)
+        target = pd.Timestamp(date_str).date()
         future = calendar[calendar["trade_date"] > target]
         if future.empty:
             return date_str
@@ -80,7 +80,7 @@ def prev_trade_day(date_str: str) -> str:
     """
     try:
         calendar = _load_calendar()
-        target = pd.Timestamp(date_str)
+        target = pd.Timestamp(date_str).date()
         past = calendar[calendar["trade_date"] < target]
         if past.empty:
             return date_str

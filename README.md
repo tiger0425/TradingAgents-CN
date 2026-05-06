@@ -31,6 +31,8 @@
 
 ## News
 
+- [2026-05] **A 股日历与指标 Bug 修复**：修复交易日历类型比较（`pd.Timestamp` → `.date()`），优化技术指标缺失值提示（区分"交易日数据未到"与"非交易日"）
+- [2026-05] **A 股适配增强**：新增实时行情工具（基于 Sina `stock_zh_a_spot`），历史数据切换至 Sina 源（`stock_zh_a_daily`，英文字段名），`_fetch_returns()` 接入 akshare 计算 A 股收益与 Alpha，`akshare` 加入项目依赖
 - [2026-04] **TradingAgents v0.2.4** 发布，新增结构化输出智能体（Research Manager、Trader、Portfolio Manager）、LangGraph 检查点恢复、持久化决策日志、DeepSeek/Qwen/GLM/Azure 供应商支持、Docker 及 Windows UTF-8 编码修复。详见 [CHANGELOG.md](CHANGELOG.md)。
 - [2026-03] **TradingAgents v0.2.3** 发布，新增多语言支持、GPT-5.4 系列模型、统一模型目录、回测日期准确性和代理支持。
 - [2026-03] **TradingAgents v0.2.2** 发布，新增 GPT-5.4/Gemini 3.1/Claude 4.6 模型覆盖、五级评分体系、OpenAI Responses API、Anthropic effort 控制和跨平台稳定性。
@@ -289,13 +291,24 @@ _, decision = ta.propagate("NVDA", "2026-01-15")
 
 ## A-Share Market Support (A 股支持)
 
-TradingAgents 通过 **akshare** 数据供应商支持 A 股（中国股票市场）分析。所有现有智能体工作流无需修改即可在 A 股数据上运行。
+TradingAgents 通过 **akshare** 数据供应商支持 A 股（中国股票市场）分析。数据源基于新浪财经（Sina Finance），通过两个 API 通道获取：`stock_zh_a_daily`（历史日线 OHLCV，前复权，英文字段名）和 `stock_zh_a_spot`（实时行情快照，30 秒缓存）。所有现有智能体工作流无需修改即可在 A 股数据上运行。
 
 ### Installation
 
 ```bash
 pip install akshare
 ```
+
+### Data Sources（数据源）
+
+A 股行情数据通过两个 Sina 源的 akshare API 获取：
+
+| API | 功能 | 说明 |
+|-----|------|------|
+| `stock_zh_a_daily` | 历史日线 OHLCV | 前复权价格，英文字段名（date, open, high, low, close, volume） |
+| `stock_zh_a_spot` | 实时行情快照 | 最新价、涨跌幅、成交量、成交额，30 秒本地缓存 |
+
+6 位数字代码自动转换为 Sina 格式：上海 `6xxxxx` → `shxxxxxx`，深圳 `0/3xxxxx` → `szxxxxxx`，由 `_to_sina_symbol()` 统一处理。
 
 ### Configuration
 
@@ -349,6 +362,27 @@ ta = TradingAgentsGraph(config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 ```
 
+### Real-time Quotes（实时行情）
+
+**Market Analyst** 智能体配备了 `get_current_price` 工具，可通过 Sina `stock_zh_a_spot` 获取 A 股实时行情快照：
+
+```python
+from tradingagents.dataflows.akshare import get_current_price
+
+# 获取贵州茅台实时行情
+quote = get_current_price("600519")
+print(quote)
+# Real-time Quote for 600519 (贵州茅台)
+# Current Price: 1580.00
+# Change: -5.00 (-0.32%)
+# Open: 1585.00   High: 1592.00   Low: 1576.00
+# Previous Close: 1585.00
+# Volume: 2850000   Turnover: 4523000000
+# Data source: akshare (Sina, real-time)
+```
+
+该工具已注册到智能体工具链，LLM 可在分析过程中按需调用。
+
 ### Market Rules
 
 当 `market_type: "A_SHARE"` 时，系统自动强制执行以下规则：
@@ -358,11 +392,11 @@ _, decision = ta.propagate("NVDA", "2026-01-15")
 | **涨跌停限制**（±10%/20%/30%/5%） | 注入到交易员和投资组合管理器的提示中作为价格约束 |
 | **T+1 交割** | 今日开仓的仓位需在下一个交易日才能卖出 |
 | **交易日历** | 通过 akshare 使用新浪财经日历（`is_trade_day()` 等） |
-| **6 位代码** | 上海：`.SS` 后缀；深圳：`.SZ` 后缀 |
+| **6 位代码** | 上海：`.SS` 后缀 / `sh` 前缀（Sina）；深圳：`.SZ` 后缀 / `sz` 前缀（Sina） |
 
 ### What's Not Yet Supported
 
-- 实时行情数据（分钟级 K 线）
+- 分钟级 K 线数据（实时行情快照已支持）
 - 北向资金流向分析
 - 板块轮动策略
 - A 股数据完整回测框架
