@@ -55,8 +55,9 @@ def _to_date(date_str: str) -> datetime:
 def _to_sina_symbol(symbol: str) -> str:
     """Convert 6-digit A-share code to Sina format with sh/sz prefix.
 
-    Shanghai (SSE) codes start with '6' → sh{symbol}
-    Shenzhen (SZSE) codes start with '0' or '3' → sz{symbol}
+    Shanghai (SSE) stocks start with '6', ETFs start with '5' → sh{symbol}
+    Shenzhen (SZSE) stocks start with '0' or '3', ETFs start with '15/16' → sz{symbol}
+    Beijing (BSE) stocks start with '8' → bj{symbol}
     """
     symbol = symbol.strip()
     if not (len(symbol) == 6 and symbol.isdigit()):
@@ -64,14 +65,18 @@ def _to_sina_symbol(symbol: str) -> str:
             f"Invalid A-share symbol: '{symbol}'. Expected 6-digit numeric code."
         )
     first = symbol[0]
-    if first == "6":
+    if first in ("5", "6"):
         return f"sh{symbol}"
-    elif first in ("0", "3"):
+    elif first in ("0", "1", "2", "3"):
         return f"sz{symbol}"
+    elif first == "8":
+        return f"bj{symbol}"
+    elif first == "4":
+        return f"sh{symbol}"  # 老三板
     else:
         raise ValueError(
             f"Unknown exchange for symbol: '{symbol}'. "
-            f"First digit must be 6 (SSE) or 0/3 (SZSE)."
+            f"First digit must be 5/6 (SSE), 0/1/2/3 (SZSE), or 8 (BSE)."
         )
 
 

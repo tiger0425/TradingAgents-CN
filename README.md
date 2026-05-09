@@ -33,6 +33,7 @@
 
 - [2026-05] **A 股日历与指标 Bug 修复**：修复交易日历类型比较（`pd.Timestamp` → `.date()`），优化技术指标缺失值提示（区分"交易日数据未到"与"非交易日"）
 - [2026-05] **A 股适配增强**：新增实时行情工具（基于 Sina `stock_zh_a_spot`），历史数据切换至 Sina 源（`stock_zh_a_daily`，英文字段名），`_fetch_returns()` 接入 akshare 计算 A 股收益与 Alpha，`akshare` 加入项目依赖
+- [2026-05] **可编排化 CLI 与自动化升级**：新增非交互式 batch 模式、自选股池管理（watchlist）、批量扫描、盘前/盘后日报、预警条件检查、全市场扫描、持仓组合概览与简化回测，以及飞书/微信通知推送。所有命令支持 `--output json`，可供 OpenClaw 等 AI 编排系统调用。
 - [2026-05] **持仓跟踪与操作指导**：新增成本价和数量输入，系统自动计算浮动盈亏并注入 Trader 和 Portfolio Manager prompt，实现盈亏分析、止盈止损建议、加仓减仓指导和风险调整四合一操作指导。持仓数据跨运行持久化，支持模拟自动更新。
 - [2026-04] **TradingAgents v0.2.4** 发布，新增结构化输出智能体（Research Manager、Trader、Portfolio Manager）、LangGraph 检查点恢复、持久化决策日志、DeepSeek/Qwen/GLM/Azure 供应商支持、Docker 及 Windows UTF-8 编码修复。详见 [CHANGELOG.md](CHANGELOG.md)。
 - [2026-03] **TradingAgents v0.2.3** 发布，新增多语言支持、GPT-5.4 系列模型、统一模型目录、回测日期准确性和代理支持。
@@ -272,6 +273,118 @@ config["checkpoint_enabled"] = True
 ta = TradingAgentsGraph(config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 ```
+
+## 可编排化 CLI 与自动化
+
+从 v0.2.5 开始，TradingAgents 提供完整的非交互式 CLI 接口，支持通过命令行参数驱动所有分析流程，输出结构化 JSON，可被 OpenClaw 等 AI 编排系统直接调用。
+
+### 架构概览
+
+```
+OpenClaw / 定时任务 / AI 编排
+    │ 调用 CLI 命令 (--output json)
+    ▼
+TradingAgents CLI (可编排模式)
+    ├── batch             非交互式单股票分析
+    ├── scan-watchlist    批量扫描自选股
+    ├── morning-scan      盘前快速扫描
+    ├── evening-review    收盘复盘
+    ├── check-alerts      预警条件检查
+    ├── market-scan       全市场扫描
+    ├── portfolio         持仓组合概览
+    ├── backtest          简化回测
+    ├── watchlist         自选股管理
+    └── notify            飞书/微信通知
+```
+
+### Batch 模式
+
+非交互式单股票分析，所有参数通过命令行传入：
+
+```bash
+tradingagents batch \
+  --ticker 600519 \
+  --date 2026-05-09 \
+  --analysts market,news,technical \
+  --llm openai \
+  --output json
+```
+
+支持 `--output json` / `--output text` / `--output silent` 三种输出模式。
+
+### 自选股管理
+
+通过 `tradingagents watchlist` 子命令管理 `~/.tradingagents/watchlist.json`：
+
+```bash
+tradingagents watchlist add 600519 --name "贵州茅台" --priority 1 --price-above 1600
+tradingagents watchlist remove 600519
+tradingagents watchlist list --output json
+tradingagents watchlist set-alert 600519 --rsi-oversold
+```
+
+每只股票可配置独立预警条件（price_above、price_below、rsi_oversold、rsi_overbought、volume_surge、ma_cross）。
+
+### 批量扫描
+
+读取自选股池，按优先级排序后逐只分析，汇总输出：
+
+```bash
+tradingagents scan-watchlist --date 2026-05-09 --output json
+tradingagents morning-scan --date 2026-05-09 --output json
+tradingagents evening-review --date 2026-05-09 --output json
+```
+
+- **morning-scan**：获取实时行情快照 + 轻量分析（市场 + 技术面，1 轮辩论）
+- **evening-review**：获取收盘价，基于持仓计算浮动盈亏，更新决策日志
+
+### 预警与市场扫描
+
+```bash
+# 检查自选股预警条件
+tradingagents check-alerts --date 2026-05-09 --output json
+
+# 全市场扫描（涨幅/跌幅/成交量排行）
+tradingagents market-scan --top 20 --output json
+```
+
+### 持仓组合
+
+基于 `position_state.json` 的多股票持仓管理：
+
+```bash
+tradingagents portfolio --output json
+```
+
+输出组合概况：总市值、总盈亏、各持仓明细、仓位集中度。
+
+### 通知推送
+
+支持飞书机器人和微信（Server酱 / PushPlus）通知渠道：
+
+```bash
+# 配置方式（环境变量或 default_config.py）
+export FEISHU_WEBHOOK="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+export SERVER_CHAN_KEY="xxx"
+
+# 手动发送通知
+tradingagents notify feishu --title "今日信号" --content "600519: Buy"
+tradingagents notify all --markdown --title "晨报" --content "$(cat report.md)"
+
+# morning-scan 和 evening-review 完成后自动发送通知
+```
+
+### 简化回测
+
+```bash
+tradingagents backtest \
+  --ticker 600519 \
+  --start-date 2026-04-01 \
+  --end-date 2026-04-30 \
+  --output json
+```
+
+逐日运行 LLM 分析流水线，输出决策分布、胜率和平均收益统计。
 
 ## Contributing
 

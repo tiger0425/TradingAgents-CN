@@ -30,6 +30,14 @@ from cli.models import AnalystType
 from cli.utils import *
 from cli.announcements import fetch_announcements, display_announcements
 from cli.stats_handler import StatsCallbackHandler
+from cli.batch import batch
+from cli.watchlist import watchlist_app
+from cli.scan import scan_watchlist, morning_scan, evening_review
+from cli.alerts import check_alerts
+from cli.market_scan import market_scan
+from cli.notify import notify_app
+from cli.portfolio import portfolio
+from cli.backtest import backtest
 
 console = Console()
 
@@ -38,6 +46,18 @@ app = typer.Typer(
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+
+# Register subcommands from external modules
+app.add_typer(watchlist_app, name="watchlist")
+app.command(name="batch")(batch)
+app.command(name="scan-watchlist")(scan_watchlist)
+app.command(name="morning-scan")(morning_scan)
+app.command(name="evening-review")(evening_review)
+app.command(name="check-alerts")(check_alerts)
+app.command(name="market-scan")(market_scan)
+app.add_typer(notify_app, name="notify")
+app.command(name="portfolio")(portfolio)
+app.command(name="backtest")(backtest)
 
 
 # Create a deque to store recent messages with a maximum length
@@ -1251,7 +1271,7 @@ def run_analysis(checkpoint: bool = False):
                         message_buffer.update_agent_status("Portfolio Manager", "in_progress")
                         message_buffer.update_report_section(
                             "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
-                        )
+)
                         message_buffer.update_agent_status("Aggressive Analyst", "completed")
                         message_buffer.update_agent_status("Conservative Analyst", "completed")
                         message_buffer.update_agent_status("Neutral Analyst", "completed")
