@@ -1,0 +1,17 @@
+{
+  "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/knowledge-consumption-plan.md",
+  "started_at": "2026-05-09T09:06:55.419Z",
+  "session_ids": [
+    "ses_1f402a091ffeigUTVGXGQFBLTK",
+    "ses_1f3c98942ffeMqsuiFvEaCsb76",
+    "ses_1f3c8fd47ffeLUhqSWYLXZSlnF"
+  ],
+  "session_origins": {
+    "ses_1f402a091ffeigUTVGXGQFBLTK": "direct",
+    "ses_1f3c98942ffeMqsuiFvEaCsb76": "appended",
+    "ses_1f3c8fd47ffeLUhqSWYLXZSlnF": "appended"
+  },
+  "plan_name": "knowledge-consumption-plan",
+  "agent": "atlas",
+  "task_sessions": {}
+}

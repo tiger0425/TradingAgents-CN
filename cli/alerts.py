@@ -201,22 +201,26 @@ def _check_ma_cross(df, alert_config: Any) -> Tuple[bool, Optional[Dict[str, Any
 # ---------------------------------------------------------------------------
 
 def _get_spot_price(ticker: str) -> Optional[float]:
-    """Fetch current price for a ticker via akshare stock_zh_a_spot().
+    """Fetch current price for a ticker via the shared get_current_price() cache.
 
     Returns None on any error (network, ticker not found, etc.).
     """
     if ak is None:
         return None
     try:
-        from tradingagents.dataflows.akshare import _to_sina_symbol
-        sina_symbol = _to_sina_symbol(ticker)
-        df = ak.stock_zh_a_spot()
-        if df is None or df.empty:
+        from tradingagents.dataflows.akshare import get_current_price
+        import re
+
+        result = get_current_price(ticker)
+        if not result or result.startswith("Error") or "No real-time" in result:
             return None
-        row = df[df["代码"] == sina_symbol]
-        if row.empty:
-            return None
-        return float(row.iloc[0]["最新价"])
+
+        for line in result.split("\n"):
+            if "**Current Price**" in line:
+                m = re.search(r"([\d.]+)", line)
+                if m:
+                    return float(m.group(1))
+        return None
     except Exception:
         return None
 

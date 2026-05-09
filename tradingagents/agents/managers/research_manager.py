@@ -19,9 +19,20 @@ def create_research_manager(llm):
 
         investment_debate_state = state["investment_debate_state"]
 
+        knowledge_context = state.get("knowledge_context", {})
+        past_history = knowledge_context.get("past_decisions", "")
+        historical_section = ""
+        if past_history:
+            historical_section = (
+                f"\n\n**Historical Context:**\n"
+                f"{past_history}\n"
+                f"\nUse this historical context to calibrate your recommendation — "
+                f"past patterns that worked or failed should inform your stance."
+            )
+
         prompt = f"""As the Research Manager and debate facilitator, your role is to critically evaluate this round of debate and deliver a clear, actionable investment plan for the trader.
 
-{instrument_context}
+{instrument_context}{historical_section}
 
 ---
 

@@ -62,6 +62,21 @@ def create_portfolio_manager(llm):
         past_context = state.get("past_context") or ""
         lessons_line = format_past_context(past_context)
 
+        knowledge_context = state.get("knowledge_context", {})
+        archived = knowledge_context.get("archived_analyses", [])
+        archived_summary = ""
+        if archived:
+            archived_summary = "\n\n**Recent Analysis History:**\n"
+            for entry in archived:
+                archived_summary += (
+                    f"- Date: {entry.get('date', '?')}, "
+                    f"Decision: {entry.get('decision', '?')}"
+                )
+                rating = entry.get("rating", "")
+                if rating:
+                    archived_summary += f", Rating: {rating}"
+                archived_summary += "\n"
+
         prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
 {instrument_context}
@@ -78,7 +93,7 @@ def create_portfolio_manager(llm):
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
-{lessons_line}
+{lessons_line}{archived_summary}
 **Risk Analysts Debate History:**
 {history}
 

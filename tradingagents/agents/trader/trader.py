@@ -49,6 +49,28 @@ def create_trader(llm):
         else:
             position_context = ""
 
+        # Knowledge context injection: historical trading experience
+        knowledge_context = state.get("knowledge_context", {})
+        past_decisions = knowledge_context.get("past_decisions", "")
+        confidence_tags = knowledge_context.get("_confidence_tags", {})
+        history_section = ""
+        if past_decisions:
+            history_section = (
+                "\n\n**Historical Trading Experience (from past decisions):**\n"
+                f"{past_decisions}\n"
+            )
+            if confidence_tags:
+                confidence_overall = confidence_tags.get("overall", "UNKNOWN")
+                confidence_label = confidence_tags.get("label", "UNKNOWN")
+                signal_dist = confidence_tags.get("signal_distribution", {})
+                tag_summary_lines = [
+                    f"- Overall Confidence: {confidence_overall} ({confidence_label})",
+                    f"- Signals (last 30d): Buy={signal_dist.get('buy', 0)}, "
+                    f"Sell={signal_dist.get('sell', 0)}, Hold={signal_dist.get('hold', 0)}",
+                ]
+                tag_summary = "\n".join(tag_summary_lines)
+                history_section += f"\n**Confidence Analysis:**\n{tag_summary}\n"
+
         messages = [
             {
                 "role": "system",
@@ -79,6 +101,7 @@ def create_trader(llm):
                     f"trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
                     f"Leverage these insights to make an informed and strategic decision."
                     f"{position_context}"
+                    f"{history_section}"
                     f"{format_limit_constraint(limit_up, limit_down, market_type)}"
                 ),
             },

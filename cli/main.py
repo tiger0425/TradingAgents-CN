@@ -38,6 +38,9 @@ from cli.market_scan import market_scan
 from cli.notify import notify_app
 from cli.portfolio import portfolio
 from cli.backtest import backtest
+from cli.archive import archive_app
+from cli.mcp import serve as mcp_serve
+from cli.wiki import wiki_app
 
 console = Console()
 
@@ -58,6 +61,9 @@ app.command(name="market-scan")(market_scan)
 app.add_typer(notify_app, name="notify")
 app.command(name="portfolio")(portfolio)
 app.command(name="backtest")(backtest)
+app.add_typer(archive_app, name="archive")
+app.add_typer(wiki_app, name="wiki")
+app.command(name="mcp")(mcp_serve)
 
 
 # Create a deque to store recent messages with a maximum length

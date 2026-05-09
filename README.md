@@ -31,6 +31,9 @@
 
 ## News
 
+- [2026-05] **分析存档系统（AnalysisArchive）**：每次 CLI 分析（batch / morning-scan / evening-review / scan-watchlist）自动持久化完整结果到 `~/.tradingagents/analysis-archive/`，支持按 ticker、日期、决策方向检索。新增 `tradingagents archive` 命令组：list/search/summary/delete。存档结构与 TradingMemoryLog 互补——memory 存决策+反思给 LLM 注入，archive 存完整分析上下文给人+AI 查询
+- [2026-05] **知识消费体系上线**：新增 ContextAssembly 节点自动装配历史知识（含 CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），Trader/Research Manager/Portfolio Manager prompt 注入历史决策与存档分析摘要，消除 trading_graph 中冗余 akshare 调用（14+ → ≤2 次/run），统一 DataCache 缓存层、三重缓存检查链（同天跳过/增量模式/全量分析）
+- [2026-05] **Wiki 导航 + MCP Server**：新增 `tradingagents wiki generate` 自动生成 Markdown 知识导航索引（index.md + 个股详情 + lessons），新增 `tradingagents mcp serve` 启动 MCP Server 暴露 6 个知识查询工具（query_analysis / get_ticker_signals / search_patterns / get_lessons / get_confidence / get_graph_neighbors），支持 Graph Merge 合并代码图与分析图
 - [2026-05] **A 股日历与指标 Bug 修复**：修复交易日历类型比较（`pd.Timestamp` → `.date()`），优化技术指标缺失值提示（区分"交易日数据未到"与"非交易日"）
 - [2026-05] **A 股适配增强**：新增实时行情工具（基于 Sina `stock_zh_a_spot`），历史数据切换至 Sina 源（`stock_zh_a_daily`，英文字段名），`_fetch_returns()` 接入 akshare 计算 A 股收益与 Alpha，`akshare` 加入项目依赖
 - [2026-05] **可编排化 CLI 与自动化升级**：新增非交互式 batch 模式、自选股池管理（watchlist）、批量扫描、盘前/盘后日报、预警条件检查、全市场扫描、持仓组合概览与简化回测，以及飞书/微信通知推送。所有命令支持 `--output json`，可供 OpenClaw 等 AI 编排系统调用。
@@ -274,6 +277,82 @@ ta = TradingAgentsGraph(config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 ```
 
+## 分析存档系统（AnalysisArchive）
+
+从 v0.2.6 起，每次 CLI 分析的结果自动持久化到结构化存档中，形成跨运行的累积知识库。
+
+### 存档目录结构
+
+```
+~/.tradingagents/analysis-archive/
+├── index.json                          # 全量倒排索引（ticker/日期/决策）
+├── 2026/
+│   └── 05/
+│       ├── index.json                  # 月索引
+│       └── 09/
+│           ├── morning-scan_600519.json
+│           ├── batch_600519.json
+│           ├── evening-review_600519.json
+│           └── 2026-05-09_summary.md   # 当日汇总
+└── ...
+```
+
+### 存档内容
+
+每次分析结果保存为标准 JSON，包含：
+
+| 字段 | 内容 |
+|------|------|
+| `_meta` | 版本号、时间戳、来源命令 |
+| `request` | ticker、日期、分析师配置、LLM 供应商 |
+| `market_context` | 实时行情快照、涨跌停价 |
+| `analysis` | 各分析师信号汇总 + 最终决策 + 推理过程 |
+| `tags` | 自动提取的关键标签（用于搜索） |
+
+### CLI 命令
+
+```bash
+# 查询存档（支持 ticker/日期/决策方向筛选）
+tradingagents archive list --ticker 600519 --limit 10
+
+# 获取某次分析的完整内容
+tradingagents archive get 2026/05/09/batch_600519
+
+# 全文搜索历史分析
+tradingagents archive search "放量突破"
+
+# 信号分布汇总
+tradingagents archive summary 600519 --days 90
+
+# 删除条目
+tradingagents archive delete 2026/05/09/batch_600519
+
+# 重建索引（数据损坏时）
+tradingagents archive rebuild-index
+```
+
+### 与 TradingMemoryLog 的关系
+
+分析存档与 TradingMemoryLog 互补而非替代：
+
+| 维度 | TradingMemoryLog | AnalysisArchive |
+|------|-----------------|----------------|
+| 存储内容 | 决策结果 + 反思（精简） | 完整分析上下文（行情+报告+推理） |
+| 消费对象 | LLM agent prompt 注入 | 人和 AI 通过 CLI/MCP 查询 |
+| 条目管理 | LRU 裁剪（最近 N 条） | 持久保留，手工管理 |
+| 路径 | `~/.tradingagents/memory/trading_memory.md` | `~/.tradingagents/analysis-archive/` |
+
+### 自动存档
+
+以下命令在成功执行后自动将结果写入存档：
+
+- `tradingagents batch` — 单股票全量分析
+- `tradingagents morning-scan` — 盘前扫描
+- `tradingagents evening-review` — 收盘复盘
+- `tradingagents scan-watchlist` — 批量扫描
+
+存档写入失败不影响主流程（静默跳过）。
+
 ## 可编排化 CLI 与自动化
 
 从 v0.2.5 开始，TradingAgents 提供完整的非交互式 CLI 接口，支持通过命令行参数驱动所有分析流程，输出结构化 JSON，可被 OpenClaw 等 AI 编排系统直接调用。
@@ -294,7 +373,10 @@ TradingAgents CLI (可编排模式)
     ├── portfolio         持仓组合概览
     ├── backtest          简化回测
     ├── watchlist         自选股管理
-    └── notify            飞书/微信通知
+    ├── notify            飞书/微信通知
+    ├── archive           存档管理（查询/搜索/删除）
+    ├── wiki              Wiki 知识导航生成
+    └── mcp               MCP Server 启动
 ```
 
 ### Batch 模式
@@ -386,6 +468,196 @@ tradingagents backtest \
 
 逐日运行 LLM 分析流水线，输出决策分布、胜率和平均收益统计。
 
+## 知识消费与历史注入
+
+TradingAgents 从 v0.2.6 起新增知识消费体系，让 AI agent 在每次分析时自动感知历史知识，减少重复计算，提升决策质量。
+
+### 统一缓存层 (DataCache)
+
+系统级磁盘 + 内存双层缓存，消除冗余数据源调用：
+
+| 命名空间 | 存储方式 | TTL |
+|---------|---------|-----|
+| `ohlcv/` | CSV 文件 | 持久化 |
+| `benchmark/` | CSV 文件 | 持久化（新增，消除基准指数重复下载） |
+| `fundamentals/` | CSV/JSON 文件 | 持久化（新增） |
+| `spot/` | 内存 | 30 秒 |
+
+```python
+from tradingagents.dataflows.cache import DataCache
+
+cache = DataCache("~/.tradingagents/cache")
+# 缓存优先：命中返回，未命中调用 fetcher 并自动缓存
+df = cache.get_or_fetch("benchmark", "000300_2026-05-09.csv", fetcher=fetch_fn)
+```
+
+**效果**：基准指数数据不再每次 propagate() 重新下载，trading_graph.py 中 akshare 调用从 14+ 次/run 降至 ≤2 次/run。
+
+### ContextAssembly 节点
+
+在每次分析启动时自动装配所有可用历史知识，位于 `tradingagents/graph/context_assembly.py`：
+
+```
+propagate(ticker, date)
+  │
+  ├── 1. 缓存检查（DataCache）
+  ├── 2. 三重缓存检查链（同天跳过 / 增量模式 / 全量）
+  ├── 3. ContextAssembly ← 新增
+  │     ├── AnalysisArchive → 历史分析（含置信度标签）
+  │     ├── TradingMemoryLog → 历史交易决策与盈亏
+  │     ├── 信号分布统计（过去 30 天）
+  │     ├── Lessons（跨标的洞察）
+  │     └── Token 预算控制（默认 25K tokens）
+  │
+  └── 4-6. Agent 执行（注入历史知识）
+```
+
+### Confidence 标签体系
+
+每次历史结论自动标注置信度，AI agent 据此加权参考：
+
+| 标签 | 含义 | 加权 |
+|------|------|------|
+| `CONFIRMED` | 多次独立分析验证（3+ 同向信号） | 最高 |
+| `SINGLE` | 单次分析结论 | 中 |
+| `DERIVED` | 跨标的推理结论 | 中低 |
+| `CONFLICTING` | 多次分析分歧 | 低 |
+| `STALE` | 超过 90 天未更新 | 最低 |
+
+可通过 `confidence_threshold_inject` 配置注入阈值（默认：CONFLICTING 及以上的结论才注入 prompt）。
+
+### Agent Prompt 注入
+
+| 智能体 | 注入内容 |
+|--------|---------|
+| **Trader** | 历史交易决策 + 盈亏结果 + Confidence 标签 |
+| **Research Manager** | 历史决策上下文 |
+| **Portfolio Manager** | 存档分析摘要 + 历史 lessons |
+
+### 三重缓存检查链
+
+在 `propagate()` 中实现三级递进检查：
+
+```python
+config = DEFAULT_CONFIG.copy()
+config["skip_if_analyzed_today"] = True    # Level 1：同天跳过
+config["incremental_window_days"] = 3      # Level 2：3 天内增量
+```
+
+- **Level 1**：同 ticker 同天已分析 → 直接返回存档结果
+- **Level 2**：近 N 天有分析 → 增量模式（减少完整分析开销）
+- **Level 3**：无历史 → 全量分析，完成后自动写入存档
+
+## 知识库导航与 MCP Server
+
+分析存档累积后，AI agent 需要高效途径发现和查询历史知识。TradingAgents 提供两种互补通道。
+
+### 通道 A：Wiki 导航（被动发现）
+
+自动为分析存档生成 agent 可爬取的 Markdown 导航索引：
+
+```bash
+# 全量生成 Wiki
+tradingagents wiki generate
+
+# 单 ticker 增量更新
+tradingagents wiki generate --ticker 600519
+
+# 查看个股详情页
+tradingagents wiki show 600519
+
+# 列出所有页面
+tradingagents wiki list
+```
+
+生成产物位于 `~/.tradingagents/wiki/`：
+
+| 文件 | 内容 |
+|------|------|
+| `index.md` | 全量索引：所有 ticker 的分析次数、最近信号、置信度 |
+| `{ticker}.md` | 个股详情：信号时间线、置信度标签、经验教训 |
+| `lessons.md` | 跨标的经验教训汇总（7 天去重） |
+
+零外部依赖（纯 Markdown），AI agent 读 index.md 即可了解知识库全貌。
+
+### 通道 B：MCP Server（主动查询）
+
+通过 [Model Context Protocol](https://modelcontextprotocol.io) 将分析知识库暴露为 AI agent 可直接调用的工具：
+
+```bash
+# 启动 MCP Server（stdio 模式）
+tradingagents mcp serve
+```
+
+**6 个 MCP 工具：**
+
+| 工具 | 功能 | 适用场景 |
+|------|------|---------|
+| `query_analysis` | 按 ticker/日期/关键词查询 | "查一下 600519 近期所有分析" |
+| `get_ticker_signals` | 信号分布 + 趋势 + 置信度 | "茅台最近信号是否一致看多？" |
+| `search_patterns` | 搜索反复出现的市场模式 | "历史上缩量突破后怎么走？" |
+| `get_lessons` | 跨标的经验教训 | "其他股票的教训能否参考？" |
+| `get_confidence` | 某 ticker 当前信号可信度 | "当前 Buy 信号可信吗？" |
+| `get_graph_neighbors` | 知识图谱关联节点 | "茅台和哪些行业龙头有关联？" |
+
+**Claude Desktop / OpenClaw 配置示例：**
+```json
+{
+  "mcpServers": {
+    "trading-knowledge": {
+      "command": "python",
+      "args": ["-m", "tradingagents.knowledge.mcp_server"],
+      "env": {
+        "TRADINGAGENTS_ARCHIVE_DIR": "~/.tradingagents/analysis-archive"
+      }
+    }
+  }
+}
+```
+
+### 存档管理
+
+```bash
+# 查询存档（支持 ticker/日期/决策筛选）
+tradingagents archive list --ticker 600519 --limit 10
+
+# 全文搜索
+tradingagents archive search "放量突破"
+
+# 查看信号分布
+tradingagents archive summary 600519 --days 90
+
+# 删除条目
+tradingagents archive delete 2026/05/09/batch_600519
+```
+
+### Graph Merge
+
+将代码知识图谱与分析知识图谱合并为统一查询层：
+
+```bash
+python -m tradingagents.knowledge.mcp_server --merge-graphs \
+  graphify-out/graph.json \
+  graphify-out/analysis-graph.json \
+  --output graphify-out/unified-graph.json
+```
+
+### 知识消费双通道
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   知识消费双通道                             │
+├─────────────────────────┬───────────────────────────────────┤
+│  通道 A: Wiki 导航       │  通道 B: MCP 工具调用             │
+│  （被动，低成本）         │  （主动，按需）                   │
+│                          │                                   │
+│  agent 读 Markdown       │  agent 通过 function calling 调用 │
+│  → 了解知识库全貌         │  → 精确获取所需信息              │
+│  适合：每次分析的前置      │  适合：深度回溯、跨标的查询       │
+│  token 成本：~2K/page    │  token 成本：按需付费             │
+└─────────────────────────┴───────────────────────────────────┘
+```
+
 ## Contributing
 
 我们欢迎社区的贡献！无论是修复 Bug、改进文档还是建议新功能，您的参与都能帮助这个项目变得更好。如果您对此研究方向感兴趣，请考虑加入我们的开源金融 AI 研究社区 [Tauric Research](https://tauric.ai/)。
@@ -456,6 +728,18 @@ config = {
 
     # 输出语言 — "Chinese" 输出中文报告，"English" 输出英文报告
     "output_language": "Chinese",
+
+    # 知识消费配置
+    "knowledge_token_budget": 25000,
+    "skip_if_analyzed_today": False,
+    "incremental_window_days": 0,
+    "enable_context_assembly": True,
+    "enable_archive_first_cache": True,
+    "confidence_tags_enabled": True,
+    "confidence_threshold_inject": "CONFLICTING",
+    "graphify_auto_sync": True,
+    "wiki_auto_generate": False,
+    "mcp_server_enabled": False,
 }
 ```
 
@@ -583,6 +867,11 @@ print(decision)
 - 分批建仓的 FIFO/LIFO 成本追踪
 - 多股票组合持仓管理
 - 真实券商 API 对接
+
+### 文档
+
+- 📖 [知识库系统使用指南 →](docs/knowledge-base-help.md) — 分析存档、搜索查询、Wiki 导航、MCP Server 配置等知识库功能详解
+- 📖 [OpenClaw 编排指南 →](docs/openclaw-operation-guide.md) — 面向 AI 编排系统的 CLI 命令参考、JSON 输出格式、典型工作流
 
 ---
 

@@ -71,6 +71,12 @@ class AgentState(MessagesState):
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]
+    knowledge_context: Annotated[
+        dict,
+        "Structured knowledge context assembled at run start. "
+        "Contains archived_analyses, past_decisions, ticker_signals, lessons. "
+        "Each agent extracts what it needs.",
+    ] = {}
 
     # A股特有字段（可选，美股场景不填）
     market_type: Annotated[str, "Market type: 'A_SHARE' or 'US_STOCK'"] = "A_SHARE"

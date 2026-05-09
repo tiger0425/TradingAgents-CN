@@ -18,6 +18,7 @@ class Propagator:
     def create_initial_state(
         self, company_name: str, trade_date: str,
         past_context: str = "",
+        knowledge_context: dict = None,
         cost_price: float = 0.0,
         quantity: int = 0,
         position_opened_date: str = "",
@@ -28,6 +29,7 @@ class Propagator:
             "company_of_interest": company_name,
             "trade_date": str(trade_date),
             "past_context": past_context,
+            "knowledge_context": knowledge_context or {},
             "investment_debate_state": InvestDebateState(
                 {
                     "bull_history": "",

@@ -57,14 +57,24 @@ def _build_stock_entry(row) -> Dict[str, Any]:
 
 
 def _fetch_spot_df() -> Optional[Any]:
-    """Fetch stock_zh_a_spot DataFrame, returning None on failure."""
+    """Fetch stock_zh_a_spot DataFrame via DataCache spot namespace (30s TTL).
+
+    Repeated calls within the TTL window return the cached DataFrame without
+    network requests.
+    """
     if ak is None:
         return None
     try:
-        df = ak.stock_zh_a_spot()
-        if df is None or df.empty:
-            return None
-        return df
+        from tradingagents.dataflows.cache import DataCache
+        from tradingagents.default_config import DEFAULT_CONFIG
+
+        cache = DataCache(DEFAULT_CONFIG.get("data_cache_dir", "~/.tradingagents/cache"))
+        return cache.get_or_fetch(
+            "spot",
+            "market_snapshot",
+            fetcher=lambda: ak.stock_zh_a_spot(),
+            ttl=30,
+        )
     except Exception:
         return None
 

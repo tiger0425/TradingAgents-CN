@@ -249,42 +249,56 @@ class TradingAgentsGraph:
 
     @staticmethod
     def _get_ashare_close_series(ticker: str, start_date: str, end_date: str):
-        """Get closing price series for an A-share stock via akshare."""
-        import akshare as ak
-        from tradingagents.dataflows.akshare import _to_sina_symbol
+        """Get closing price series for an A-share stock via cached OHLCV data."""
+        from tradingagents.dataflows.akshare import _load_ohlcv_akshare
+        import pandas as pd
 
-        sina_sym = _to_sina_symbol(ticker)
-        df = ak.stock_zh_a_daily(
-            symbol=sina_sym, start_date=start_date, end_date=end_date, adjust="qfq"
-        )
-        if df is None or df.empty:
+        try:
+            data = _load_ohlcv_akshare(ticker, end_date)
+            if data is None or data.empty:
+                return None
+            # Filter to requested date range (data already sorted by Date)
+            data = data[data["Date"] >= pd.Timestamp(start_date)]
+            if data.empty:
+                return None
+            return data["Close"].values
+        except Exception:
             return None
-        df = df.sort_values("date")
-        return df["close"].values
 
     @staticmethod
     def _get_ashare_benchmark_close_series(
         benchmark_ticker: str, start_date: str, end_date: str
     ):
-        """Get closing price series for an A-share benchmark index via akshare."""
         import akshare as ak
+        import pandas as pd
         from datetime import date as dt_date
+        from tradingagents.dataflows.cache import DataCache
+        from tradingagents.default_config import DEFAULT_CONFIG
 
-        # Convert A-share index codes to Sina format:
-        #   "000300" → "sh000300" (CSI 300, Shanghai)
-        #   "399001" → "sz399001" (SZSE Component Index, Shenzhen)
         if benchmark_ticker.startswith("000"):
             index_sym = f"sh{benchmark_ticker}"
         elif benchmark_ticker.startswith("399"):
             index_sym = f"sz{benchmark_ticker}"
         else:
-            # Fallback for non-standard codes: assume Shanghai
             index_sym = f"sh{benchmark_ticker}"
 
-        df = ak.stock_zh_index_daily(symbol=index_sym)
+        def _fetch_benchmark():
+            df = ak.stock_zh_index_daily(symbol=index_sym)
+            if df is None or df.empty:
+                return pd.DataFrame()
+            return df
+
+        cache = DataCache(DEFAULT_CONFIG.get("data_cache_dir", "~/.tradingagents/cache"))
+        df = cache.get_or_fetch(
+            namespace="benchmark",
+            key=f"{benchmark_ticker}_{start_date}_{end_date}.csv",
+            fetcher=_fetch_benchmark,
+        )
+
         if df is None or df.empty:
             return None
 
+        df["date"] = pd.to_datetime(df["date"])
         sd = dt_date.fromisoformat(start_date)
         ed = dt_date.fromisoformat(end_date)
         df = df[(df["date"] >= sd) & (df["date"] <= ed)]
@@ -362,6 +376,39 @@ class TradingAgentsGraph:
         self._pending_quantity = quantity
         self._pending_position_opened_date = position_opened_date
 
+        # Reset incremental mode flags for each propagate() call
+        self._incremental_mode = False
+        self._recent_analyses = []
+
+        # ★ Level 1: same ticker same day already analyzed?
+        if self.config.get("skip_if_analyzed_today", False):
+            from tradingagents.analysis_archive import AnalysisArchive
+            archive = AnalysisArchive(self.config)
+            entry_id = AnalysisArchive._build_entry_id(str(trade_date), "batch", company_name)
+            cached = archive.get(entry_id)
+            if cached:
+                logger.info("[Cache L1] %s on %s already analyzed, returning cached", company_name, trade_date)
+                cached_analysis = cached.get("analysis", {})
+                decision = cached_analysis.get("final_decision", cached.get("decision", "Hold"))
+                cached_state = {
+                    "final_trade_decision": decision,
+                    "company_of_interest": company_name,
+                    "trade_date": str(trade_date),
+                    "_cached": True,
+                }
+                return cached_state, decision
+
+        # ★ Level 2: Recent analysis within window?
+        incremental_days = self.config.get("incremental_window_days", 0)
+        if incremental_days > 0:
+            from tradingagents.analysis_archive import AnalysisArchive
+            archive = AnalysisArchive(self.config)
+            recent = archive.list(ticker=company_name, date_from=str(trade_date), limit=1)
+            if recent:
+                logger.info("[Cache L2] %s recent analysis found, incremental mode", company_name)
+                self._incremental_mode = True
+                self._recent_analyses = recent
+
         # Recompile with a checkpointer if the user opted in.
         if self.config.get("checkpoint_enabled"):
             self._checkpointer_ctx = get_checkpointer(
@@ -382,6 +429,20 @@ class TradingAgentsGraph:
 
         try:
             result = self._run_graph(company_name, trade_date)
+
+            # Post-analysis archive save
+            if self.config.get("enable_archive_first_cache", True):
+                try:
+                    from cli.archive import save_to_archive
+                    decision = result[1]
+                    summary = result[0].get("final_trade_decision", "")
+                    save_to_archive(
+                        {"decision": decision, "summary": summary, "analysts": ["batch"]},
+                        "batch", company_name, str(trade_date), self.config,
+                    )
+                except Exception as e:
+                    logger.warning("Post-analysis archive save failed: %s", e)
+
             self._auto_update_position(
                 company_name, str(trade_date),
                 result[0]["final_trade_decision"],
@@ -399,36 +460,58 @@ class TradingAgentsGraph:
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM.
         past_context = self.memory_log.get_past_context(company_name)
+
+        # Phase 1: Assemble knowledge context before graph execution.
+        knowledge_context = {}
+        if self.config.get("enable_context_assembly", True):
+            try:
+                from tradingagents.graph.context_assembly import ContextAssembler
+                assembler = ContextAssembler(self.config)
+                knowledge_context = assembler.assemble(
+                    company_name, str(trade_date),
+                    market_type=self.config.get("market_type", "A_SHARE"),
+                )
+                logger.info(
+                    "Knowledge context assembled: %d archived, %d signals, %d lessons",
+                    len(knowledge_context.get("archived_analyses", [])),
+                    knowledge_context.get("ticker_signals", {}).get("total_entries", 0),
+                    len(knowledge_context.get("lessons", [])),
+                )
+            except Exception as e:
+                logger.warning("ContextAssembly failed for %s: %s", company_name, e)
+
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, past_context=past_context,
+            knowledge_context=knowledge_context,
             cost_price=getattr(self, '_pending_cost_price', 0.0),
             quantity=getattr(self, '_pending_quantity', 0),
             position_opened_date=getattr(self, '_pending_position_opened_date', ''),
         )
+
+        # Inject incremental mode context into agent state
+        if getattr(self, '_incremental_mode', False):
+            init_agent_state["_incremental_mode"] = True
+            init_agent_state["_recent_analyses"] = self._recent_analyses
+            logger.info("Injected incremental context for %s into agent state", company_name)
 
         # Compute A-share limit up/down prices and inject into initial state.
         # Limit is based on the PREVIOUS trading day's close price.
         if self.config.get("market_type") == "A_SHARE":
             try:
                 from tradingagents.dataflows.a_share_constraints import get_limit_prices
-                from tradingagents.dataflows.akshare import _to_sina_symbol
-                from datetime import datetime, timedelta
-                import akshare as ak
+                from tradingagents.dataflows.akshare import _load_ohlcv_akshare
+                from datetime import datetime
+                import pandas as pd
 
-                sina_sym = _to_sina_symbol(company_name)
                 td = datetime.strptime(str(trade_date), "%Y-%m-%d")
                 prev_close = None
-                for offset in range(1, 15):
-                    cand = (td - timedelta(days=offset)).strftime("%Y-%m-%d")
-                    df = ak.stock_zh_a_daily(
-                        symbol=sina_sym,
-                        start_date=cand,
-                        end_date=cand,
-                        adjust="qfq",
-                    )
-                    if df is not None and not df.empty:
-                        prev_close = float(df.iloc[0]["close"])
-                        break
+
+                ohlcv_data = _load_ohlcv_akshare(company_name, str(trade_date))
+                if ohlcv_data is not None and not ohlcv_data.empty:
+                    trade_dt = pd.Timestamp(trade_date)
+                    before_trade = ohlcv_data[ohlcv_data["Date"] < trade_dt]
+                    if not before_trade.empty:
+                        prev_close = float(before_trade["Close"].iloc[-1])
 
                 if prev_close is not None:
                     limit_up, limit_down = get_limit_prices(company_name, prev_close)
@@ -569,21 +652,19 @@ class TradingAgentsGraph:
                         logger.info("Auto-closed position for %s at %.2f", ticker, close_price)
 
     def _get_analysis_day_close(self, ticker: str, trade_date: str) -> Optional[float]:
-        """Get closing price for ticker on trade_date."""
         try:
-            from tradingagents.dataflows.akshare import _to_sina_symbol
-            import akshare as ak
+            from tradingagents.dataflows.akshare import _load_ohlcv_akshare
+            import pandas as pd
 
-            sina_sym = _to_sina_symbol(ticker)
-            df = ak.stock_zh_a_daily(
-                symbol=sina_sym,
-                start_date=trade_date,
-                end_date=trade_date,
-                adjust="qfq",
-            )
-            if df is not None and not df.empty:
-                return float(df.iloc[0]["close"])
-            return None
+            data = _load_ohlcv_akshare(ticker, trade_date)
+            if data is None or data.empty:
+                return None
+
+            target = pd.Timestamp(trade_date)
+            matching = data[data["Date"] == target]
+            if matching.empty:
+                return None
+            return float(matching["Close"].iloc[0])
         except Exception as e:
             logger.warning("Could not get close price for %s on %s: %s", ticker, trade_date, e)
             return None

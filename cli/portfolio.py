@@ -41,42 +41,57 @@ except ImportError:
 # ------------------------------------------------------------------
 
 
-def _fetch_spot_prices() -> Dict[str, Dict[str, Any]]:
-    """Fetch current spot prices for all A-share stocks via akshare.
+def _fetch_spot_prices(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Fetch spot prices for specific tickers using the shared get_current_price() cache.
+
+    get_current_price() in akshare.py maintains a 30s TTL cache on the full
+    market snapshot.  Calling it for each ticker within the TTL window reuses
+    the same cached DataFrame, avoiding redundant network requests.
 
     Returns a dict keyed by 6-digit ticker code, each value is a dict
     with keys: name, current_price, change, change_pct.
 
-    Returns empty dict if akshare not available or fetch fails.
+    Returns empty dict if akshare not available or all fetches fail.
     """
     if not _AKSHARE_AVAILABLE:
         return {}
 
-    try:
-        df = ak.stock_zh_a_spot()
-    except Exception:
-        return {}
-
-    if df is None or df.empty:
-        return {}
+    from tradingagents.dataflows.akshare import get_current_price
+    import re
 
     prices: Dict[str, Dict[str, Any]] = {}
-    from tradingagents.dataflows.akshare import _to_sina_symbol
-
-    for _, row in df.iterrows():
-        code = str(row.get("代码", ""))
-        # Sina codes look like "sh600519" — strip prefix to 6-digit
-        ticker = code[2:] if len(code) >= 3 and code[:2] in ("sh", "sz", "bj") else code
-        if len(ticker) != 6 or not ticker.isdigit():
-            continue
+    for ticker in tickers:
         try:
-            prices[ticker] = {
-                "name": str(row.get("名称", ticker)),
-                "current_price": float(row.get("最新价", 0)),
-                "change": float(row.get("涨跌额", 0)),
-                "change_pct": float(row.get("涨跌幅", 0)),
-            }
-        except (ValueError, TypeError):
+            result = get_current_price(ticker)
+            if not result or result.startswith("Error") or "No real-time" in result:
+                continue
+
+            name = ""
+            price = 0.0
+            change = 0.0
+            change_pct = 0.0
+
+            for line in result.split("\n"):
+                if line.startswith("# Real-time Quote for"):
+                    m = re.search(r"\((.+?)\)", line)
+                    name = m.group(1) if m else ticker
+                elif "**Current Price**" in line:
+                    m = re.search(r"([\d.]+)", line)
+                    price = float(m.group(1)) if m else 0.0
+                elif "**Change**" in line:
+                    m = re.search(r"([\d.-]+)\s*\(([\d.-]+)%\)", line)
+                    if m:
+                        change = float(m.group(1))
+                        change_pct = float(m.group(2))
+
+            if price > 0:
+                prices[ticker] = {
+                    "name": name or ticker,
+                    "current_price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                }
+        except Exception:
             continue
 
     return prices
@@ -235,8 +250,8 @@ def portfolio(
             typer.echo(_format_portfolio_text([], {}, {}, date))
         return
 
-    # Fetch current prices
-    spot_prices = _fetch_spot_prices()
+    # Fetch current prices for holding tickers via shared get_current_price() cache
+    spot_prices = _fetch_spot_prices(list(positions.keys()))
 
     # Build holdings list
     holdings: List[Dict[str, Any]] = []

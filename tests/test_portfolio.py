@@ -194,75 +194,66 @@ class TestFormatPortfolioText:
 class TestFetchSpotPrices:
     @patch("cli.portfolio._AKSHARE_AVAILABLE", False)
     def test_akshare_not_available(self):
-        result = _fetch_spot_prices()
+        result = _fetch_spot_prices(["600519"])
         assert result == {}
 
     @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_akshare_returns_none(self, mock_ak):
-        mock_ak.stock_zh_a_spot.return_value = None
-        result = _fetch_spot_prices()
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_akshare_returns_none(self, mock_gcp):
+        mock_gcp.return_value = None
+        result = _fetch_spot_prices(["600519"])
         assert result == {}
 
     @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_akshare_returns_empty_df(self, mock_ak):
-        import pandas as pd
-        mock_ak.stock_zh_a_spot.return_value = pd.DataFrame()
-        result = _fetch_spot_prices()
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_akshare_returns_empty_df(self, mock_gcp):
+        mock_gcp.return_value = "No real-time data available"
+        result = _fetch_spot_prices(["600519"])
         assert result == {}
 
     @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_akshare_returns_valid_data(self, mock_ak):
-        import pandas as pd
-        df = pd.DataFrame([
-            {"代码": "sh600519", "名称": "贵州茅台", "最新价": 1620.0, "涨跌额": 20.0, "涨跌幅": 1.25},
-            {"代码": "sz000858", "名称": "五粮液", "最新价": 130.0, "涨跌额": 5.0, "涨跌幅": 4.0},
-        ])
-        mock_ak.stock_zh_a_spot.return_value = df
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_akshare_returns_valid_data(self, mock_gcp):
+        mock_gcp.return_value = (
+            "# Real-time Quote for 600519 (贵州茅台)\n"
+            "**Current Price**: 1620.0\n"
+            "**Change**: 20.0 (1.25%)\n"
+            "**Open**: 1585.0\n"
+            "**High**: 1630.0\n"
+            "**Low**: 1575.0\n"
+            "**Previous Close**: 1600.0\n"
+            "**Volume**: 2850000\n"
+            "**Turnover**: 4523000000\n"
+        )
 
-        result = _fetch_spot_prices()
-        assert len(result) == 2
+        result = _fetch_spot_prices(["600519"])
+        assert len(result) == 1
         assert "600519" in result
         assert result["600519"]["name"] == "贵州茅台"
         assert result["600519"]["current_price"] == 1620.0
-        assert "000858" in result
-        assert result["000858"]["name"] == "五粮液"
-        assert result["000858"]["current_price"] == 130.0
 
     @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_handles_missing_fields(self, mock_ak):
-        import pandas as pd
-        df = pd.DataFrame([
-            {"代码": "sh600519", "名称": "贵州茅台"},  # missing 最新价, 涨跌额, 涨跌幅
-        ])
-        mock_ak.stock_zh_a_spot.return_value = df
-
-        result = _fetch_spot_prices()
-        assert "600519" in result
-        assert result["600519"]["current_price"] == 0.0  # default
-        assert result["600519"]["change"] == 0.0
-
-    @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_akshare_raises_exception(self, mock_ak):
-        mock_ak.stock_zh_a_spot.side_effect = RuntimeError("network error")
-        result = _fetch_spot_prices()
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_handles_missing_fields(self, mock_gcp):
+        mock_gcp.return_value = "# Real-time Quote for 600519 (贵州茅台)\n**Note**: no price data\n"
+        result = _fetch_spot_prices(["600519"])
         assert result == {}
 
     @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
-    @patch("cli.portfolio.ak")
-    def test_ignores_non_numeric_tickers(self, mock_ak):
-        import pandas as pd
-        df = pd.DataFrame([
-            {"代码": "sh600519", "名称": "茅台", "最新价": 1620.0, "涨跌额": 20.0, "涨跌幅": 1.25},
-            {"代码": "shQQQ", "名称": "invalid", "最新价": 100.0, "涨跌额": 0.0, "涨跌幅": 0.0},
-        ])
-        mock_ak.stock_zh_a_spot.return_value = df
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_akshare_raises_exception(self, mock_gcp):
+        mock_gcp.side_effect = RuntimeError("network error")
+        result = _fetch_spot_prices(["600519"])
+        assert result == {}
 
-        result = _fetch_spot_prices()
+    @patch("cli.portfolio._AKSHARE_AVAILABLE", True)
+    @patch("tradingagents.dataflows.akshare.get_current_price")
+    def test_ignores_non_numeric_tickers(self, mock_gcp):
+        mock_gcp.return_value = (
+            "# Real-time Quote for 600519 (茅台)\n"
+            "**Current Price**: 1620.0\n"
+            "**Change**: 20.0 (1.25%)\n"
+        )
+        result = _fetch_spot_prices(["600519"])
         assert len(result) == 1
         assert "600519" in result
-        assert "QQQ" not in result

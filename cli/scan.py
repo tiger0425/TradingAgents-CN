@@ -34,12 +34,14 @@ from tradingagents.dataflows.akshare import _to_sina_symbol
 from cli.batch import (
     build_config,
     _parse_analysts,
+    _graphify_auto_sync,
     ANALYST_ORDER,
     RATING_DIRECTION_MAP,
     BatchJSONEncoder,
     _deep_sanitize,
 )
 from cli.stats_handler import StatsCallbackHandler
+from cli.archive import save_to_archive
 
 # Lazy akshare import — not required for import-time, only needed at runtime
 try:
@@ -240,7 +242,11 @@ def _notify_scan_results(
 
 
 def _get_spot_quote(ticker: str) -> Optional[Dict[str, Any]]:
-    """Fetch real-time spot quote for a single A-share ticker via akshare.
+    """Fetch real-time spot quote for a single A-share ticker via shared cache.
+
+    Uses get_current_price() which maintains a 30s TTL cache on the full
+    market snapshot.  Calling this for multiple tickers within the TTL window
+    reuses the same cached DataFrame.
 
     Returns a dict with keys: name, current_price, change, change_pct,
     open, high, low, prev_close, volume, amount, timestamp.
@@ -249,27 +255,77 @@ def _get_spot_quote(ticker: str) -> Optional[Dict[str, Any]]:
     if not _AKSHARE_AVAILABLE:
         return None
     try:
-        _ = ak.stock_zh_a_spot  # verify availability
-        sina_symbol = _to_sina_symbol(ticker)
-        df = ak.stock_zh_a_spot()
-        if df is None or df.empty:
+        from tradingagents.dataflows.akshare import get_current_price
+        import re
+
+        result = get_current_price(ticker)
+        if not result or result.startswith("Error") or "No real-time" in result:
             return None
-        row = df[df["代码"] == sina_symbol]
-        if row.empty:
+
+        name = ""
+        price = 0.0
+        change = 0.0
+        change_pct = 0.0
+        open_price = 0.0
+        high = 0.0
+        low = 0.0
+        prev_close = 0.0
+        volume = ""
+        amount = ""
+        timestamp = ""
+
+        for line in result.split("\n"):
+            if line.startswith("# Real-time Quote for"):
+                m = re.search(r"\((.+?)\)", line)
+                name = m.group(1) if m else ticker
+            elif "**Current Price**" in line:
+                m = re.search(r"([\d.]+)", line)
+                price = float(m.group(1)) if m else 0.0
+            elif "**Change**" in line:
+                m = re.search(r"([\d.-]+)\s*\(([\d.-]+)%\)", line)
+                if m:
+                    change = float(m.group(1))
+                    change_pct = float(m.group(2))
+            elif "**Open**" in line:
+                m = re.search(r"([\d.]+)", line)
+                open_price = float(m.group(1)) if m else 0.0
+            elif "**High**" in line:
+                m = re.search(r"([\d.]+)", line)
+                high = float(m.group(1)) if m else 0.0
+            elif "**Low**" in line:
+                m = re.search(r"([\d.]+)", line)
+                low = float(m.group(1)) if m else 0.0
+            elif "**Previous Close**" in line:
+                m = re.search(r"([\d.]+)", line)
+                prev_close = float(m.group(1)) if m else 0.0
+            elif "**Volume**" in line:
+                m = re.search(r"(.+)", line)
+                if m:
+                    volume = m.group(1).replace("**Volume**: ", "").strip()
+            elif "**Turnover**" in line:
+                m = re.search(r"(.+)", line)
+                if m:
+                    amount = m.group(1).replace("**Turnover**: ", "").strip()
+            elif "**Data Time**" in line:
+                m = re.search(r"(.+)", line)
+                if m:
+                    timestamp = m.group(1).replace("**Data Time**: ", "").strip()
+
+        if price <= 0:
             return None
-        r = row.iloc[0]
+
         return {
-            "name": str(r.get("名称", "")),
-            "current_price": float(r.get("最新价", 0) or 0),
-            "change": float(r.get("涨跌额", 0) or 0),
-            "change_pct": float(r.get("涨跌幅", 0) or 0),
-            "open": float(r.get("今开", 0) or 0),
-            "high": float(r.get("最高", 0) or 0),
-            "low": float(r.get("最低", 0) or 0),
-            "prev_close": float(r.get("昨收", 0) or 0),
-            "volume": str(r.get("成交量", "")),
-            "amount": str(r.get("成交额", "")),
-            "timestamp": str(r.get("时间戳", "")),
+            "name": name or ticker,
+            "current_price": price,
+            "change": change,
+            "change_pct": change_pct,
+            "open": open_price,
+            "high": high,
+            "low": low,
+            "prev_close": prev_close,
+            "volume": volume,
+            "amount": amount,
+            "timestamp": timestamp,
         }
     except Exception:
         return None
@@ -522,6 +578,13 @@ def scan_watchlist(
     )
     signals = _group_signals(results)
 
+    # --- Archive ---
+    for r in results:
+        if r.get("status") == "completed" and not r.get("error"):
+            save_to_archive(r, "scan-watchlist", r["ticker"], date, config)
+
+    _graphify_auto_sync(config)
+
     if output_mode == "silent":
         return
 
@@ -616,6 +679,13 @@ def morning_scan(
             r["name"] = q["name"]
 
     signals = _group_signals(results)
+
+    # --- Archive ---
+    for r in results:
+        if r.get("status") == "completed" and not r.get("error"):
+            save_to_archive(r, "morning-scan", r["ticker"], date, config)
+
+    _graphify_auto_sync(config)
 
     # --- Notification ---
     _notify_scan_results("晨间扫描", date, signals, scanned, total, config)
@@ -718,6 +788,13 @@ def evening_review(
         position_states=position_states,
     )
     signals = _group_signals(results)
+
+    # --- Archive ---
+    for r in results:
+        if r.get("status") == "completed" and not r.get("error"):
+            save_to_archive(r, "evening-review", r["ticker"], date, config)
+
+    _graphify_auto_sync(config)
 
     # Calculate P&L for positions — fetch closing prices
     positions: List[Dict[str, Any]] = []

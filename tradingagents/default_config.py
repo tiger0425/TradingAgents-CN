@@ -52,4 +52,39 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
     },
+
+    # ============================================================
+    # Knowledge Consumption Config (Phase 0-5)
+    # ============================================================
+    # Token budget for history knowledge injection
+    "knowledge_token_budget": 25000,
+    # Skip analysis if same ticker already analyzed today
+    "skip_if_analyzed_today": False,
+    # Incremental analysis window in days (0 = disabled)
+    "incremental_window_days": 0,
+    # Enable ContextAssembly at run start
+    "enable_context_assembly": True,
+    # Enable archive-first cache for data fetching
+    "enable_archive_first_cache": True,
+
+    # Confidence tags
+    "confidence_tags_enabled": True,
+    # Threshold: CONFIRMED > SINGLE > DERIVED > CONFLICTING > STALE
+    # Conclusions below this confidence are filtered from prompt injection
+    "confidence_threshold_inject": "CONFLICTING",
+
+    # Graphify integration
+    "graphify_auto_sync": True,
+    "graphify_analysis_graph_path": "",
+
+    # MCP Server
+    "mcp_server_enabled": False,
+    "mcp_server_port": 8765,
+
+    # Wiki generator
+    "wiki_output_dir": "~/.tradingagents/wiki/",
+    "wiki_auto_generate": False,
+
+    # Analysis archive dir (for cache triple-check chain)
+    "analysis_archive_dir": os.path.join(_TRADINGAGENTS_HOME, "analysis-archive"),
 }

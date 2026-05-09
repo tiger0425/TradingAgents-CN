@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
+import subprocess
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -27,6 +29,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.dataflows.position_utils import calc_position_pnl
 from cli.stats_handler import StatsCallbackHandler
+from cli.archive import save_to_archive
 
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 ANALYST_VALID_VALUES = set(ANALYST_ORDER)
@@ -238,6 +241,34 @@ def _truncate_text(text: str, max_len: int = 200) -> str:
     return text[: max_len - 3] + "..."
 
 
+logger = logging.getLogger(__name__)
+
+
+def _graphify_auto_sync(config: dict) -> None:
+    """Run graphify update . after analysis if auto_sync is enabled.
+
+    Silently skips if graphify is not installed or the command fails.
+    """
+    if not config.get("graphify_auto_sync", False):
+        return
+    try:
+        result = subprocess.run(
+            ["graphify", "update", "."],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0:
+            logger.info("Graphify auto-sync: OK")
+        else:
+            logger.warning(
+                "Graphify auto-sync: exited %d: %s",
+                result.returncode, result.stderr.strip() or result.stdout.strip(),
+            )
+    except FileNotFoundError:
+        logger.info("Graphify not installed — skipping auto-sync")
+    except Exception as exc:
+        logger.warning("Graphify auto-sync failed: %s", exc)
+
+
 def build_config(
     llm_provider: Optional[str] = None,
     deep_model: Optional[str] = None,
@@ -375,6 +406,25 @@ def batch(
             quantity=quantity,
             position_opened_date=opened_date,
         )
+
+        # --- Archive the result ---
+        save_to_archive(
+            {
+                "decision": decision,
+                "summary": final_state.get("final_trade_decision", ""),
+                "analysts": selected_analysts,
+                "analyst_reports": {
+                    k: final_state.get(v, "")
+                    for k, v in ANALYST_REPORT_MAP.items()
+                },
+            },
+            "batch",
+            ticker,
+            date,
+            config,
+        )
+
+        _graphify_auto_sync(config)
     except Exception as exc:
         if output_mode == "json":
             typer.echo(json.dumps(
