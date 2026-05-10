@@ -13,3 +13,8 @@ results
 eval_results
 Dockerfile
 docker-compose.yml
+graphify-out/
+tests/
+.sisyphus/
+docs/
+.opencode/

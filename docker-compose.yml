@@ -7,6 +7,10 @@ services:
       - tradingagents_data:/home/appuser/.tradingagents
     tty: true
     stdin_open: true
+    # MCP Server 使用 stdio 模式，不需要端口映射
+    # 如需 TCP 模式，取消以下注释:
+    # ports:
+    #   - "8765:8765"
 
   ollama:
     image: ollama/ollama:latest
