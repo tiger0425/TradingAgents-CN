@@ -483,6 +483,41 @@ class TradingAgentsGraph:
             except Exception as e:
                 logger.warning("ContextAssembly failed for %s: %s", company_name, e)
 
+        # ★ Phase 1.5: Market context assembly
+        market_context = ""
+        if self.config.get("enable_market_context", True):
+            try:
+                from tradingagents.dataflows.market_context import fetch_market_context
+                from tradingagents.dataflows.cache import DataCache
+                from tradingagents.default_config import DEFAULT_CONFIG
+
+                mc_cache = DataCache(DEFAULT_CONFIG.get("data_cache_dir", "~/.tradingagents/cache"))
+                mc_key = f"market_context_{str(trade_date)}.json"
+
+                cached = mc_cache.get("market", mc_key)
+                if cached is not None and isinstance(cached, dict):
+                    market_context = cached.get("text", "")
+                    logger.info(
+                        "Market context cache HIT for %s on %s",
+                        company_name, trade_date,
+                    )
+                else:
+                    market_context = fetch_market_context(
+                        str(trade_date),
+                        market_type=self.config.get("market_type", "A_SHARE"),
+                    )
+                    mc_cache.set("market", mc_key, {"text": market_context})
+                    logger.info(
+                        "Market context assembled for %s on %s",
+                        company_name, trade_date,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Market context fetch failed for %s on %s: %s",
+                    company_name, trade_date, e,
+                )
+                market_context = ""  # Graceful degradation
+
         init_agent_state = self.propagator.create_initial_state(
             company_name, trade_date, past_context=past_context,
             knowledge_context=knowledge_context,
@@ -490,6 +525,10 @@ class TradingAgentsGraph:
             quantity=getattr(self, '_pending_quantity', 0),
             position_opened_date=getattr(self, '_pending_position_opened_date', ''),
         )
+
+        # ★ Inject market context into agent state
+        if market_context:
+            init_agent_state["market_context"] = market_context
 
         # Inject incremental mode context into agent state
         if getattr(self, '_incremental_mode', False):
