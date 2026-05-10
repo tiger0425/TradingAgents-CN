@@ -37,6 +37,8 @@ def create_bull_researcher(llm):
         if len(history_lines) > 20:  # Roughly 2 rounds worth
             history = '\n'.join(history_lines[-20:])
 
+        market_context = state.get("market_context", "")
+
         prompt = f"""You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
 {round_instruction}
@@ -57,6 +59,16 @@ Conversation history of the debate:
 {history}
 {opponent_reference}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
+"""
+        if market_context:
+            prompt += f"""
+**Current Market Environment:**
+{market_context}
+
+Factor the above market environment into your analysis.
+A strong bull thesis should acknowledge and explain why positive
+signals persist despite any negative market backdrop, or why the
+market tailwind amplifies bullish signals.
 """
 
         response = llm.invoke(prompt)

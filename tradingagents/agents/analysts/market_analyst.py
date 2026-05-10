@@ -36,14 +36,15 @@ Select indicators that provide diverse and complementary information. Avoid redu
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
             + get_language_instruction()
             + get_degradation_instruction()
-            + " Remember: you are the technical analysis specialist. Your indicators inform the trading decision but you are NOT responsible for the final trading decision.",
+            + " Remember: you are the technical analysis specialist. Your indicators inform the trading decision but you are NOT responsible for the final trading decision."
+            + "\n\n**Market Environment Context:**\nThe current market environment data is available via the `get_market_context` tool.\nCall this tool at the START of your analysis to understand the broader market conditions (index trends, sector rotation, capital flows, market breadth) before interpreting individual stock technical indicators. Factor the market environment into your assessment of whether technical signals indicate genuine trends or market-driven noise.",
         )
 
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "{system_message}\n\nFor your reference, the current date is {current_date}. {instrument_context}",
+                    "{system_message}\n\nFor your reference, the current date is {current_date}. {instrument_context}{market_context_section}",
                 ),
                 MessagesPlaceholder(variable_name="messages"),
             ]
@@ -52,6 +53,10 @@ Select indicators that provide diverse and complementary information. Avoid redu
         prompt = prompt.partial(system_message=system_message)
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
+
+        market_context = state.get("market_context", "")
+        market_context_section = f"\n\n**当前市场环境：**\n{market_context}" if market_context else ""
+        prompt = prompt.partial(market_context_section=market_context_section)
 
         chain = prompt | llm.bind_tools(tools)
 

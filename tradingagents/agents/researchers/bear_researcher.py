@@ -11,6 +11,7 @@ def create_bear_researcher(llm):
         sentiment_report = state["sentiment_report"]
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
+        market_context = state.get("market_context", "")
 
         # Round-awareness: first round vs rebuttal
         is_first_round = investment_debate_state.get("count", 0) == 0
@@ -59,6 +60,17 @@ Conversation history of the debate:
 {history}
 {opponent_reference}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock.
+"""
+
+        if market_context:
+            prompt += f"""
+**Current Market Environment:**
+{market_context}
+
+Factor the above market environment into your risk assessment.
+A strong bear thesis should identify how negative signals are
+amplified by adverse market conditions, or acknowledge when
+bearish signals contradict a bullish market backdrop.
 """
 
         response = llm.invoke(prompt)

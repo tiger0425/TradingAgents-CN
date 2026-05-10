@@ -104,6 +104,20 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
 {position_context}
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 
+        # Add market context as calibration reference
+        market_context = state.get("market_context", "")
+        if market_context:
+            prompt += f"""
+
+**市场校准参考：**
+{market_context}
+
+使用此市场上下文校准最终决策：
+- 在强势看涨市场条件下，适度的个股看跌信号可能更适合 Hold 而非 Sell
+- 在强势看跌市场条件下，即使强劲的个股看涨信号也需保持谨慎
+- 如果市场与个股信号一致，增强信心；如果冲突，请解释矛盾之处
+"""
+
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,
             llm,
