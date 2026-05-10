@@ -39,6 +39,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_news,
     get_insider_transactions,
     get_global_news,
+    get_market_context,
 )
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 
@@ -169,6 +170,8 @@ class TradingAgentsGraph:
                     get_stock_data,
                     # Technical indicators
                     get_indicators,
+                    # Market context (index, sector flow, breadth)
+                    get_market_context,
                 ]
             ),
             "social": ToolNode(

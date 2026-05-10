@@ -1,0 +1,174 @@
+"""
+Market context data-fetching module for TradingAgents.
+
+Aggregates A-share market-level context (index status, sector rotation,
+capital flows, market breadth) using akshare APIs.
+
+This module contains ZERO LLM calls and ZERO langchain imports.
+It is a pure data function that returns a formatted Markdown string.
+"""
+
+import pandas as pd
+
+# Lazy import guard — akshare is large and may not be installed everywhere
+try:
+    import akshare as ak
+except ImportError:
+    ak = None
+
+
+def _ensure_akshare():
+    """Raise a user-friendly error if akshare is not installed."""
+    if ak is None:
+        raise ImportError(
+            "akshare is not installed. Please install it with: pip install akshare"
+        )
+
+
+def _ak_date(date_str: str) -> str:
+    """Convert 'yyyy-mm-dd' to akshare's expected 'yyyymmdd' format."""
+    return date_str.replace("-", "")
+
+
+def _safe_float(val, default: float = 0.0) -> float:
+    try:
+        v = float(val)
+        if pd.isna(v):
+            return default
+        return v
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
+def _fetch_index_status() -> str:
+    try:
+        df = ak.stock_zh_index_daily(symbol="sh000001")
+        if df is None or df.empty:
+            return "（数据暂不可用）"
+
+        df = df.sort_values("date", ascending=False).reset_index(drop=True)
+        latest = _safe_float(df.loc[0, "close"])
+        prev = _safe_float(df.loc[1, "close"]) if len(df) > 1 else latest
+        close_5d = _safe_float(df.loc[4, "close"]) if len(df) > 4 else prev
+
+        daily_chg = (latest - prev) / prev * 100 if prev != 0 else 0.0
+        chg_5d = (latest - close_5d) / close_5d * 100 if close_5d != 0 else 0.0
+
+        return (
+            f"上证指数: {latest:.2f} "
+            f"(日涨跌 {daily_chg:+.2f}%, 5日涨跌 {chg_5d:+.2f}%)"
+        )
+    except Exception:
+        return "（数据暂不可用）"
+
+
+def _fetch_sector_rotation() -> str:
+    try:
+        df = ak.stock_sector_fund_flow_rank(
+            indicator="今日", sector_type="行业资金流"
+        )
+        if df is None or df.empty:
+            return "（数据暂不可用）"
+
+        flow_col = "主力净流入-净额"
+        if flow_col not in df.columns:
+            return "（数据暂不可用）"
+
+        df = df.sort_values(flow_col, ascending=False).reset_index(drop=True)
+
+        def _fmt_sector(sub_df) -> str:
+            parts = []
+            for _, row in sub_df.iterrows():
+                name = str(row.get("名称", ""))
+                val = _safe_float(row.get(flow_col, 0))
+                parts.append(f"{name}({val:+.0f})")
+            return "、".join(parts)
+
+        top_str = _fmt_sector(df.head(3))
+        bottom_str = _fmt_sector(df.tail(3))
+
+        return f"领涨: {top_str} | 领跌: {bottom_str}"
+    except Exception:
+        return "（数据暂不可用）"
+
+
+def _fetch_capital_flow() -> str:
+    try:
+        df = ak.stock_market_fund_flow()
+        if df is None or df.empty:
+            return "（数据暂不可用）"
+
+        row = df.iloc[-1]
+        main_net = _safe_float(row.get("主力净流入-净额", 0)) / 1e8
+        main_pct = _safe_float(row.get("主力净流入-净占比", 0))
+        super_large = _safe_float(row.get("超大单净流入-净额", 0)) / 1e8
+        large = _safe_float(row.get("大单净流入-净额", 0)) / 1e8
+
+        return (
+            f"主力净流入: {main_net:+.0f}亿元 "
+            f"(占比 {main_pct:+.2f}%) | "
+            f"超大单: {super_large:+.0f}亿元 | "
+            f"大单: {large:+.0f}亿元"
+        )
+    except Exception:
+        return "（数据暂不可用）"
+
+
+def _fetch_market_breadth(trade_date: str) -> str:
+    try:
+        df = ak.stock_sse_deal_daily(date=_ak_date(trade_date))
+        if df is None or df.empty:
+            return "（数据暂不可用）"
+
+        # This API returns rows labeled by 单日情况 and columns by board type.
+        # Columns: 单日情况 | 股票 | 主板A | 主板B | 科创板 | 股票回购
+        # Rows: 挂牌数, 市价总值, 流通市值, 成交金额, 成交量, 平均市盈率, 换手率, 流通换手率
+        label_col = "单日情况"
+
+        # Find the "挂牌数" row (total listed stocks)
+        listed_mask = df[label_col] == "挂牌数"
+        total_stocks = int(_safe_float(df.loc[listed_mask, "股票"].iloc[0])) if listed_mask.any() else 0
+
+        # Find the "成交金额" row (total turnover, already in 亿元)
+        vol_mask = df[label_col] == "成交金额"
+        volume_yi = _safe_float(df.loc[vol_mask, "股票"].iloc[0]) if vol_mask.any() else 0.0
+
+        return f"上证挂牌: {total_stocks}只 | 成交额: {volume_yi:.0f}亿元"
+    except Exception:
+        return "（数据暂不可用）"
+
+
+def fetch_market_context(trade_date: str, market_type: str = "A_SHARE") -> str:
+    """Fetch and format A-share market-level context data.
+
+    Aggregates index status, sector rotation, capital flow, and market
+    breadth data via akshare APIs.  Returns a Markdown string suitable
+    for LLM prompt injection.
+
+    Args:
+        trade_date: Trading date in ``"yyyy-mm-dd"`` format.
+        market_type: ``"A_SHARE"`` for Chinese market context,
+                     any other value returns an unavailable message.
+
+    Returns:
+        Markdown-formatted string with up to four context sections.
+        Total length is capped at 2000 characters.
+    """
+    if market_type != "A_SHARE":
+        return "Market context unavailable for US stocks"
+
+    _ensure_akshare()
+
+    sections = [
+        f"## 指数状态\n{_fetch_index_status()}",
+        f"## 板块轮动\n{_fetch_sector_rotation()}",
+        f"## 资金流向\n{_fetch_capital_flow()}",
+        f"## 市场宽度\n{_fetch_market_breadth(trade_date)}",
+    ]
+
+    result = "\n\n".join(sections)
+
+    if len(result) > 2000:
+        result = result[:1997] + "..."
+
+    return result

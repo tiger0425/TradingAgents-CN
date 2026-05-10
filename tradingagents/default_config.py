@@ -66,6 +66,8 @@ DEFAULT_CONFIG = {
     "enable_context_assembly": True,
     # Enable archive-first cache for data fetching
     "enable_archive_first_cache": True,
+    # Market context injection switch
+    "enable_market_context": True,
 
     # Confidence tags
     "confidence_tags_enabled": True,

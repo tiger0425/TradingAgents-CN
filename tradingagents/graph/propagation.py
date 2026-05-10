@@ -58,6 +58,7 @@ class Propagator:
             "fundamentals_report": "",
             "sentiment_report": "",
             "news_report": "",
+            "market_context": "",
             # Position tracking fields
             "cost_price": cost_price,
             "quantity": quantity,
