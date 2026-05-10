@@ -31,6 +31,7 @@
 
 ## News
 
+- [2026-05] **A股助手功能上线**：新增 6 个 CLI 工具——实时行情 (`quote`)、条件单价格预警 (`monitor`)、短线异动检测 (`alert-abnormal`，涨停/跌停/炸板/天地板/连板)、公告 LLM 快读 (`notice`)、研报抓取摘要 (`research-report`)、持仓风险评估 (`portfolio-risk`)，全部支持 `--push` 推送和 `--output json`。
 - [2026-05] **分析存档系统（AnalysisArchive）**：每次 CLI 分析（batch / morning-scan / evening-review / scan-watchlist）自动持久化完整结果到 `~/.tradingagents/analysis-archive/`，支持按 ticker、日期、决策方向检索。新增 `tradingagents archive` 命令组：list/search/summary/delete。存档结构与 TradingMemoryLog 互补——memory 存决策+反思给 LLM 注入，archive 存完整分析上下文给人+AI 查询
 - [2026-05] **知识消费体系上线**：新增 ContextAssembly 节点自动装配历史知识（含 CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），Trader/Research Manager/Portfolio Manager prompt 注入历史决策与存档分析摘要，消除 trading_graph 中冗余 akshare 调用（14+ → ≤2 次/run），统一 DataCache 缓存层、三重缓存检查链（同天跳过/增量模式/全量分析）
 - [2026-05] **Wiki 导航 + MCP Server**：新增 `tradingagents wiki generate` 自动生成 Markdown 知识导航索引（index.md + 个股详情 + lessons），新增 `tradingagents mcp serve` 启动 MCP Server 暴露 6 个知识查询工具（query_analysis / get_ticker_signals / search_patterns / get_lessons / get_confidence / get_graph_neighbors），支持 Graph Merge 合并代码图与分析图

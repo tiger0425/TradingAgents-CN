@@ -41,6 +41,12 @@ from cli.backtest import backtest
 from cli.archive import archive_app
 from cli.mcp import serve as mcp_serve
 from cli.wiki import wiki_app
+from cli.quote import quote_command
+from cli.notice import notice_command
+from cli.research_report import research_report_command
+from cli.monitor import monitor_command
+from cli.alert_abnormal import alert_abnormal_command
+from cli.portfolio_risk import portfolio_risk_command
 
 console = Console()
 
@@ -64,6 +70,12 @@ app.command(name="backtest")(backtest)
 app.add_typer(archive_app, name="archive")
 app.add_typer(wiki_app, name="wiki")
 app.command(name="mcp")(mcp_serve)
+app.command(name="quote")(quote_command)
+app.command(name="notice")(notice_command)
+app.command(name="research-report")(research_report_command)
+app.command(name="monitor")(monitor_command)
+app.command(name="alert-abnormal")(alert_abnormal_command)
+app.command(name="portfolio-risk")(portfolio_risk_command)
 
 
 # Create a deque to store recent messages with a maximum length

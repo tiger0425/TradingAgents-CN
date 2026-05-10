@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+
+## [0.2.6-cn] — 2026-05-10
+
+### Added
+
+- **A股助手功能** — 6 个 CLI 工具:(1) `quote` 实时行情查询;(2) `monitor` 价格预警轮询;(3) `alert-abnormal` 涨跌停/炸板/天地板检测;(4) `notice` 公告 LLM 摘要;(5) `research-report` 研报抓取+摘要;(6) `portfolio-risk` 持仓风险评估
+- **异动检测引擎** — `a_share_anomalies.py`:封装涨停/跌停/炸板/天地板/连板检测
+- **持仓风险评估** — `position_risk.py`:Beta暴露/HHI集中度/回撤分析
+- **akshare数据层扩展** — `get_real_time_quotes/get_individual_notices/get_research_reports`
 ## [0.2.5-cn] — 2026-05-06
 
 ### Added

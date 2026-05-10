@@ -982,3 +982,269 @@ def get_social_sentiment(symbol: str) -> str:
         return "\n".join(lines)
     except Exception as e:
         return f"**Social sentiment data temporarily unavailable.** Error: {e}"
+
+
+# ============================================================================
+# 12. Real-time Quotes (East Money) — Multi-symbol, used by CLI quote command
+# ============================================================================
+
+# Separate cache for East Money spot data (different source from Sina _spot_cache)
+_SPOT_EM_CACHE_TTL = 30  # seconds
+_spot_em_cache: tuple = (0, None)
+
+
+def get_real_time_quotes(symbol: str) -> str:
+    """Retrieve real-time stock quotes from East Money via akshare.
+
+    Uses ``ak.stock_zh_a_spot_em()`` which returns live data for all A-shares
+    with more complete fields than the Sina source (PE, PB, turnover rate, etc.).
+
+    Args:
+        symbol: Single A-share code (eg ``600519``) or comma-separated multiple codes.
+
+    Returns:
+        Markdown-formatted string with real-time quotes for the requested symbol(s).
+    """
+    try:
+        _ensure_akshare()
+
+        global _spot_em_cache
+        cache_ts, cache_df = _spot_em_cache
+        now = time.time()
+
+        if cache_df is not None and (now - cache_ts) < _SPOT_EM_CACHE_TTL:
+            df = cache_df
+        else:
+            df = ak.stock_zh_a_spot_em()
+            _spot_em_cache = (now, df)
+
+        if df is None or df.empty:
+            return "No real-time data available"
+
+        # Normalise: accept comma-separated or single code
+        symbols = [s.strip() for s in symbol.replace("，", ",").split(",")]
+        mask = df["代码"].isin(symbols)
+        matches = df[mask]
+
+        if matches.empty:
+            joined = ", ".join(symbols)
+            return f"No real-time quote found for symbol(s): '{joined}'"
+
+        rows = []
+        for _, r in matches.iterrows():
+            rows.append({
+                "code": r.get("代码", ""),
+                "name": r.get("名称", ""),
+                "price": r.get("最新价", "N/A"),
+                "change": r.get("涨跌额", "N/A"),
+                "change_pct": r.get("涨跌幅", "N/A"),
+                "open": r.get("今开", "N/A"),
+                "high": r.get("最高", "N/A"),
+                "low": r.get("最低", "N/A"),
+                "prev_close": r.get("昨收", "N/A"),
+                "volume": r.get("成交量", "N/A"),
+                "amount": r.get("成交额", "N/A"),
+                "amplitude": r.get("振幅", "N/A"),
+                "turnover_rate": r.get("换手率", "N/A"),
+                "pe": r.get("市盈率-动态", "N/A"),
+                "pb": r.get("市净率", "N/A"),
+            })
+
+        if len(rows) == 1:
+            r = rows[0]
+            lines = [
+                f"# 实时行情: {r['code']} ({r['name']})",
+                "",
+                f"| 指标 | 值 |",
+                f"|------|-----|",
+                f"| **最新价** | {r['price']} |",
+                f"| **涨跌额** | {r['change']} |",
+                f"| **涨跌幅** | {r['change_pct']}% |",
+                f"| **今开** | {r['open']} |",
+                f"| **最高** | {r['high']} |",
+                f"| **最低** | {r['low']} |",
+                f"| **昨收** | {r['prev_close']} |",
+                f"| **成交量** | {r['volume']} |",
+                f"| **成交额** | {r['amount']} |",
+                f"| **振幅** | {r['amplitude']} |",
+                f"| **换手率** | {r['turnover_rate']}% |",
+                f"| **市盈率(动态)** | {r['pe']} |",
+                f"| **市净率** | {r['pb']} |",
+                "",
+                f"*数据来源: 东方财富 (akshare, 实时)*",
+                f"*获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+            ]
+        else:
+            lines = [
+                "# 实时行情（批量）",
+                "",
+                f"| 代码 | 名称 | 最新价 | 涨跌幅 | 涨跌额 | 成交量 | 成交额 | 最高 | 最低 | 今开 |",
+                f"|------|------|--------|--------|--------|--------|--------|------|------|------|",
+            ]
+            for r in rows:
+                lines.append(
+                    f"| {r['code']} | {r['name']} | {r['price']} | {r['change_pct']}% | "
+                    f"{r['change']} | {r['volume']} | {r['amount']} | "
+                    f"{r['high']} | {r['low']} | {r['open']} |"
+                )
+            lines += [
+                "",
+                f"*数据来源: 东方财富 (akshare, 实时)*",
+                f"*获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
+            ]
+
+        return "\n".join(lines)
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching real-time quotes: {str(e)}"
+
+
+# ============================================================================
+# 13. Individual Stock Notices/Announcements
+# ============================================================================
+
+
+def get_individual_notices(
+    symbol: str,
+    days_back: int = 7,
+    notice_type: str = "全部",
+) -> str:
+    """Fetch recent stock announcements for an A-share via akshare.
+
+    Uses East Money's ``stock_individual_notice_report`` which returns
+    company announcements with full text.
+
+    Args:
+        symbol: 6-digit A-share code (eg ``600519``).
+        days_back: Number of days to look back (default 7).
+        notice_type: Filter type — choices include "全部", "重大事项",
+            "财务报告", "融资公告", "风险提示", "资产重组", "信息变更",
+            "持股变动".
+
+    Returns:
+        Markdown-formatted string with announcement list and content.
+    """
+    try:
+        _ensure_akshare()
+        end = datetime.now()
+        start = end - timedelta(days=days_back)
+
+        df = ak.stock_individual_notice_report(
+            security=symbol,
+            symbol=notice_type,
+            begin_date=_ak_date(start.strftime("%Y-%m-%d")),
+            end_date=_ak_date(end.strftime("%Y-%m-%d")),
+        )
+
+        if df is None or df.empty:
+            return f"未找到 **{symbol}** 最近 {days_back} 天的公告。"
+
+        type_label = notice_type if notice_type != "全部" else "全部类型"
+        lines = [
+            f"# 个股公告: {symbol}",
+            f"最近 {days_back} 天 · {type_label}",
+            "",
+        ]
+
+        # Determine available columns
+        cols = list(df.columns)
+
+        for i, (_, row) in enumerate(df.iterrows(), 1):
+            title = row.get("公告标题", row.get("title", f"公告 #{i}"))
+            date_val = row.get("公告时间", row.get("date", row.get("公告日期", "")))
+            cat = row.get("公告分类", row.get("type", row.get("公告类型", "")))
+            content = row.get("公告内容", row.get("content", row.get("公告内容摘要", "")))
+
+            lines.append(f"### {i}. {title}")
+            lines.append(f"**日期**: {date_val}  |  **类型**: {cat}")
+            lines.append("")
+
+            if content and str(content).strip() and str(content) != "nan":
+                # Truncate very long content to avoid prompt bloat
+                text = str(content).strip()
+                if len(text) > 1000:
+                    text = text[:1000] + "...(截断)"
+                lines.append(text)
+                lines.append("")
+
+        lines.append(f"---")
+        lines.append(f"共 {len(df)} 条公告 | 数据来源: 东方财富 (akshare)")
+
+        return "\n".join(lines)
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching notices for {symbol}: {str(e)}"
+
+
+# ============================================================================
+# 14. Research Reports (Analyst Reports)
+# ============================================================================
+
+
+def get_research_reports(symbol: str, top_n: int = 5) -> str:
+    """Fetch latest analyst research reports for an A-share via akshare.
+
+    Uses East Money's ``stock_research_report_em``.
+
+    Args:
+        symbol: 6-digit A-share code (eg ``600519``).
+        top_n: Number of most recent reports to return (default 5).
+
+    Returns:
+        Markdown-formatted string with report list.
+    """
+    try:
+        _ensure_akshare()
+        df = ak.stock_research_report_em(symbol=symbol)
+
+        if df is None or df.empty:
+            return f"未找到 **{symbol}** 的分析师研报。"
+
+        # Limit to top_n
+        df = df.head(top_n)
+        cols = list(df.columns)
+
+        # Common column names for research reports
+        title_col = next((c for c in cols if "标题" in c or "title" in c.lower()), cols[0])
+        date_col = next((c for c in cols if "日期" in c or "date" in c.lower()), cols[1] if len(cols) > 1 else cols[0])
+        org_col = next((c for c in cols if "机构" in c or "org" in c.lower() or "company" in c.lower()), None)
+        rating_col = next((c for c in cols if "评级" in c or "rating" in c.lower()), None)
+        target_col = next((c for c in cols if "目标" in c or "target" in c.lower()), None)
+
+        lines = [
+            f"# 分析师研报: {symbol}",
+            f"最近 {top_n} 篇研报",
+            "",
+        ]
+
+        for i, (_, row) in enumerate(df.iterrows(), 1):
+            title = row.get(title_col, f"研报 #{i}")
+            date_val = row.get(date_col, "")
+            org = row.get(org_col, "") if org_col else ""
+            rating = row.get(rating_col, "") if rating_col else ""
+            target = row.get(target_col, "") if target_col else ""
+
+            lines.append(f"### {i}. {title}")
+            parts = [f"**日期**: {date_val}"]
+            if org:
+                parts.append(f"**机构**: {org}")
+            if rating:
+                parts.append(f"**评级**: {rating}")
+            if target:
+                parts.append(f"**目标价**: {target}")
+            lines.append(" | ".join(parts))
+            lines.append("")
+
+        lines.append(f"---")
+        lines.append(f"数据来源: 东方财富 (akshare)")
+
+        return "\n".join(lines)
+
+    except ImportError as e:
+        return f"Error: {e}"
+    except Exception as e:
+        return f"Error fetching research reports for {symbol}: {str(e)}"
