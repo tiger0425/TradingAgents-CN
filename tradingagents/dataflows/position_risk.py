@@ -283,3 +283,107 @@ def assess_all_risks(positions: List[Dict[str, Any]]) -> Dict[str, Any]:
         "concentration": assess_concentration_risk(positions),
         "drawdown": assess_drawdown(positions, 20),
     }
+
+
+# ============================================================================
+# Cross-position correlation & hedge analysis (Phase 2)
+# ============================================================================
+
+def assess_correlation_risk(positions, lookback_days=60):
+    """Calculate Pearson correlation matrix between holdings.
+
+    Detects holdings that move together (correlation > 0.7 = high risk of
+    simultaneous drawdown).  Uses daily returns over *lookback_days*.
+
+    Returns dict with:
+        correlation_matrix: dict of stock-pair → correlation
+        high_correlation_pairs: list of pairs with |corr| > 0.7
+        avg_correlation: average absolute pairwise correlation
+        risk_level: "低" / "中" / "高"
+    """
+    positions = [p for p in positions if p.get("quantity", 0) > 0]
+    if len(positions) < 2:
+        return {"correlation_matrix": {}, "high_correlation_pairs": [],
+                "avg_correlation": 0, "risk_level": "none"}
+
+    # Fetch historical returns for each symbol
+    symbols = [p["symbol"] for p in positions]
+    returns = {}
+    for sym in symbols:
+        df = _get_stock_history(sym, lookback_days)
+        if df is not None and "return" in df.columns:
+            ser = df["return"].dropna()
+            if len(ser) > 10:
+                returns[sym] = ser
+
+    if len(returns) < 2:
+        return {"correlation_matrix": {}, "high_correlation_pairs": [],
+                "avg_correlation": 0, "risk_level": "low"}
+
+    # Build correlation matrix
+    corr_matrix = {}
+    pairs = []
+    syms = list(returns.keys())
+    for i in range(len(syms)):
+        for j in range(i + 1, len(syms)):
+            s1, s2 = syms[i], syms[j]
+            common = returns[s1].index.intersection(returns[s2].index)
+            if len(common) < 10:
+                continue
+            r1 = returns[s1][common]
+            r2 = returns[s2][common]
+            corr = round(r1.corr(r2), 3)
+            key = f"{s1}-{s2}"
+            corr_matrix[key] = corr
+            if abs(corr) > 0.7:
+                pairs.append({"pair": key, "correlation": corr,
+                              "symbols": [s1, s2]})
+
+    avg_corr = round(sum(abs(v) for v in corr_matrix.values()) / max(len(corr_matrix), 1), 3)
+    if avg_corr > 0.7:
+        risk_level = "高"
+    elif avg_corr > 0.4:
+        risk_level = "中"
+    else:
+        risk_level = "低"
+
+    return {
+        "correlation_matrix": corr_matrix,
+        "high_correlation_pairs": pairs,
+        "avg_correlation": avg_corr,
+        "risk_level": risk_level,
+    }
+
+
+def detect_hedge_opportunities(positions, lookback_days=60):
+    """Detect natural hedging relationships between holdings.
+
+    A "hedge" is defined as a pair with strong NEGATIVE correlation
+    (correlation < -0.3), meaning one tends to rise when the other falls.
+
+    Returns dict with:
+        hedge_pairs: list of negatively correlated pairs
+        summary: text description
+    """
+    corr_result = assess_correlation_risk(positions, lookback_days)
+    matrix = corr_result.get("correlation_matrix", {})
+
+    hedge_pairs = []
+    for pair_key, corr in matrix.items():
+        if corr < -0.3:
+            s1, s2 = pair_key.split("-")
+            hedge_pairs.append({
+                "pair": pair_key,
+                "correlation": corr,
+                "symbols": [s1, s2],
+                "strength": "强对冲" if corr < -0.5 else "弱对冲",
+            })
+
+    if hedge_pairs:
+        summary = f"识别到 {len(hedge_pairs)} 组对冲关系：" + \
+                  "；".join(f"{p['symbols'][0]} vs {p['symbols'][1]}({p['correlation']})"
+                           for p in hedge_pairs)
+    else:
+        summary = "持仓间未发现显著对冲关系（无强负相关对）"
+
+    return {"hedge_pairs": hedge_pairs, "summary": summary}

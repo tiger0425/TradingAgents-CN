@@ -138,6 +138,25 @@ def _fetch_market_breadth(trade_date: str) -> str:
         return "（数据暂不可用）"
 
 
+
+def _try_prev_trade_day(date_str: str, max_back: int = 4) -> str:
+    """Fall back to latest trading day when data is unavailable."""
+    try:
+        from tradingagents.dataflows.a_share_calendar import is_trade_day
+        from datetime import datetime, timedelta
+        d = datetime.strptime(date_str, "%Y-%m-%d")
+        for i in range(max_back + 1):
+            check = (d - timedelta(days=i)).strftime("%Y-%m-%d")
+            try:
+                if is_trade_day(check):
+                    return check
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return date_str
+
+
 def fetch_market_context(trade_date: str, market_type: str = "A_SHARE") -> str:
     """Fetch and format A-share market-level context data.
 
@@ -159,11 +178,13 @@ def fetch_market_context(trade_date: str, market_type: str = "A_SHARE") -> str:
 
     _ensure_akshare()
 
+    resolved_date = _try_prev_trade_day(trade_date)
+
     sections = [
         f"## 指数状态\n{_fetch_index_status()}",
         f"## 板块轮动\n{_fetch_sector_rotation()}",
         f"## 资金流向\n{_fetch_capital_flow()}",
-        f"## 市场宽度\n{_fetch_market_breadth(trade_date)}",
+        f"## 市场宽度\n{_fetch_market_breadth(resolved_date)}",
     ]
 
     result = "\n\n".join(sections)

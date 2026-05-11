@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.7-cn] — 2026-05-11
+
+### Added
+
+- **宏观/外围数据层** — `macro_context.py`：美股道琼斯/标普/纳斯达克、美元人民币汇率、COMEX黄金/原油/铜、VIX恐慌指数、北向资金、国债收益率，全注入 Market Analyst + PM prompt
+- **辩论核心证据锚定** — Bull/Bear Researcher 强制输出"本轮核心证据"，Research Manager 直接对比双方证据做裁判
+- **组合交叉分析** — `position_risk.py` 扩展：`assess_correlation_risk()` 持仓相关性矩阵 + `detect_hedge_opportunities()` 对冲关系识别
+- **Market Context 非交易日降级** — 从最近交易日补数据，"数据暂不可用"大幅减少
+- **每日投研管线** — `tradingagents daily --push`：宏观→预警→组合风险→推送晨报
+
+
 ## [0.2.6-cn] — 2026-05-10
 
 ### Added

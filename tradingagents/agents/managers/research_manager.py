@@ -47,6 +47,13 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 
 ---
 
+**Evidence Anchoring Rule:**
+Both the Bull and Bear analysts were instructed to state a **本轮核心证据** — their single strongest fact this round. Your job:
+1. Identify and extract each side's core evidence from their response.
+2. Compare them directly: which evidence is more verifiable, more recent, more directly tied to price direction?
+3. Your recommendation MUST cite which side's core evidence you found more convincing and WHY. If you cannot decide, explain what additional data would break the tie.
+
+
 **Debate History:**
 {history}
 

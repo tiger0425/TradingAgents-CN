@@ -43,6 +43,14 @@ def create_bull_researcher(llm):
 
 {round_instruction}
 
+
+**REQUIRED OUTPUT FORMAT** — You MUST include the following section in your response:
+
+**本轮核心证据:**
+[1-2 sentences stating the SINGLE strongest fact driving your position this round.
+Cite a specific number or data point from the reports. No hedging, no "on one hand...".]
+---
+
 Key points to focus on:
 - Growth Potential: Highlight the company's market opportunities, revenue projections, and scalability.
 - Competitive Advantages: Emphasize factors like unique products, strong branding, or dominant market positioning.

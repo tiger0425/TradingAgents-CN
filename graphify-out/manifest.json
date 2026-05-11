@@ -7,9 +7,13 @@
     "mtime": 1778034392.2385278,
     "hash": "0d6f696cb722d43b8e4358084f6d709d"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/monitor.py": {
+    "mtime": 1778417678.2620335,
+    "hash": "0ff31714524ba5a237ffb15dc2b90a4c"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/cli/main.py": {
-    "mtime": 1778321857.5279524,
-    "hash": "a4df6ee02b2d28f6b042ff61d8c23b94"
+    "mtime": 1778418043.6594477,
+    "hash": "24a9ee2deeed601d47e1dd7e34c2e751"
   },
   "/home/six/YifuAIForge/tradingagents-cn/cli/batch.py": {
     "mtime": 1778320611.018956,
@@ -31,6 +35,10 @@
     "mtime": 1778034392.2385278,
     "hash": "c0dce97bf8815a2ea9273adde1d2122c"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/portfolio_risk.py": {
+    "mtime": 1778418034.9858942,
+    "hash": "2c51196ee6178306bf0638ee842cd030"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/cli/__init__.py": {
     "mtime": 1778034392.2380815,
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
@@ -40,8 +48,12 @@
     "hash": "f0642bba6ead39eb4d104f226bdad0c0"
   },
   "/home/six/YifuAIForge/tradingagents-cn/cli/market_scan.py": {
-    "mtime": 1778320611.0191352,
-    "hash": "9863e70c16710a017f79b64d1304e657"
+    "mtime": 1778469016.213021,
+    "hash": "3194fbf1b04e70b1a698928a9a26d99e"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/alert_abnormal.py": {
+    "mtime": 1778417741.8668656,
+    "hash": "fd1c251105c81ff2d0c251389ce814ec"
   },
   "/home/six/YifuAIForge/tradingagents-cn/cli/models.py": {
     "mtime": 1778034392.2385278,
@@ -50,6 +62,10 @@
   "/home/six/YifuAIForge/tradingagents-cn/cli/stats_handler.py": {
     "mtime": 1778034392.2385278,
     "hash": "fed5efefe48d04d81f02f1e5a524ecbb"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/notice.py": {
+    "mtime": 1778417449.6137743,
+    "hash": "d3e97694ca661aaf4a850698178b0b9b"
   },
   "/home/six/YifuAIForge/tradingagents-cn/cli/portfolio.py": {
     "mtime": 1778320611.0191352,
@@ -71,9 +87,17 @@
     "mtime": 1778321620.0403032,
     "hash": "660aceab875dde5d5cfa403064b44e5c"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/research_report.py": {
+    "mtime": 1778417467.6009653,
+    "hash": "1ae078a82f467bf571357af7d04e3af7"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/cli/watchlist.py": {
     "mtime": 1778300691.187825,
     "hash": "bc10d3ab5000cede986154a0215b481d"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/cli/quote.py": {
+    "mtime": 1778417424.843158,
+    "hash": "53b7e88f53bfda3028e19e1eac06f33d"
   },
   "/home/six/YifuAIForge/tradingagents-cn/cli/notify.py": {
     "mtime": 1778302232.4494963,
@@ -84,12 +108,16 @@
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/default_config.py": {
-    "mtime": 1778320611.0201352,
-    "hash": "820fed0e248ae25a2d58b96bbb9bfc1c"
+    "mtime": 1778388530.4900038,
+    "hash": "3eded559bdc504f16e138f532d5c5b2a"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/notifier.py": {
     "mtime": 1778302088.9958673,
     "hash": "621930ac2dae75ea32cc7ae245c543f3"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tradingagents/config_section.py": {
+    "mtime": 1778422249.2699544,
+    "hash": "573bd1e5ff29bcf2cb737f89eba069f8"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/watchlist.py": {
     "mtime": 1778300422.0172043,
@@ -107,6 +135,10 @@
     "mtime": 1778034392.2401974,
     "hash": "addd08d317e5a34a8958379f21a51049"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/position_risk.py": {
+    "mtime": 1778417957.034347,
+    "hash": "ba6466f34ebb9d8492df759285e7cfc2"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/alpha_vantage_common.py": {
     "mtime": 1778034392.2401974,
     "hash": "a779bdd3a5417362619ece670771f155"
@@ -118,6 +150,10 @@
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/__init__.py": {
     "mtime": 1778034392.2399685,
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/a_share_anomalies.py": {
+    "mtime": 1778417710.9963279,
+    "hash": "8fcd6ab512d5ae65ca9d2981c8200066"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/stockstats_utils.py": {
     "mtime": 1778044783.188498,
@@ -147,6 +183,10 @@
     "mtime": 1778034392.2401974,
     "hash": "71517d4495f8ea0b12a67a641f4ce2ca"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/market_context.py": {
+    "mtime": 1778388863.8156354,
+    "hash": "049fb10d35dbdbd5701c720d08877f86"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/alpha_vantage_indicator.py": {
     "mtime": 1778034392.2401974,
     "hash": "3ce7f3de6fcf01a715941602acacde87"
@@ -160,8 +200,8 @@
     "hash": "510980d6df733117d420eabb8190112f"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/akshare.py": {
-    "mtime": 1778138463.7746787,
-    "hash": "9ac9e035561818118ca8eddd9fdaab5d"
+    "mtime": 1778468434.189522,
+    "hash": "e5f030318d91907205bc02c5d131ccb6"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/dataflows/a_share_constraints.py": {
     "mtime": 1778082800.1858842,
@@ -228,12 +268,12 @@
     "hash": "79608f580a9735514df2bfa9da8230e1"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/graph/propagation.py": {
-    "mtime": 1778320611.0201352,
-    "hash": "88caac9a8be39391ded51520a8746c49"
+    "mtime": 1778388528.1780722,
+    "hash": "75acd11781eeac2b5e93630a38071f38"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/graph/trading_graph.py": {
-    "mtime": 1778320973.5297248,
-    "hash": "9f59b451c15443596589713a33ca9e19"
+    "mtime": 1778389151.6479053,
+    "hash": "3b3ee5103500a32e300d702ec30b863f"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/graph/setup.py": {
     "mtime": 1778034392.2406535,
@@ -264,16 +304,16 @@
     "hash": "b73d2f0a5629ec066fe25169eda8b79c"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/analysts/market_analyst.py": {
-    "mtime": 1778058604.898114,
-    "hash": "074f72d137403168ba2dd102bc2bc5d0"
+    "mtime": 1778389380.593949,
+    "hash": "72f296b28bba91c2a65101734cda2b2b"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/managers/research_manager.py": {
     "mtime": 1778320611.0191352,
     "hash": "6b0d803a782cd7a7b0925f22a3dffe9d"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/managers/portfolio_manager.py": {
-    "mtime": 1778320623.9143143,
-    "hash": "4896d35ff308485cc91c8cb83dc3937e"
+    "mtime": 1778389387.8989651,
+    "hash": "cdeee6fe78be9a39214027bad70be3f0"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/risk_mgmt/neutral_debator.py": {
     "mtime": 1778058389.4006197,
@@ -288,24 +328,28 @@
     "hash": "85e6c4f5010896ffbb6f496fb8ea02b5"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/researchers/bear_researcher.py": {
-    "mtime": 1778058373.2096791,
-    "hash": "5ad9d1317365b972845f9a6e0921deea"
+    "mtime": 1778389394.2759795,
+    "hash": "7b487de13ecdb71cbf6417f6e4230436"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/researchers/bull_researcher.py": {
-    "mtime": 1778058370.4516883,
-    "hash": "4d7b9b17c28729dc774c805f1e98d09d"
+    "mtime": 1778389474.0122068,
+    "hash": "27dce3e8f2690733c4ad861a9db7c73a"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/utils/market_context_tools.py": {
+    "mtime": 1778388559.8711712,
+    "hash": "57de537bda6a8eb9c25f0e711cee1c1b"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/utils/agent_states.py": {
-    "mtime": 1778320611.0191352,
-    "hash": "cd57a987d49967ab474e6ea5890d789b"
+    "mtime": 1778388526.5191214,
+    "hash": "d26889efc164fab481d2a62a49a0cc70"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/utils/core_stock_tools.py": {
     "mtime": 1778049958.5096166,
     "hash": "ca34e8dae4f223e66f70ef387436a248"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/utils/agent_utils.py": {
-    "mtime": 1778058587.6212716,
-    "hash": "f47a5f6f27da55ee863ca4a2bbc7ea42"
+    "mtime": 1778388569.2219195,
+    "hash": "2e57c42e43464459c68a1ed9e9683d7a"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tradingagents/agents/utils/social_sentiment_tools.py": {
     "mtime": 1778057481.7727683,
@@ -359,6 +403,10 @@
     "mtime": 1778034392.2385278,
     "hash": "dfa1e498123b60d4c91c113b80fa4c56"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_notice.py": {
+    "mtime": 1778417600.7916043,
+    "hash": "7a98cbe48856a3186a292a5ebb49e729"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/tests/test_signal_processing.py": {
     "mtime": 1778034392.239044,
     "hash": "bab9965c1ac6b198dc072a87cb03c07c"
@@ -371,9 +419,17 @@
     "mtime": 1778303232.6656067,
     "hash": "c0300cbd42c8a8116415412a4acc4f2e"
   },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_position_risk.py": {
+    "mtime": 1778417983.126879,
+    "hash": "fe44969aa9ab22474046f1eeef51b482"
+  },
   "/home/six/YifuAIForge/tradingagents-cn/tests/test_model_validation.py": {
     "mtime": 1778034392.239044,
     "hash": "2ca93f42f9ab69fb3403fbb63a703be7"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_monitor.py": {
+    "mtime": 1778417802.0271842,
+    "hash": "7f67ef255fb4fb355ae79cbffd17ce72"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tests/test_a_share.py": {
     "mtime": 1778057034.9214845,
@@ -418,6 +474,18 @@
   "/home/six/YifuAIForge/tradingagents-cn/tests/test_safe_ticker_component.py": {
     "mtime": 1778034392.239044,
     "hash": "539ffd0ede420d4410adc332e5dc7cb6"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_alert_abnormal.py": {
+    "mtime": 1778417898.160108,
+    "hash": "bd7786e0e5d017a639906402fcaf47eb"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_research_report.py": {
+    "mtime": 1778417530.5557082,
+    "hash": "17c13d653325a0e46e858eefddee5c0a"
+  },
+  "/home/six/YifuAIForge/tradingagents-cn/tests/test_quote.py": {
+    "mtime": 1778417590.283042,
+    "hash": "a1fbfb376323760f249cbd7893f59e0b"
   },
   "/home/six/YifuAIForge/tradingagents-cn/tests/test_position_tracking.py": {
     "mtime": 1778083022.013119,
@@ -484,12 +552,12 @@
     "hash": "8cf8463b34caa8ac871a52d5dd7ad1ef"
   },
   "/home/six/YifuAIForge/tradingagents-cn/CHANGELOG.md": {
-    "mtime": 1778038004.3395286,
-    "hash": "fcf9d44dfaa07ffda8bbe9a09cc24de4"
+    "mtime": 1778421261.8554502,
+    "hash": "b57603be3cdbc06a4e9c22a573061a3f"
   },
   "/home/six/YifuAIForge/tradingagents-cn/README.md": {
-    "mtime": 1778339614.6718817,
-    "hash": "22c40b000ab601d3352e5afe6028e3c8"
+    "mtime": 1778421252.4413347,
+    "hash": "749c917aec308c126ab482a862958439"
   },
   "/home/six/YifuAIForge/tradingagents-cn/AGENTS.md": {
     "mtime": 1778298181.354728,

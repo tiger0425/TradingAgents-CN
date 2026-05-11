@@ -47,6 +47,7 @@ from cli.research_report import research_report_command
 from cli.monitor import monitor_command
 from cli.alert_abnormal import alert_abnormal_command
 from cli.portfolio_risk import portfolio_risk_command
+from cli.daily import daily_command
 
 console = Console()
 
@@ -76,6 +77,7 @@ app.command(name="research-report")(research_report_command)
 app.command(name="monitor")(monitor_command)
 app.command(name="alert-abnormal")(alert_abnormal_command)
 app.command(name="portfolio-risk")(portfolio_risk_command)
+app.command(name="daily")(daily_command)
 
 
 # Create a deque to store recent messages with a maximum length
