@@ -145,46 +145,94 @@ def _fetch_commodities() -> str:
 
 
 def _fetch_vix() -> str:
-    """Fetch VIX fear index with retry. Falls back gracefully on rate-limit."""
-    import time as _time
-    for attempt in range(2):
-        try:
-            df = ak.index_global_spot_em()
-            if df is None or df.empty:
-                return "VIX: 数据暂不可用"
-            rows = df[df["名称"].str.contains("VIX", na=False)]
-            if rows.empty:
-                return "VIX: 数据暂不可用"
-            r = rows.iloc[0]
-            price = _safe_float(r.get("最新价", 0))
-            chg_pct = _safe_float(r.get("涨跌幅", 0))
-            vix_level = "恐慌" if price > 25 else ("谨慎" if price > 18 else "平稳")
-            return f"VIX {price:.1f} ({chg_pct:+.1f}%), {vix_level}"
-        except Exception:
-            if attempt < 1:
-                _time.sleep(3)
-    return "VIX: 数据源暂时受限"
+    """Fetch China market volatility (QVix) -- 50ETF/300ETF/500ETF.
 
+    These are A-share "fear indices" based on ETF options implied volatility,
+    more relevant than US VIX for Chinese market decisions.
+
+    Levels (approximate, based on historical ranges):
+      50QVix: >22 high vol, <15 low vol
+      300QVix: >21 high vol, <16 low vol
+      500QVix: >26 high vol, <20 low vol
+    """
+    results = []
+    targets = [
+        ("index_option_50etf_qvix",  "50QVix", 22, 15),
+        ("index_option_300etf_qvix", "300QVix", 21, 16),
+        ("index_option_500etf_qvix", "500QVix", 26, 20),
+    ]
+    for api_name, label, high_thresh, low_thresh in targets:
+        try:
+            fn = getattr(ak, api_name)
+            df = fn()
+            if df is None or df.empty:
+                continue
+            latest = _safe_float(df.iloc[-1]["close"])
+            prev = _safe_float(df.iloc[-2]["close"]) if len(df) > 1 else latest
+            chg = latest - prev
+
+            if latest > high_thresh:
+                level = "恐慌"
+            elif latest > low_thresh:
+                level = "谨慎"
+            else:
+                level = "平稳"
+
+            results.append(f"{label} {latest:.2f} ({chg:+.2f}), {level}")
+        except Exception:
+            continue
+
+    return "  ".join(results) if results else "QVix: 数据暂不可用"
 
 def _fetch_northbound_flow() -> str:
-    """Fetch northbound capital flow summary."""
+    """Fetch northbound capital flow summary.
+
+    East Money's stock_hsgt_fund_flow_summary_em has columns:
+    - 资金方向: 北向 / 南向
+    - 交易状态: 1=active, 2=maybe pending, 3=closed / data not yet released
+    - 成交净买额: net buy amount (in 亿 or 元 depending on data format)
+    - 资金净流入: net capital inflow
+
+    When 交易状态 != 1, the numerical fields are typically zero/unreliable.
+    """
     try:
         _ensure_akshare()
         df = ak.stock_hsgt_fund_flow_summary_em()
         if df is None or df.empty:
             return "——"
 
-        # Filter northbound (北向) rows only
-        if "资金方向" in df.columns:
-            df = df[df["资金方向"] == "北向"]
-
-        if df.empty:
+        if "资金方向" not in df.columns:
             return "——"
 
-        # Sum across all northbound rows (沪股通+深股通)
-        net_col = next((c for c in df.columns if "净流入" in c or "净买" in c), None)
-        if net_col:
-            total = _safe_float(df[net_col].sum())
+        nb = df[df["资金方向"] == "北向"]
+        if nb.empty:
+            return "——"
+
+        # Prefer rows with active trading status
+        active = nb[nb["交易状态"] == 1]
+        if active.empty:
+            non_zero = nb[~nb["交易状态"].isin([0, 3])]
+            if non_zero.empty:
+                if len(nb) > 0:
+                    status_val = nb.iloc[0].get("交易状态", "?")
+                    return f"北向资金: 数据未更新（状态{status_val}）"
+                return "——"
+            rows = non_zero
+        else:
+            rows = active
+
+        total = 0.0
+        for _, row in rows.iterrows():
+            net = _safe_float(row.get("资金净流入", 0))
+            if net == 0:
+                net = _safe_float(row.get("成交净买额", 0))
+            total += net
+
+        if total == 0 and len(nb) > 0 and nb.iloc[0].get("交易状态", 1) != 1:
+            status_val = nb.iloc[0].get("交易状态", "?")
+            return f"北向资金: 数据未更新（状态{status_val}）"
+
+        if total != 0:
             direction = "净流入" if total > 0 else "净流出"
             return f"北向资金 {direction} {abs(total/1e8):.1f}亿"
 
@@ -192,7 +240,6 @@ def _fetch_northbound_flow() -> str:
     except Exception as e:
         logger.debug("Northbound flow failed: %s", e)
         return "——"
-
 
 def _fetch_bond_yield() -> str:
     """Fetch China 10Y government bond yield."""
