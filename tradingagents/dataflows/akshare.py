@@ -1125,8 +1125,14 @@ def get_individual_notices(
 ) -> str:
     """Fetch recent stock announcements for an A-share via akshare.
 
-    Uses East Money's ``stock_individual_notice_report`` which returns
-    company announcements with full text.
+    Dual-source with automatic fallback:
+      1. Primary: East Money individual notice report (stock_individual_notice_report)
+      2. Fallback: East Money market-wide notice report (stock_notice_report),
+         filtered by stock code.
+
+    Date filtering is done in Python rather than via API parameters because
+    begin_date/end_date cause a KeyError on some akshare versions where the
+    API returns a different column structure.
 
     Args:
         symbol: 6-digit A-share code (eg ``600519``).
@@ -1138,58 +1144,146 @@ def get_individual_notices(
     Returns:
         Markdown-formatted string with announcement list and content.
     """
-    try:
-        _ensure_akshare()
-        end = datetime.now()
-        start = end - timedelta(days=days_back)
+    _ensure_akshare()
+    end = datetime.now()
+    start = end - timedelta(days=days_back)
 
+    type_label = notice_type if notice_type != "全部" else "全部类型"
+
+    # Phase 1: individual endpoint (without date params — see docstring)
+    try:
         df = ak.stock_individual_notice_report(
             security=symbol,
             symbol=notice_type,
-            begin_date=_ak_date(start.strftime("%Y-%m-%d")),
-            end_date=_ak_date(end.strftime("%Y-%m-%d")),
         )
+        if df is not None and not df.empty:
+            df = _filter_notices_by_date(df, start, end)
+            return _format_notices_df(df, symbol, days_back, type_label, "东方财富")
+        # Empty result — try fallback
+    except Exception:
+        pass  # Individual endpoint failed — fallback below
 
-        if df is None or df.empty:
-            return f"未找到 **{symbol}** 最近 {days_back} 天的公告。"
+    # ------------------------------------------------------------------
+    # Phase 2: Fallback — market-wide notice report filtered by stock
+    # ------------------------------------------------------------------
+    try:
+        # Fetch all notices for the most recent trading day(s)
+        # stock_notice_report takes a single date; iterate backwards
+        all_dfs = []
+        current = end
+        while current >= start:
+            date_str = _ak_date(current.strftime("%Y-%m-%d"))
+            try:
+                day_df = ak.stock_notice_report(symbol=notice_type, date=date_str)
+                if day_df is not None and not day_df.empty:
+                    all_dfs.append(day_df)
+            except Exception:
+                pass
+            current -= timedelta(days=1)
 
-        type_label = notice_type if notice_type != "全部" else "全部类型"
-        lines = [
-            f"# 个股公告: {symbol}",
-            f"最近 {days_back} 天 · {type_label}",
-            "",
-        ]
+        if all_dfs:
+            import pandas as pd
+            combined = pd.concat(all_dfs, ignore_index=True)
+            # Filter by stock code (column name: "代码")
+            combined = combined[combined["代码"] == symbol]
+            if not combined.empty:
+                return _format_notices_market_df(combined, symbol, days_back, type_label)
 
-        # Determine available columns
-        cols = list(df.columns)
-
-        for i, (_, row) in enumerate(df.iterrows(), 1):
-            title = row.get("公告标题", row.get("title", f"公告 #{i}"))
-            date_val = row.get("公告时间", row.get("date", row.get("公告日期", "")))
-            cat = row.get("公告分类", row.get("type", row.get("公告类型", "")))
-            content = row.get("公告内容", row.get("content", row.get("公告内容摘要", "")))
-
-            lines.append(f"### {i}. {title}")
-            lines.append(f"**日期**: {date_val}  |  **类型**: {cat}")
-            lines.append("")
-
-            if content and str(content).strip() and str(content) != "nan":
-                # Truncate very long content to avoid prompt bloat
-                text = str(content).strip()
-                if len(text) > 1000:
-                    text = text[:1000] + "...(截断)"
-                lines.append(text)
-                lines.append("")
-
-        lines.append(f"---")
-        lines.append(f"共 {len(df)} 条公告 | 数据来源: 东方财富 (akshare)")
-
-        return "\n".join(lines)
-
+        return f"未找到 **{symbol}** 最近 {days_back} 天的公告。"
     except ImportError as e:
         return f"Error: {e}"
     except Exception as e:
         return f"Error fetching notices for {symbol}: {str(e)}"
+
+
+def _filter_notices_by_date(df, start: datetime, end: datetime):
+    """Filter notice DataFrame to rows within [start, end] date range.
+
+    Attempts to parse the '公告时间' or '公告日期' column. If the date column
+    is missing or unparseable, returns the original DataFrame unchanged.
+    """
+    import pandas as pd
+
+    # Find the date column
+    date_col = None
+    for col in ["公告时间", "公告日期", "date", "发布时间"]:
+        if col in df.columns:
+            date_col = col
+            break
+
+    if date_col is None:
+        return df  # No date column — return unfiltered
+
+    try:
+        dates = pd.to_datetime(df[date_col], errors="coerce")
+        mask = (dates >= pd.Timestamp(start)) & (dates <= pd.Timestamp(end))
+        return df[mask]
+    except Exception:
+        return df  # Parse failure — return unfiltered
+
+
+def _format_notices_df(df, symbol: str, days_back: int, type_label: str,
+                       source_label: str) -> str:
+    """Format a notice DataFrame into Markdown (individual notice report format)."""
+    lines = [
+        f"# 个股公告: {symbol}",
+        f"最近 {days_back} 天 · {type_label}",
+        "",
+    ]
+
+    for i, (_, row) in enumerate(df.iterrows(), 1):
+        title = row.get("公告标题", row.get("title", f"公告 #{i}"))
+        date_val = row.get("公告时间", row.get("date", row.get("公告日期", "")))
+        cat = row.get("公告分类", row.get("type", row.get("公告类型", "")))
+        content = row.get("公告内容", row.get("content", row.get("公告内容摘要", "")))
+
+        lines.append(f"### {i}. {title}")
+        lines.append(f"**日期**: {date_val}  |  **类型**: {cat}")
+        lines.append("")
+
+        if content and str(content).strip() and str(content) != "nan":
+            text = str(content).strip()
+            if len(text) > 1000:
+                text = text[:1000] + "...(截断)"
+            lines.append(text)
+            lines.append("")
+
+    lines.append("---")
+    lines.append(f"共 {len(df)} 条公告 | 数据来源: {source_label} (akshare)")
+
+    return "\n".join(lines)
+
+
+def _format_notices_market_df(df, symbol: str, days_back: int,
+                              type_label: str) -> str:
+    """Format a market-wide notice DataFrame into Markdown (fallback format).
+
+    Market-wide results lack full content text — they only have titles and URLs.
+    """
+    source_line = f"共 {len(df)} 条公告 | 数据来源: 东方财富 (akshare, 市场级 fallback)"
+
+    lines = [
+        f"# 个股公告: {symbol}",
+        f"最近 {days_back} 天 · {type_label}",
+        "",
+    ]
+
+    for i, (_, row) in enumerate(df.iterrows(), 1):
+        title = row.get("公告标题", f"公告 #{i}")
+        date_val = row.get("公告日期", "")
+        cat = row.get("公告类型", "")
+        url = row.get("网址", "")
+
+        lines.append(f"### {i}. {title}")
+        lines.append(f"**日期**: {date_val}  |  **类型**: {cat}")
+        if url:
+            lines.append(f"**链接**: {url}")
+        lines.append("")
+
+    lines.append("---")
+    lines.append(source_line)
+
+    return "\n".join(lines)
 
 
 # ============================================================================

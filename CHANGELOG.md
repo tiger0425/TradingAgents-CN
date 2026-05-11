@@ -15,6 +15,10 @@ Breaking changes within the 0.x line are called out explicitly.
 - **3 个新环境变量** — `GS_API_KEY` / `COZE_GUOSEN_API_KEY_7627085587157205043` / `COZE_GUOSEN_API_KEY_7627056463827140634`，已在 `.env.example` 中声明。
 - **数据商配置更新** — `default_config.py` 的 `data_vendors` 可选项中新增 `guosen`。
 
+### Fixed
+
+- **公告数据源修复** — `get_individual_notices()` 东方财富个股公告接口带 `begin_date`/`end_date` 参数时返回格式变更导致 `KeyError: '代码'`。修复方案：(1) 不再向 akshare 传日期参数，改为 Python 端按 `公告时间` 列过滤；(2) 增加双源 fallback — 个股接口失败时自动切换到全市场公告搜索（`stock_notice_report`）按股票代码过滤，确保公告链路永不中断。
+
 ## [0.2.7-cn] — 2026-05-11
 
 ### Added
