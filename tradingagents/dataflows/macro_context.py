@@ -66,28 +66,21 @@ def _try_prev_trade_day(date_str: str, max_back: int = 3) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def _fetch_us_indices() -> str:
-    """Fetch US stock index status: Dow, SPX, Nasdaq change %."""
-    try:
-        _ensure_akshare()
-        df = ak.index_us_stock_sina()
-        if df is None or df.empty:
-            return "——"
-
-        # S&P 500, Nasdaq, Dow Jones
-        targets = {"标普500": ".INX", "纳斯达克": ".IXIC", "道琼斯": ".DJI"}
-        parts = []
-        for name, code in targets.items():
-            rows = df[df["代码"] == code]
-            if rows.empty:
+    """Fetch US stock index status via Sina historical data."""
+    targets = {"S&P500": ".INX", "Nasdaq": ".IXIC", "Dow": ".DJI"}
+    parts = []
+    for label, code in targets.items():
+        try:
+            df = ak.index_us_stock_sina(symbol=code)
+            if df is None or len(df) < 2:
                 continue
-            r = rows.iloc[0]
-            price = _safe_float(r.get("最新价", 0))
-            chg_pct = _safe_float(r.get("涨跌幅", 0))
-            parts.append(f"{name} {price:.0f} ({chg_pct:+.1f}%)")
-        return "  ".join(parts) if parts else "——"
-    except Exception as e:
-        logger.debug("US indices failed: %s", e)
-        return "——"
+            latest = _safe_float(df.iloc[-1]["close"])
+            prev = _safe_float(df.iloc[-2]["close"])
+            chg = (latest - prev) / prev * 100 if prev else 0
+            parts.append(f"{label} {latest:.0f} ({chg:+.1f}%)")
+        except Exception:
+            continue
+    return "  ".join(parts) if parts else "——"
 
 
 def _fetch_usd_cny() -> str:
@@ -99,14 +92,17 @@ def _fetch_usd_cny() -> str:
             return "——"
         rows = df[df["货币对"] == "美元/人民币"]
         if rows.empty:
-            rows = df[df["货币对"].str.contains("美元/人民币", na=False)]
+            rows = df[df["货币对"].str.contains("USD/CNY|美元/人民币", na=False, regex=True)]
         if rows.empty:
             return "——"
         r = rows.iloc[0]
-        price = _safe_float(r.get("最新价", 0))
-        chg = _safe_float(r.get("涨跌额", 0))
-        chg_pct = _safe_float(r.get("涨跌幅", 0))
-        return f"USD/CNY {price:.4f} ({chg_pct:+.2f}%)"
+        buy = _safe_float(r.get("买报价", r.get("买价", 0)))
+        sell = _safe_float(r.get("卖报价", r.get("卖价", 0)))
+        if buy > 0:
+            return f"USD/CNY {buy:.4f}"
+        if sell > 0:
+            return f"USD/CNY {sell:.4f}"
+        return "——"
     except Exception as e:
         logger.debug("USD/CNY failed: %s", e)
         return "——"
@@ -116,23 +112,32 @@ def _fetch_commodities() -> str:
     """Fetch key commodity prices: gold, crude oil, copper."""
     try:
         _ensure_akshare()
-        df = ak.futures_foreign_commodity_realtime()
+        df = ak.futures_global_spot_em()
         if df is None or df.empty:
             return "——"
 
+        # Filter for continuous contract (当月连续) or base contract (no month suffix)
         targets = {
-            "COMEX黄金": "黄金",
-            "NYMEX原油": "原油",
-            "COMEX铜": "铜",
+            "黄金": ["迷你黄金"],       # 迷你黄金 (base)
+            "原油": ["迷你原油"],       # 迷你原油 (base)
+            "铜":   ["综合铜03", "COMEX铜"],  # try both naming conventions
         }
         parts = []
         for _, row in df.iterrows():
             name = str(row.get("名称", ""))
-            for target_key, target_label in targets.items():
-                if target_key in name:
-                    price = _safe_float(row.get("最新价", 0))
-                    chg_pct = _safe_float(row.get("涨跌幅", 0))
-                    parts.append(f"{target_label} {price:.1f} ({chg_pct:+.1f}%)")
+            # Resolve: prefer base contracts, then current month continuous
+            for target_label, aliases in targets.items():
+                found = False
+                for alias in aliases:
+                    if name == alias or (name.startswith(alias) and                        ("当月" in name or "连续" in name or name == alias)):
+                        price = _safe_float(row.get("最新价", 0))
+                        chg_pct = _safe_float(row.get("涨跌幅", 0))
+                        if price > 0:
+                            parts.append(f"{target_label} {price:.1f} ({chg_pct:+.1f}%)")
+                            found = True
+                            break
+                if found:
+                    break
         return "  ".join(parts) if parts else "——"
     except Exception as e:
         logger.debug("Commodities failed: %s", e)
@@ -140,23 +145,25 @@ def _fetch_commodities() -> str:
 
 
 def _fetch_vix() -> str:
-    """Fetch VIX fear index."""
-    try:
-        _ensure_akshare()
-        df = ak.index_global_spot_em()
-        if df is None or df.empty:
-            return "——"
-        rows = df[df["名称"].str.contains("VIX", na=False)]
-        if rows.empty:
-            return "——"
-        r = rows.iloc[0]
-        price = _safe_float(r.get("最新价", 0))
-        chg_pct = _safe_float(r.get("涨跌幅", 0))
-        vix_level = "恐慌" if price > 25 else ("谨慎" if price > 18 else "平稳")
-        return f"VIX {price:.1f} ({chg_pct:+.1f}%), {vix_level}"
-    except Exception as e:
-        logger.debug("VIX failed: %s", e)
-        return "——"
+    """Fetch VIX fear index with retry. Falls back gracefully on rate-limit."""
+    import time as _time
+    for attempt in range(2):
+        try:
+            df = ak.index_global_spot_em()
+            if df is None or df.empty:
+                return "VIX: 数据暂不可用"
+            rows = df[df["名称"].str.contains("VIX", na=False)]
+            if rows.empty:
+                return "VIX: 数据暂不可用"
+            r = rows.iloc[0]
+            price = _safe_float(r.get("最新价", 0))
+            chg_pct = _safe_float(r.get("涨跌幅", 0))
+            vix_level = "恐慌" if price > 25 else ("谨慎" if price > 18 else "平稳")
+            return f"VIX {price:.1f} ({chg_pct:+.1f}%), {vix_level}"
+        except Exception:
+            if attempt < 1:
+                _time.sleep(3)
+    return "VIX: 数据源暂时受限"
 
 
 def _fetch_northbound_flow() -> str:
@@ -167,25 +174,20 @@ def _fetch_northbound_flow() -> str:
         if df is None or df.empty:
             return "——"
 
-        # Get the latest row
-        latest = df.iloc[-1] if not df.empty else None
-        if latest is None:
+        # Filter northbound (北向) rows only
+        if "资金方向" in df.columns:
+            df = df[df["资金方向"] == "北向"]
+
+        if df.empty:
             return "——"
 
-        net = _safe_float(latest.get("北向资金-净流入", latest.get("当日资金净流入", 0)))
-        if net == 0:
-            net = _safe_float(latest.get(list(latest.index[0] if hasattr(latest, 'index') and len(latest.index) > 0 else "当日资金净流入"), 0))
+        # Sum across all northbound rows (沪股通+深股通)
+        net_col = next((c for c in df.columns if "净流入" in c or "净买" in c), None)
+        if net_col:
+            total = _safe_float(df[net_col].sum())
+            direction = "净流入" if total > 0 else "净流出"
+            return f"北向资金 {direction} {abs(total/1e8):.1f}亿"
 
-        buy = _safe_float(latest.get("北向资金-买入成交额", latest.get("买入成交额", 0)))
-        sell = _safe_float(latest.get("北向资金-卖出成交额", latest.get("卖出成交额", 0)))
-
-        if net != 0:
-            direction = "净流入" if net > 0 else "净流出"
-            return f"北向资金 {direction} {abs(net/1e8):.1f}亿"
-        if buy != 0 and sell != 0:
-            net = buy - sell
-            direction = "净流入" if net > 0 else "净流出"
-            return f"北向资金 {direction} {abs(net/1e8):.1f}亿"
         return "——"
     except Exception as e:
         logger.debug("Northbound flow failed: %s", e)
@@ -199,12 +201,15 @@ def _fetch_bond_yield() -> str:
         df = ak.bond_china_yield()
         if df is None or df.empty:
             return "——"
-        # Find 10Y row
-        for _, row in df.iterrows():
-            if "10年" in str(row.get("期限", row.get("名称", ""))):
-                y = _safe_float(row.get("收益率", row.get("收益", row.get("最新价", 0))))
-                chg = _safe_float(row.get("涨跌BP", 0))
-                return f"中国10Y国债 {y:.2f}% (BP {chg:+.1f})"
+
+        # Columns: 曲线名称, 日期, 3月, 6月, 1年, 3年, 5年, 7年, 10年, 30年
+        if "10年" in df.columns and len(df) > 0:
+            latest = df.iloc[-1]
+            y = _safe_float(latest.get("10年", 0))
+            prev = _safe_float(df.iloc[-2].get("10年", 0)) if len(df) > 1 else y
+            chg_bp = (y - prev) * 100 if prev else 0
+            return f"中国10Y国债 {y:.2f}% (BP {chg_bp:+.1f})"
+
         return "——"
     except Exception as e:
         logger.debug("Bond yield failed: %s", e)
