@@ -185,16 +185,24 @@ def _fetch_vix() -> str:
     return "  ".join(results) if results else "QVix: 数据暂不可用"
 
 def _fetch_northbound_flow() -> str:
-    """Fetch northbound capital flow summary.
+    """Fetch northbound capital flow.
 
-    East Money's stock_hsgt_fund_flow_summary_em has columns:
-    - 资金方向: 北向 / 南向
-    - 交易状态: 1=active, 2=maybe pending, 3=closed / data not yet released
-    - 成交净买额: net buy amount (in 亿 or 元 depending on data format)
-    - 资金净流入: net capital inflow
+    Primary source: stock_hsgt_fund_flow_summary_em (East Money summary).
+    - During trading hours (status=1): data is real-time and accurate.
+    - Outside trading hours (status=3): all fields are zero/unreliable.
 
-    When 交易状态 != 1, the numerical fields are typically zero/unreliable.
+    Fallback: stock_hsgt_hist_em historical API.
+    - East Money stopped publishing detailed flow data after 2024-08-16.
+    - The historical fallback shows the last known valid data point.
+
+    Manual override: set env var TRADINGAGENTS_NORTHBOUND_FLOW to a string
+    like "净流入 +12.5亿" to override the automatic fetch.
     """
+    import os
+    manual = os.environ.get("TRADINGAGENTS_NORTHBOUND_FLOW", "").strip()
+    if manual:
+        return f"北向资金 {manual}（手动）"
+
     try:
         _ensure_akshare()
         df = ak.stock_hsgt_fund_flow_summary_em()
@@ -208,35 +216,35 @@ def _fetch_northbound_flow() -> str:
         if nb.empty:
             return "——"
 
-        # Prefer rows with active trading status
         active = nb[nb["交易状态"] == 1]
-        if active.empty:
-            non_zero = nb[~nb["交易状态"].isin([0, 3])]
-            if non_zero.empty:
-                if len(nb) > 0:
-                    status_val = nb.iloc[0].get("交易状态", "?")
-                    return f"北向资金: 数据未更新（状态{status_val}）"
-                return "——"
-            rows = non_zero
-        else:
-            rows = active
+        if not active.empty:
+            total = 0.0
+            for _, row in active.iterrows():
+                net = _safe_float(row.get("资金净流入", 0))
+                if net == 0:
+                    net = _safe_float(row.get("成交净买额", 0))
+                total += net
+            if total != 0:
+                direction = "净流入" if total > 0 else "净流出"
+                return f"北向资金 {direction} {abs(total/1e8):.1f}亿"
+            return "北向资金: 暂无数据（耐心等待盘中更新）"
 
-        total = 0.0
-        for _, row in rows.iterrows():
-            net = _safe_float(row.get("资金净流入", 0))
-            if net == 0:
-                net = _safe_float(row.get("成交净买额", 0))
-            total += net
+        # Non-trading hours: try historical fallback
+        try:
+            hist = ak.stock_hsgt_hist_em(symbol="北向资金")
+            if hist is not None and not hist.empty and "当日成交净买额" in hist.columns:
+                valid_hist = hist[hist["当日成交净买额"].notna()]
+                if not valid_hist.empty:
+                    latest = valid_hist.iloc[-1]
+                    net = _safe_float(latest.get("当日成交净买额", 0))
+                    if net != 0:
+                        direction = "净流入" if net > 0 else "净流出"
+                        return f"北向资金 {direction} {abs(net):.1f}亿（暂停更，最后数据{str(latest.get('日期',''))[:10]}）"
+        except Exception:
+            pass
 
-        if total == 0 and len(nb) > 0 and nb.iloc[0].get("交易状态", 1) != 1:
-            status_val = nb.iloc[0].get("交易状态", "?")
-            return f"北向资金: 数据未更新（状态{status_val}）"
-
-        if total != 0:
-            direction = "净流入" if total > 0 else "净流出"
-            return f"北向资金 {direction} {abs(total/1e8):.1f}亿"
-
-        return "——"
+        status_val = nb.iloc[0].get("交易状态", "?")
+        return f"北向资金: 非交易时段（交易时间自动更新）"
     except Exception as e:
         logger.debug("Northbound flow failed: %s", e)
         return "——"
