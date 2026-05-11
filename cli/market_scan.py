@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional
 
 import typer
@@ -60,7 +61,8 @@ def _fetch_spot_df() -> Optional[Any]:
     """Fetch stock_zh_a_spot DataFrame via DataCache spot namespace (30s TTL).
 
     Repeated calls within the TTL window return the cached DataFrame without
-    network requests.
+    network requests.  The fetcher is wrapped with a 60-second timeout to
+    prevent hanging when some Sina sub-sources are slow or unreachable.
     """
     if ak is None:
         return None
@@ -68,13 +70,21 @@ def _fetch_spot_df() -> Optional[Any]:
         from tradingagents.dataflows.cache import DataCache
         from tradingagents.default_config import DEFAULT_CONFIG
 
+        def _fetch_with_timeout():
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(ak.stock_zh_a_spot)
+                return future.result(timeout=60)
+
         cache = DataCache(DEFAULT_CONFIG.get("data_cache_dir", "~/.tradingagents/cache"))
         return cache.get_or_fetch(
             "spot",
             "market_snapshot",
-            fetcher=lambda: ak.stock_zh_a_spot(),
+            fetcher=_fetch_with_timeout,
             ttl=30,
         )
+    except FuturesTimeoutError:
+        typer.echo("警告: 获取市场快照超时（60秒），部分新浪子源不可达。", err=True)
+        return None
     except Exception:
         return None
 
