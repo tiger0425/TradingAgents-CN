@@ -12,10 +12,10 @@ Dependencies:
 from typing import Annotated
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import pandas as pd
 import os
 import time
+import requests
 
 from .config import get_config
 
@@ -840,77 +840,84 @@ def get_insider_transactions(
 def get_current_price(
     symbol: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
 ) -> str:
-    """Retrieve real-time stock quote for an A-share stock via akshare.
+    """Retrieve real-time stock quote for an A-share stock via Sina finance.
 
-    Uses East Money data source (stock_zh_a_spot_em) which returns live market data
-    including latest price, change, volume, PE, PB, and timestamp.
-    Includes a 10-second timeout to prevent hangs on network failures.
+    Uses Sina's single-stock HTTP API (hq.sinajs.cn) directly with a 5-second
+    timeout, avoiding the slow full-market scan in akshare's stock_zh_a_spot().
 
     Returns Markdown-formatted string.
     """
+    sina_url = "https://hq.sinajs.cn/list="
+
     try:
-        _ensure_akshare()
+        sina_symbol = _to_sina_symbol(symbol)
+        resp = requests.get(
+            sina_url + sina_symbol,
+            timeout=5,
+            headers={"Referer": "https://finance.sina.com.cn"},
+        )
+        resp.raise_for_status()
+        resp.encoding = "gbk"
 
-        global _spot_em_cache
-        cache_ts, cache_df = _spot_em_cache
-        now = time.time()
-
-        if cache_df is not None and (now - cache_ts) < _SPOT_EM_CACHE_TTL:
-            df = cache_df
-        else:
-            # Wrap with timeout to prevent hanging on network failures
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(ak.stock_zh_a_spot_em)
-                try:
-                    df = future.result(timeout=10)
-                except FuturesTimeoutError:
-                    return (
-                        f"网络请求超时: 获取实时行情数据超时（10秒），请稍后重试。"
-                        f"\n可能是网络问题或东方财富接口暂时不可用。"
-                    )
-            _spot_em_cache = (now, df)
-
-        if df is None or df.empty:
-            return f"No real-time data available"
-
-        # East Money source uses raw 6-digit codes (e.g. "600519"), not Sina format
-        row = df[df["代码"] == symbol]
-        if row.empty:
+        text = resp.text.strip()
+        if "=" not in text:
             return f"No real-time quote found for symbol '{symbol}'"
 
-        r = row.iloc[0]
-        name = r.get("名称", symbol)
-        price = r.get("最新价", "N/A")
-        change = r.get("涨跌额", "N/A")
-        change_pct = r.get("涨跌幅", "N/A")
-        open_price = r.get("今开", "N/A")
-        high = r.get("最高", "N/A")
-        low = r.get("最低", "N/A")
-        prev_close = r.get("昨收", "N/A")
-        volume = r.get("成交量", "N/A")
-        amount = r.get("成交额", "N/A")
-        timestamp = r.get("时间戳", "N/A")
+        data_str = text.split("=", 1)[1].strip('"; \n')
+        if not data_str:
+            return f"No real-time data for symbol '{symbol}'"
+
+        fields = data_str.split(",")
+        if len(fields) < 10:
+            return f"Incomplete data for symbol '{symbol}'"
+
+        name = fields[0]
+        open_price = float(fields[1])
+        prev_close = float(fields[2])
+        price = float(fields[3])
+        high = float(fields[4])
+        low = float(fields[5])
+        volume = int(float(fields[8]))
+        amount = float(fields[9])
+        date_str = fields[30] if len(fields) > 30 else ""
+        time_str = fields[31] if len(fields) > 31 else ""
+        data_time = f"{date_str} {time_str}".strip()
+
+        change = round(price - prev_close, 3)
+        change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close != 0 else 0.0
+
+        volume_m = f"{volume / 10000:.0f}万手" if volume > 0 else "N/A"
+        amount_yi = f"{amount / 100000000:.2f}亿" if amount > 0 else "N/A"
 
         lines = [
             f"# Real-time Quote for {symbol} ({name})",
-            f"**Current Price**: {price}",
-            f"**Change**: {change} ({change_pct}%)",
-            f"**Open**: {open_price}",
-            f"**High**: {high}",
-            f"**Low**: {low}",
-            f"**Previous Close**: {prev_close}",
-            f"**Volume**: {volume}",
-            f"**Turnover**: {amount}",
-            f"**Data Time**: {timestamp}",
+            f"**Current Price**: {price:.2f}",
+            f"**Change**: {change:+.2f} ({change_pct:+.2f}%)",
+            f"**Open**: {open_price:.2f}",
+            f"**High**: {high:.2f}",
+            f"**Low**: {low:.2f}",
+            f"**Previous Close**: {prev_close:.2f}",
+            f"**Volume**: {volume_m}",
+            f"**Turnover**: {amount_yi}",
+            f"**Data Time**: {data_time}",
             f"",
-            f"*Data source: akshare (East Money, real-time)*",
+            f"*Data source: Sina Finance (hq.sinajs.cn, real-time)*",
             f"*Retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
         ]
 
         return "\n".join(lines)
 
-    except ImportError as e:
-        return f"Error: {e}"
+    except requests.exceptions.Timeout:
+        return (
+            f"网络请求超时: 获取 {symbol} 实时行情超时（5秒），请稍后重试。"
+            f"\n可能是网络问题或新浪接口暂时不可用。"
+        )
+    except requests.exceptions.ConnectionError:
+        return f"网络连接失败: 无法连接新浪行情接口，请检查网络。"
+    except requests.exceptions.HTTPError as e:
+        return f"HTTP 错误: {e.response.status_code if e.response else str(e)}"
+    except ValueError as e:
+        return f"数据解析错误: {e}"
     except Exception as e:
         return f"Error fetching current price for {symbol}: {str(e)}"
 
