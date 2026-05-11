@@ -34,12 +34,72 @@ from .akshare import (
     get_insider_transactions as get_akshare_insider_transactions,
     get_current_price as get_akshare_current_price,
 )
+from .guosen import (
+    get_real_time_quote,
+    get_multi_quote,
+    get_fund_flow,
+    get_rankings,
+    get_historical_hq,
+    get_balance_sheet as guosen_balance_sheet,
+    get_income_statement as guosen_income_statement,
+    get_cashflow_statement as guosen_cashflow,
+    get_macro_data,
+    screen_stocks,
+    compare_funds,
+    filter_etf_pro,
+    filter_etf_custom,
+)
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
 # Configuration and routing logic
 from .config import get_config
 
-# Tools organized by category
+
+# ---- Guosen adapter wrappers (unify signatures with standard tool interface) ----
+
+def _guosen_stock_data(symbol: str, start_date: str, end_date: str) -> str:
+    """Adapt guosen get_historical_hq to standard (symbol, start, end) signature."""
+    from datetime import datetime
+    try:
+        d1 = datetime.strptime(start_date, "%Y-%m-%d")
+        d2 = datetime.strptime(end_date, "%Y-%m-%d")
+        days = max((d2 - d1).days, 1)
+    except (ValueError, TypeError):
+        days = 20
+    return get_historical_hq(symbol, days=days)
+
+
+def _guosen_current_price(symbol: str) -> str:
+    """Adapt guosen get_real_time_quote to standard current_price signature."""
+    return get_real_time_quote(symbol)
+
+
+def _guosen_bs(ticker: str, freq: str = "annual", curr_date: str = "") -> str:
+    """Adapt guosen balance_sheet to standard (ticker, freq, curr_date) signature."""
+    report_map = {"annual": "Q4", "quarterly": "Q0"}
+    rtype = report_map.get(freq, "Q0")
+    year = curr_date[:4] if curr_date else None
+    return guosen_balance_sheet(ticker, report_type=rtype, report_year=year)
+
+
+def _guosen_cf(ticker: str, freq: str = "annual", curr_date: str = "") -> str:
+    """Adapt guosen cashflow to standard (ticker, freq, curr_date) signature."""
+    report_map = {"annual": "Q4", "quarterly": "Q0"}
+    rtype = report_map.get(freq, "Q0")
+    year = curr_date[:4] if curr_date else None
+    return guosen_cashflow(ticker, report_type=rtype, report_year=year)
+
+
+def _guosen_is_(ticker: str, freq: str = "annual", curr_date: str = "") -> str:
+    """Adapt guosen income_statement to standard (ticker, freq, curr_date) signature."""
+    report_map = {"annual": "Q4", "quarterly": "Q0"}
+    rtype = report_map.get(freq, "Q0")
+    year = curr_date[:4] if curr_date else None
+    return guosen_income_statement(ticker, report_type=rtype, report_year=year)
+
+
+# ---- Tool categories (extended with guosen-unique capabilities) ----
+
 TOOLS_CATEGORIES = {
     "core_stock_apis": {
         "description": "OHLCV stock price data and real-time quotes",
@@ -70,13 +130,31 @@ TOOLS_CATEGORIES = {
             "get_global_news",
             "get_insider_transactions",
         ]
-    }
+    },
+    # ---- Guosen 独有能力 ----
+    "macro_economic": {
+        "description": "Macroeconomic indicators (GDP, CPI, PMI, interest rates, commodities)",
+        "tools": ["get_macro_data"],
+    },
+    "stock_screening": {
+        "description": "Stock screening by financial/technical conditions and ETF/fund filters",
+        "tools": [
+            "screen_stocks",
+            "get_rankings",
+            "get_fund_flow",
+            "get_multi_quote",
+            "compare_funds",
+            "filter_etf_pro",
+            "filter_etf_custom",
+        ],
+    },
 }
 
 VENDOR_LIST = [
     "akshare",
     "yfinance",
     "alpha_vantage",
+    "guosen",
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -86,10 +164,12 @@ VENDOR_METHODS = {
         "akshare": get_akshare_stock,
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
+        "guosen": _guosen_stock_data,
     },
     "get_current_price": {
         "akshare": get_akshare_current_price,
         "yfinance": get_YFin_data_online,
+        "guosen": _guosen_current_price,
     },
     # technical_indicators
     "get_indicators": {
@@ -107,16 +187,19 @@ VENDOR_METHODS = {
         "akshare": get_akshare_balance_sheet,
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
+        "guosen": _guosen_bs,
     },
     "get_cashflow": {
         "akshare": get_akshare_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
+        "guosen": _guosen_cf,
     },
     "get_income_statement": {
         "akshare": get_akshare_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
+        "guosen": _guosen_is_,
     },
     # news_data
     "get_news": {
@@ -133,6 +216,31 @@ VENDOR_METHODS = {
         "akshare": get_akshare_insider_transactions,
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
+    },
+    # ---- guosen 独有能力 (仅 guosen vendor 提供) ----
+    "get_macro_data": {
+        "guosen": get_macro_data,
+    },
+    "screen_stocks": {
+        "guosen": screen_stocks,
+    },
+    "get_rankings": {
+        "guosen": get_rankings,
+    },
+    "get_fund_flow": {
+        "guosen": get_fund_flow,
+    },
+    "get_multi_quote": {
+        "guosen": get_multi_quote,
+    },
+    "compare_funds": {
+        "guosen": compare_funds,
+    },
+    "filter_etf_pro": {
+        "guosen": filter_etf_pro,
+    },
+    "filter_etf_custom": {
+        "guosen": filter_etf_custom,
     },
 }
 

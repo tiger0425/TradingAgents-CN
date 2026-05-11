@@ -22,6 +22,16 @@ from tradingagents.agents.utils.news_data_tools import (
 from tradingagents.agents.utils.market_context_tools import (
     get_market_context,
 )
+from tradingagents.agents.utils.guosen_tools import (
+    get_macro_data,
+    screen_stocks,
+    get_rankings,
+    get_fund_flow,
+    get_multi_quote,
+    compare_funds,
+    filter_etf_pro,
+    filter_etf_custom,
+)
 
 
 def get_language_instruction() -> str:

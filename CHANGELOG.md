@@ -13,7 +13,8 @@ Breaking changes within the 0.x line are called out explicitly.
 
 - **国信证券数据源** — `dataflows/guosen.py`：基于国信证券专业接口的 13 个数据函数，覆盖 (1) 实时行情 `get_real_time_quote`/`get_multi_quote`/`get_rankings`/`get_historical_hq`，(2) 资金流向 `get_fund_flow`，(3) 财务三表 `get_balance_sheet`/`get_income_statement`/`get_cashflow_statement`，(4) 宏观经济 `get_macro_data`，(5) 智能选股 `screen_stocks`，(6) 基金对比 `compare_funds`，(7) ETF 筛选 `filter_etf_pro`/`filter_etf_custom`。所有函数返回 `str` 类型兼容 TradingAgents 工具系统。使用 `requests` + 旧版 TLS 适配器兼容国信 API 服务器。
 - **3 个新环境变量** — `GS_API_KEY` / `COZE_GUOSEN_API_KEY_7627085587157205043` / `COZE_GUOSEN_API_KEY_7627056463827140634`，已在 `.env.example` 中声明。
-- **数据商配置更新** — `default_config.py` 的 `data_vendors` 可选项中新增 `guosen`。
+- **数据商配置更新** — `default_config.py` 的 `data_vendors` 可选项中新增 `guosen`。新增 `macro_economic` 和 `stock_screening` 两个类别默认指向 guosen。
+- **路由系统接入** — `interface.py` 注册 guosen 为第四数据商，与现有 5 个重叠工具签名适配（`_guosen_stock_data` 等），8 个独有工具（宏观/选股/排行/资金流/ETF筛选/基金对比/批量行情）加入 `VENDOR_METHODS` 和 `TOOLS_CATEGORIES`。新增 `agents/utils/guosen_tools.py` 封装所有独有工具，`agent_utils.py` 统一导出。
 
 ### Fixed
 

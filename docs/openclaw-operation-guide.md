@@ -660,6 +660,7 @@ done
 | **批量耗时** | 30 只股票 × 2 分钟 ≈ 1 小时，需处理超时 |
 | **akshare 稳定性** | 依赖新浪财经接口，可能随行情波动 |
 | **guosen 调用限制** | 国信证券每个 API Key 限制 50 次调用 |
+| **guosen 独有工具** | `get_macro_data`/`screen_stocks`/`get_rankings`/`get_fund_flow`/`compare_funds`/`filter_etf_pro`/`filter_etf_custom` 需配置 `GS_API_KEY` |
 | **webhook 频率** | 飞书/Server酱可能有频率限制 |
 | **JSON 序列化** | 所有输出已处理 datetime/Decimal 等类型 |
 | **网络要求** | 需连接 akshare（新浪财经）和 LLM API |

@@ -39,9 +39,11 @@ DEFAULT_CONFIG = {
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
         "core_stock_apis": "akshare",       # Options: akshare, guosen, alpha_vantage, yfinance
-        "technical_indicators": "akshare",  # Options: akshare, guosen, alpha_vantage, yfinance
+        "technical_indicators": "akshare",  # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
         "fundamental_data": "akshare",      # Options: akshare, guosen, alpha_vantage, yfinance
-        "news_data": "akshare",             # Options: akshare, guosen, alpha_vantage, yfinance
+        "news_data": "akshare",             # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
+        "macro_economic": "guosen",         # 宏观经济数据 (仅 guosen)
+        "stock_screening": "guosen",        # 选股/ETF筛选/基金对比/排行 (仅 guosen)
     },
     # Benchmark index for alpha calculation
     "benchmark_ticker": "000300",       # A-share: 沪深300 CSI 300 index
