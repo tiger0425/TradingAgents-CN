@@ -143,6 +143,34 @@ def _build_position_risk_section() -> str:
         return f"风险评估失败: {e}"
 
 
+def _build_trading_plan_section() -> str:
+    """Build tomorrow's trading plan section."""
+    try:
+        from tradingagents.agents.utils.position_state import PositionStateManager
+        from tradingagents.dataflows.trading_plan import generate_trading_plan, format_plan_markdown
+        psm = PositionStateManager(DEFAULT_CONFIG.copy())
+        raw = psm.get_all() or {}
+        if not raw:
+            return "当前无持仓，无需操作计划。"
+        positions = []
+        for ticker, pos in raw.items():
+            qty = int(pos.get("quantity", 0))
+            if qty <= 0:
+                continue
+            positions.append({
+                "symbol": ticker,
+                "quantity": qty,
+                "cost_price": float(pos.get("cost_price", 0)),
+                "current_price": float(pos.get("current_price", 0)) or float(pos.get("cost_price", 0)),
+            })
+        if not positions:
+            return "无有效持仓。"
+        plan = generate_trading_plan(positions)
+        return format_plan_markdown(plan)
+    except Exception as e:
+        return f"操作计划生成失败: {e}"
+
+
 def _format_briefing(sections: Dict[str, str]) -> str:
     """Format all sections into a single Markdown briefing."""
     date_str = datetime.datetime.now().strftime("%Y-%m-%d %A")
@@ -208,13 +236,17 @@ def daily_command(
     alert_text = _build_alert_section()
 
     # Section 3: Risk
-    console.print("[dim]  3/3 评估组合风险...[/dim]")
+    console.print("[dim]  3/4 评估组合风险...[/dim]")
     risk_text = _build_position_risk_section()
+
+    console.print("[dim]  4/4 生成操作计划...[/dim]")
+    plan_text = _build_trading_plan_section()
 
     sections = {
         "macro": macro_text,
         "alerts": alert_text,
         "risk": risk_text,
+        "plan": plan_text,
     }
 
     brief = _format_briefing(sections)
