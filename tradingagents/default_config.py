@@ -38,10 +38,10 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "akshare",       # Options: akshare, alpha_vantage, yfinance
-        "technical_indicators": "akshare",  # Options: akshare, alpha_vantage, yfinance
-        "fundamental_data": "akshare",      # Options: akshare, alpha_vantage, yfinance
-        "news_data": "akshare",             # Options: akshare, alpha_vantage, yfinance
+        "core_stock_apis": "akshare",       # Options: akshare, guosen, alpha_vantage, yfinance
+        "technical_indicators": "akshare",  # Options: akshare, guosen, alpha_vantage, yfinance
+        "fundamental_data": "akshare",      # Options: akshare, guosen, alpha_vantage, yfinance
+        "news_data": "akshare",             # Options: akshare, guosen, alpha_vantage, yfinance
     },
     # Benchmark index for alpha calculation
     "benchmark_ticker": "000300",       # A-share: 沪深300 CSI 300 index

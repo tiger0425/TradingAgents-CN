@@ -7,6 +7,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.8-cn] — 2026-05-11
+
+### Added
+
+- **国信证券数据源** — `dataflows/guosen.py`：基于国信证券专业接口的 13 个数据函数，覆盖 (1) 实时行情 `get_real_time_quote`/`get_multi_quote`/`get_rankings`/`get_historical_hq`，(2) 资金流向 `get_fund_flow`，(3) 财务三表 `get_balance_sheet`/`get_income_statement`/`get_cashflow_statement`，(4) 宏观经济 `get_macro_data`，(5) 智能选股 `screen_stocks`，(6) 基金对比 `compare_funds`，(7) ETF 筛选 `filter_etf_pro`/`filter_etf_custom`。所有函数返回 `str` 类型兼容 TradingAgents 工具系统。使用 `requests` + 旧版 TLS 适配器兼容国信 API 服务器。
+- **3 个新环境变量** — `GS_API_KEY` / `COZE_GUOSEN_API_KEY_7627085587157205043` / `COZE_GUOSEN_API_KEY_7627056463827140634`，已在 `.env.example` 中声明。
+- **数据商配置更新** — `default_config.py` 的 `data_vendors` 可选项中新增 `guosen`。
+
 ## [0.2.7-cn] — 2026-05-11
 
 ### Added

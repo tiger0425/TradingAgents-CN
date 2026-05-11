@@ -31,6 +31,7 @@
 
 ## News
 
+- [2026-05] **国信证券数据源接入**：新增 `dataflows/guosen.py` 模块，基于国信证券专业接口提供实时行情、财务三表、宏观经济、智能选股、基金对比、ETF筛选等 13 个数据函数。需配置 `GS_API_KEY` 环境变量（限制 50 次/Key）。
 - [2026-05] **每日自动投研管线上线**：新增 `tradingagents daily --push` 一键串行宏观上下文→预警检查→组合风险评估→推送晨报。新增 `macro_context.py` 接入美股/汇率/商品/VIX/北向资金6路外围数据；Bull/Bear 辩论增加"核心证据锚定"双方输出单条最硬事实供裁判对比；组合层面新增相关性矩阵和对冲关系识别。Market Context 非交易日自动回退到最近交易日数据。
 - [2026-05] **A股助手功能上线**：新增 6 个 CLI 工具——实时行情 (`quote`)、条件单价格预警 (`monitor`)、短线异动检测 (`alert-abnormal`，涨停/跌停/炸板/天地板/连板)、公告 LLM 快读 (`notice`)、研报抓取摘要 (`research-report`)、持仓风险评估 (`portfolio-risk`)，全部支持 `--push` 推送和 `--output json`。
 - [2026-05] **分析存档系统（AnalysisArchive）**：每次 CLI 分析（batch / morning-scan / evening-review / scan-watchlist）自动持久化完整结果到 `~/.tradingagents/analysis-archive/`，支持按 ticker、日期、决策方向检索。新增 `tradingagents archive` 命令组：list/search/summary/delete。存档结构与 TradingMemoryLog 互补——memory 存决策+反思给 LLM 注入，archive 存完整分析上下文给人+AI 查询
@@ -250,6 +251,35 @@ print(decision)
 ```
 
 所有配置选项请参阅 `tradingagents/default_config.py`。
+
+### 数据供应商
+
+TradingAgents 支持可插拔数据供应商，通过 `data_vendors` 配置切换：
+
+| 供应商 | 模块 | 说明 | 环境变量 |
+|--------|------|------|----------|
+| **akshare**（默认） | `dataflows/akshare.py` | A 股数据，基于 akhare + Sina 源 | 无需额外配置 |
+| **guosen** | `dataflows/guosen.py` | 国信证券专业接口，支持行情/财务/宏观/选股/基金/ETF | `GS_API_KEY` 等 3 个（限 50 次/Key） |
+| alpha_vantage | 内置 | 美股数据 | `ALPHA_VANTAGE_API_KEY` |
+| yfinance | 内置 | 美股数据（免费） | 无需额外配置 |
+
+```python
+config["data_vendors"] = {
+    "core_stock_apis": "guosen",       # 切换为 guosen
+    "technical_indicators": "akshare",
+    "fundamental_data": "guosen",
+    "news_data": "akshare",
+}
+```
+
+或直接在代码中调用：
+
+```python
+from tradingagents.dataflows.guosen import get_real_time_quote, screen_stocks
+
+print(get_real_time_quote("600519"))
+print(screen_stocks("市盈率小于20的银行股"))
+```
 
 ## Persistence and Recovery
 
