@@ -12,6 +12,7 @@ Dependencies:
 from typing import Annotated
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import pandas as pd
 import os
 import time
@@ -836,40 +837,44 @@ def get_insider_transactions(
 # 10. Real-time Stock Quote
 # ============================================================================
 
-# Cache for stock_zh_a_spot() to avoid repeated full-market downloads.
-# Stores (timestamp, DataFrame) tuple; expires after _SPOT_CACHE_TTL seconds.
-_SPOT_CACHE_TTL = 30  # seconds
-_spot_cache: tuple = (0, None)
-
-
 def get_current_price(
     symbol: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
 ) -> str:
     """Retrieve real-time stock quote for an A-share stock via akshare.
 
-    Uses Sina data source (stock_zh_a_spot) which returns live market data
-    including latest price, change, volume, and timestamp.
+    Uses East Money data source (stock_zh_a_spot_em) which returns live market data
+    including latest price, change, volume, PE, PB, and timestamp.
+    Includes a 10-second timeout to prevent hangs on network failures.
 
     Returns Markdown-formatted string.
     """
     try:
         _ensure_akshare()
-        sina_symbol = _to_sina_symbol(symbol)
 
-        global _spot_cache
-        cache_ts, cache_df = _spot_cache
+        global _spot_em_cache
+        cache_ts, cache_df = _spot_em_cache
         now = time.time()
 
-        if cache_df is not None and (now - cache_ts) < _SPOT_CACHE_TTL:
+        if cache_df is not None and (now - cache_ts) < _SPOT_EM_CACHE_TTL:
             df = cache_df
         else:
-            df = ak.stock_zh_a_spot()
-            _spot_cache = (now, df)
+            # Wrap with timeout to prevent hanging on network failures
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(ak.stock_zh_a_spot_em)
+                try:
+                    df = future.result(timeout=10)
+                except FuturesTimeoutError:
+                    return (
+                        f"网络请求超时: 获取实时行情数据超时（10秒），请稍后重试。"
+                        f"\n可能是网络问题或东方财富接口暂时不可用。"
+                    )
+            _spot_em_cache = (now, df)
 
         if df is None or df.empty:
             return f"No real-time data available"
 
-        row = df[df["代码"] == sina_symbol]
+        # East Money source uses raw 6-digit codes (e.g. "600519"), not Sina format
+        row = df[df["代码"] == symbol]
         if row.empty:
             return f"No real-time quote found for symbol '{symbol}'"
 
@@ -898,7 +903,7 @@ def get_current_price(
             f"**Turnover**: {amount}",
             f"**Data Time**: {timestamp}",
             f"",
-            f"*Data source: akshare (Sina, real-time)*",
+            f"*Data source: akshare (East Money, real-time)*",
             f"*Retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
         ]
 
@@ -988,7 +993,7 @@ def get_social_sentiment(symbol: str) -> str:
 # 12. Real-time Quotes (East Money) — Multi-symbol, used by CLI quote command
 # ============================================================================
 
-# Separate cache for East Money spot data (different source from Sina _spot_cache)
+# Cache for East Money spot data, shared by get_current_price and get_real_time_quotes
 _SPOT_EM_CACHE_TTL = 30  # seconds
 _spot_em_cache: tuple = (0, None)
 
