@@ -1,0 +1,46 @@
+=== F3: Portfolio Chat Endpoint Verification ===
+Date: 2026-05-14
+Plan: v1-final-polish
+
+VERDICT: 2 issues found (1 test FAIL, 1 WARNING). No changes made (verification only per task rules).
+
+============================================================
+PASSED (15/17 tests):
+============================================================
+✅ PortfolioChatRequest model - has user_id, message fields
+✅ PortfolioChatResponse model - has core fields (action, ticker, name, cost_price, quantity, confirmation, error)
+✅ PortfolioChatResponse default values correct (cost_price=0.0, quantity=0)
+✅ PORTFOLIO_PARSE_PROMPT is a string, contains {message} placeholder
+✅ All 4 action types documented: add_holding, remove_holding, add_watchlist, unknown
+✅ JSON schema keys present: action, ticker, name, cost_price, quantity, entry_date
+✅ Route registered: POST /portfolio/chat
+✅ portfolio_chat function callable, accepts req parameter
+✅ Empty message handler present
+✅ Exception handling (try/except) present
+✅ add_holding, remove_holding, add_watchlist handlers present
+✅ Unknown/else fallback present
+✅ LLM unavailable fallback (中文) present
+
+============================================================
+FAILED / WARNING:
+============================================================
+
+❌ FAIL (Test 2e): .format() crash — critical runtime bug
+   PORTFOLIO_PARSE_PROMPT contains JSON schema with single curly braces:
+     {
+       "action": "...",
+       ...
+     }
+   Python's str.format() interprets these as format specifiers.
+   When line 191 calls PORTFOLIO_PARSE_PROMPT.format(message=...),
+   it raises: KeyError('\n  "action"')
+   
+   Fix: Escape JSON braces as {{ and }} in the prompt string.
+
+⚠️  WARNING (Test 1e): entry_date missing from PortfolioChatResponse
+   Line 201: entry_date = parsed.get("entry_date", "")
+   Line 206: pm.add_holding(..., entry_date, ...)  — entry_date is used
+   But the PortfolioChatResponse Pydantic model has NO entry_date field.
+   The response returned to the user will not include entry_date.
+   
+   Fix: Add entry_date: str = "" to PortfolioChatResponse model.

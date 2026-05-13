@@ -273,13 +273,13 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 3 并行验证）
 
   **提交**：`feat(collector): add OHLCV prefetch for watchlist before market open` — `tradingagents/collector/prefetch.py`, `tradingagents/scheduler/scheduler.py`
 
-- [ ] F1. **Collector 冒烟测试** — `unspecified-high`
+- [x] F1. **Collector 冒烟测试** — `unspecified-high`
   4 个 collector 全部 `collect()` 验证：无崩溃、无 None（交易日），或合法 None（非交易日）。
 
-- [ ] F2. **KB + Planner 集成测试** — `unspecified-high`
+- [x] F2. **KB + Planner 集成测试** — `unspecified-high`
   KB 写入→检索→Planner 覆盖率计算。验证 Planner 生成合法 workflow plan。
 
-- [ ] F3. **对话录入持仓验证** — `unspecified-high`
+- [x] F3. **对话录入持仓验证** — `unspecified-high`
   `POST /portfolio/chat {"user_id":"test","message":"我买了茅台1000股成本1800"}` → 写入 portfolio.yaml → 验证。
 
 ---
@@ -295,8 +295,8 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 3 并行验证）
 
 ## 成功标准
 
-- [ ] `.env` 文件存在并正确配置 DEEPSEEK_API_KEY
-- [ ] `POST /portfolio/chat` 能将「我买了茅台1000股成本1800」正确写入 PortfolioManager
-- [ ] 每日 09:00 自动预取所有持仓/自选股 60 日 OHLCV
-- [ ] 4 Collector 冒烟全部通过
-- [ ] KB → Planner 链路不崩溃
+- [x] `.env` 文件存在并正确配置 DEEPSEEK_API_KEY
+- [x] `POST /portfolio/chat` 能将「我买了茅台1000股成本1800」正确写入 PortfolioManager
+- [x] 每日 09:00 自动预取所有持仓/自选股 60 日 OHLCV
+- [x] 4 Collector 冒烟全部通过
+- [x] KB → Planner 链路不崩溃

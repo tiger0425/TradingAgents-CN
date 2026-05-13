@@ -71,14 +71,14 @@ PORTFOLIO_PARSE_PROMPT = """
 - unknown: 无法解析
 
 JSON格式:
-{
+{{
   "action": "...",
   "ticker": "6位数字代码",
   "name": "股票名称",
   "cost_price": 数字,
   "quantity": 整数,
   "entry_date": "YYYY-MM-DD"
-}
+}}
 
 消息: {message}
 """

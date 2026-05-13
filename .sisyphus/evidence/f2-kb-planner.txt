@@ -1,0 +1,24 @@
+=== F2 Verification: KB Data Integrity + Planner Basic Functionality ===
+Date: 2026-05-14
+Status: PASSED
+
+--- KB Tests ---
+[PASS] KB save+query+freshness+maintain
+  - KnowledgeBase(tmpdir) creates shared/ + users/ dirs
+  - save("market_snapshot", entry) persists JSON with freshness=FRESH
+  - get_latest("market_snapshot") returns saved entry
+  - maintain_freshness() runs without error
+  - FreshnessManager.compute_freshness correctly labels new entry as FRESH
+
+[PASS] KB query_for_event coverage=0.5
+  - query_for_event(Trigger(task="晨会"), context) returns dict
+  - Returns keys: results, coverage_score, missing_aspects
+  - coverage_score=0.5 (1/2: market_snapshot found, announcement_brief missing)
+
+--- Planner Basic Test ---
+[PASS] TemplateMatcher returns mode=no_match (no templates dir)
+  - TemplateMatcher() initializes without templates (dir doesn't exist)
+  - match(trigger, context) returns MatchResult with mode="no_match"
+  - No errors, graceful degradation when templates dir absent
+
+=== ALL KB + PLANNER TESTS PASSED ===
