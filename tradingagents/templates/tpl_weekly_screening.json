@@ -1,0 +1,44 @@
+{
+  "template_id": "tpl_weekly_screening",
+  "intent": "weekly_screening",
+  "version": 1,
+  "status": "verified",
+  "created": "2026-05-13T08:00:00",
+  "use_count": 0,
+  "success_rate": 0.85,
+  "match_patterns": {
+    "keywords": ["推荐", "选股", "有什么好", "买什么", "本周", "下周", "周末", "screening", "pick"],
+    "required_context": [],
+    "negative_keywords": [],
+    "description": "周末选股推荐：宏观预判 + 行业轮动筛选 + 基本面确认 + Top N 推荐"
+  },
+  "workflow": [
+    {
+      "step": 1, "agent": "macro_analyst",
+      "task": "本周宏观预判：大盘判断(牛/熊/震荡)、下周重大事件日历(CPI/PMI/会议)、风格判断(大盘vs小盘、价值vs成长)",
+      "context": ["KB市场快照", "宏观数据"],
+      "depends_on": [], "expected_output": "宏观环境预判(3-5条要点)"
+    },
+    {
+      "step": 2, "agent": "market_analyst",
+      "task": "行业轮动扫描：识别资金流入的板块、技术面进入上升通道的子行业、北向资金增持方向",
+      "context": ["板块数据", "资金流向"],
+      "depends_on": [1], "expected_output": "行业轮动扫描(Top 5行业+理由)"
+    },
+    {
+      "step": 3, "agent": "fundamentals_analyst",
+      "task": "对Top 3行业的候选标的做基本面确认：ROE/毛利率/估值/现金流筛选。排出雷股(ST/亏损/暴雷)",
+      "context": ["行业候选池", "财务数据"],
+      "depends_on": [2], "expected_output": "基本面确认(Top 10候选池)"
+    },
+    {
+      "step": 4, "agent": "portfolio_manager",
+      "task": "综合宏观+行业轮动+基本面，输出Top 5推荐标的。每个标的含：买入区间、止损价、目标价、持仓周期、推荐理由、风险提示",
+      "context": ["步骤1宏观", "步骤2行业", "步骤3候选池"],
+      "depends_on": [1, 2, 3],
+      "expected_output": "策略周报(Top 5推荐+宏观判断+行业轮动图)"
+    }
+  ],
+  "estimated_cost_usd": 0.35,
+  "estimated_time_seconds": 180
+}

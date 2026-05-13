@@ -1,0 +1,44 @@
+{
+  "template_id": "tpl_morning_briefing",
+  "intent": "morning_briefing",
+  "version": 1,
+  "status": "verified",
+  "created": "2026-05-13T08:00:00",
+  "use_count": 0,
+  "success_rate": 0.9,
+  "match_patterns": {
+    "keywords": ["晨会", "早报", "盘前", "开市", "morning"],
+    "required_context": [],
+    "negative_keywords": [],
+    "description": "交易日盘前持仓风险扫描与自选股机会提醒"
+  },
+  "workflow": [
+    {
+      "step": 1, "agent": "macro_analyst",
+      "task": "隔夜外盘扫描：美股三大指数、汇率、商品、北向资金、央行操作",
+      "context": ["KB市场快照"],
+      "depends_on": [], "expected_output": "隔夜简报(3-5条要点)"
+    },
+    {
+      "step": 2, "agent": "news_analyst",
+      "task": "扫描自选股和持仓股({ticker_list})最近24小时公告",
+      "context": ["持仓列表", "自选列表"],
+      "depends_on": [], "expected_output": "相关公告摘要"
+    },
+    {
+      "step": 3, "agent": "market_analyst",
+      "task": "检查所有持仓股技术面状态：支撑/压力位、超买超卖、偏离成本线",
+      "context": ["持仓股OHLCV", "持仓成本"],
+      "depends_on": [], "expected_output": "持仓股预警(每只股票+预警等级)"
+    },
+    {
+      "step": 4, "agent": "portfolio_manager",
+      "task": "综合隔夜变化、公告、持仓预警，生成今日晨报。列出重点关注的标的和操作建议",
+      "context": ["步骤1-3全部输出"],
+      "depends_on": [1, 2, 3],
+      "expected_output": "晨报(Markdown格式，含持仓预警表+自选股机会提醒+今日关注清单)"
+    }
+  ],
+  "estimated_cost_usd": 0.10,
+  "estimated_time_seconds": 120
+}

@@ -1,0 +1,32 @@
+{
+  "template_id": "tpl_closing_review",
+  "intent": "closing_review",
+  "version": 1,
+  "status": "verified",
+  "created": "2026-05-13T08:00:00",
+  "use_count": 0,
+  "success_rate": 0.9,
+  "match_patterns": {
+    "keywords": ["复盘", "收盘", "今天怎么样", "今日总结", "closing"],
+    "required_context": [],
+    "negative_keywords": [],
+    "description": "收盘复盘：当日收益归因 + 明日操作预案"
+  },
+  "workflow": [
+    {
+      "step": 1, "agent": "market_analyst",
+      "task": "当日收益归因：每只持仓股涨跌原因拆解（技术面+市场面），识别今日最佳/最差标的",
+      "context": ["持仓列表", "当日行情"],
+      "depends_on": [], "expected_output": "持仓收益归因报告"
+    },
+    {
+      "step": 2, "agent": "portfolio_manager",
+      "task": "更新持仓状态，生成明日操作预案：关键价位、触发条件、建议操作",
+      "context": ["步骤1归因报告", "持仓成本"],
+      "depends_on": [1],
+      "expected_output": "收盘复盘报告(含明日预案+关键价位)"
+    }
+  ],
+  "estimated_cost_usd": 0.08,
+  "estimated_time_seconds": 90
+}

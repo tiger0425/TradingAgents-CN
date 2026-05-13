@@ -11,7 +11,19 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
-from langgraph.checkpoint.sqlite import SqliteSaver
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    from langgraph.checkpoint.sqlite import SqliteSaver
+except ImportError:
+    try:
+        from langgraph.checkpoint.memory import MemorySaver as SqliteSaver
+        logger.debug("SqliteSaver unavailable, using MemorySaver as fallback")
+    except ImportError:
+        SqliteSaver = None
+        logger.debug("No checkpoint saver available — resume disabled")
 
 from tradingagents.dataflows.utils import safe_ticker_component
 
@@ -31,8 +43,12 @@ def thread_id(ticker: str, date: str) -> str:
 
 
 @contextmanager
-def get_checkpointer(data_dir: str | Path, ticker: str) -> Generator[SqliteSaver, None, None]:
-    """Context manager yielding a SqliteSaver backed by a per-ticker DB."""
+def get_checkpointer(data_dir: str | Path, ticker: str) -> Generator:
+    if SqliteSaver is None:
+        raise RuntimeError(
+            "Checkpointing requires langgraph-checkpoint-sqlite. "
+            "Install with: pip install langgraph-checkpoint-sqlite"
+        )
     db = _db_path(data_dir, ticker)
     conn = sqlite3.connect(str(db), check_same_thread=False)
     try:

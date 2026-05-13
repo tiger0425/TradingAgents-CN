@@ -1,0 +1,255 @@
+"""GraphExecutor — bridges the Planner output to DynamicGraphBuilder and invokes agents.
+
+Orchestrates:
+  Plan (from LLMPlanner) → DynamicGraphBuilder.build() → init_state → graph.invoke() → result
+"""
+
+import logging
+from datetime import date
+from typing import Any, Dict, List, Optional
+
+from langgraph.prebuilt import ToolNode
+
+from .dynamic_graph_builder import DynamicGraphBuilder
+from ..agents.utils.agent_states import AgentState, InvestDebateState, RiskDebateState
+from ..planner.schemas import Trigger, Context
+
+logger = logging.getLogger(__name__)
+
+
+class GraphExecutor:
+    """Executes a workflow plan by building a dynamic LangGraph and invoking it."""
+
+    def __init__(
+        self,
+        quick_thinking_llm,
+        deep_thinking_llm,
+        tool_nodes: Dict[str, ToolNode],
+        max_debate_rounds: int = 1,
+        max_risk_rounds: int = 1,
+        max_recur_limit: int = 100,
+    ):
+        self.quick_llm = quick_thinking_llm
+        self.deep_llm = deep_thinking_llm
+        self.tool_nodes = tool_nodes
+        self.max_debate_rounds = max_debate_rounds
+        self.max_risk_rounds = max_risk_rounds
+        self.max_recur_limit = max_recur_limit
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def execute(
+        self,
+        plan: dict,
+        trigger: Trigger,
+        context: Context,
+        callbacks: Optional[List] = None,
+    ) -> dict:
+        plan = _normalize_plan(plan)
+        workflow = plan.get("workflow", [])
+        if not workflow:
+            return {
+                "final_report": "",
+                "raw_state": {},
+                "intent": plan.get("intent", "unknown"),
+                "error": "No workflow steps in plan",
+            }
+
+        init_state = self._build_init_state(plan, trigger, context)
+
+        builder = DynamicGraphBuilder(
+            self.quick_llm,
+            self.deep_llm,
+            self.tool_nodes,
+            self.max_debate_rounds,
+            self.max_risk_rounds,
+        )
+
+        compiled = builder.build(plan)
+
+        invoke_kwargs: dict = {
+            "input": init_state,
+            "config": {"recursion_limit": self.max_recur_limit},
+        }
+        if callbacks:
+            invoke_kwargs["config"]["callbacks"] = callbacks
+
+        logger.info(
+            "Executing plan: intent=%s mode=%s steps=%d",
+            plan.get("intent", "?"),
+            plan.get("_generation_mode", "?"),
+            len(workflow),
+        )
+
+        try:
+            final_state = compiled.invoke(**invoke_kwargs)
+        except Exception:
+            logger.exception("Graph execution failed")
+            return {
+                "final_report": "",
+                "raw_state": {},
+                "intent": plan.get("intent", "unknown"),
+                "generation_mode": plan.get("_generation_mode", "unknown"),
+                "template_id": plan.get("_template_id", ""),
+                "estimated_cost_usd": plan.get("estimated_cost_usd", 0),
+                "plan_workflow_steps": len(workflow),
+                "error": "Graph execution failed — see logs",
+            }
+
+        report = self._extract_report(final_state)
+
+        return {
+            "final_report": report,
+            "raw_state": final_state,
+            "intent": plan.get("intent", ""),
+            "generation_mode": plan.get("_generation_mode", ""),
+            "template_id": plan.get("_template_id", ""),
+            "estimated_cost_usd": plan.get("estimated_cost_usd", 0),
+            "plan_workflow_steps": len(workflow),
+        }
+
+    # ------------------------------------------------------------------
+    # Init state
+    # ------------------------------------------------------------------
+
+    def _build_init_state(self, plan: dict, trigger: Trigger, context: Context) -> dict:
+        ticker = context.ticker or self._guess_ticker(trigger, plan)
+        today = date.today().isoformat()
+
+        debate_init = InvestDebateState(
+            bull_history="",
+            bear_history="",
+            history="",
+            current_response="",
+            judge_decision="",
+            count=0,
+        )
+        risk_init = RiskDebateState(
+            aggressive_history="",
+            conservative_history="",
+            neutral_history="",
+            history="",
+            latest_speaker="",
+            current_aggressive_response="",
+            current_conservative_response="",
+            current_neutral_response="",
+            judge_decision="",
+            count=0,
+        )
+
+        # Inject KB context into the initial message if available
+        kb_hint = ""
+        kb_results = plan.get("kb_results")
+        if kb_results and hasattr(kb_results, "coverage_score") and kb_results.coverage_score > 0:
+            kb_hint = f"\n[知识库覆盖率: {kb_results.coverage_score:.0%}]"
+        if kb_results and hasattr(kb_results, "missing_aspects") and kb_results.missing_aspects:
+            kb_hint += f"\n[需补充: {', '.join(kb_results.missing_aspects)}]"
+
+        user_message = trigger.message or trigger.task or "analysis"
+        user_message += kb_hint
+
+        return {
+            "messages": [("human", user_message)],
+            "company_of_interest": ticker,
+            "trade_date": today,
+            "sender": "",
+            "market_report": "",
+            "sentiment_report": "",
+            "news_report": "",
+            "fundamentals_report": "",
+            "market_context": context.market_state or "",
+            "investment_debate_state": debate_init,
+            "investment_plan": "",
+            "trader_investment_plan": "",
+            "risk_debate_state": risk_init,
+            "final_trade_decision": "",
+            "past_context": "",
+            "knowledge_context": self._build_knowledge_context(plan),
+            "market_type": "A_SHARE",
+            "benchmark_ticker": "000300",
+            "position_opened_date": "",
+            "limit_up_price": 0.0,
+            "limit_down_price": 0.0,
+            "cost_price": 0.0,
+            "quantity": 0,
+            "position_pnl": 0.0,
+            "position_pnl_pct": None,
+        }
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_report(final_state: dict) -> str:
+        """Extract the final report from the graph's final state."""
+        # Try multiple output fields in priority order
+        for field in (
+            "final_trade_decision",
+            "investment_plan",
+            "trader_investment_plan",
+        ):
+            report = final_state.get(field, "")
+            if report:
+                return report
+        # Fallback: concatenate all report fields
+        parts = []
+        for field in ("market_report", "fundamentals_report", "news_report", "sentiment_report"):
+            if final_state.get(field):
+                parts.append(final_state[field])
+        return "\n\n".join(parts) if parts else ""
+
+    @staticmethod
+    def _build_knowledge_context(plan: dict) -> dict:
+        """Build knowledge_context dict for agent consumption."""
+        ctx: Dict[str, Any] = {}
+        kb_results = plan.get("kb_results")
+        if kb_results:
+            if hasattr(kb_results, "results"):
+                ctx["kb_results"] = kb_results.results
+            if hasattr(kb_results, "coverage_score"):
+                ctx["kb_coverage"] = kb_results.coverage_score
+            if hasattr(kb_results, "missing_aspects"):
+                ctx["kb_missing"] = kb_results.missing_aspects
+        ctx["plan_intent"] = plan.get("intent", "")
+        ctx["generation_mode"] = plan.get("_generation_mode", "")
+        ctx["template_id"] = plan.get("_template_id", "")
+        return ctx
+
+    @staticmethod
+    def _guess_ticker(trigger: Trigger, plan: dict) -> str:
+        """Attempt to guess the ticker from message or plan.
+
+        This is a best-effort heuristic; the Planner or caller should
+        ideally set context.ticker before execution.
+        """
+        if trigger.message:
+            # Very basic: look for 6-digit numbers
+            import re
+            digits = re.findall(r"\b\d{6}\b", trigger.message)
+            if digits:
+                return digits[0]
+        return "unknown"
+
+
+def _normalize_plan(plan: dict) -> dict:
+    workflow = plan.get("workflow", [])
+    if not workflow:
+        return plan
+    normalized = []
+    for step in workflow:
+        if isinstance(step, dict):
+            normalized.append(step)
+        elif hasattr(step, "step"):
+            normalized.append({
+                "step": step.step,
+                "agent": step.agent,
+                "task": step.task,
+                "depends_on": step.depends_on or [],
+                "expected_output": getattr(step, "expected_output", ""),
+            })
+        else:
+            logger.warning("Unknown workflow step type: %s", type(step))
+    return {**plan, "workflow": normalized}

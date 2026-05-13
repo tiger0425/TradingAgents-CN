@@ -459,6 +459,32 @@ class TradingAgentsGraph:
                 self._checkpointer_ctx = None
                 self.graph = self.workflow.compile()
 
+    def propagate_with_planner(self, trigger, context):
+        if not hasattr(self, '_planner') or not hasattr(self, '_dynamic_builder'):
+            logger.warning("Planner not configured, falling back to legacy propagate()")
+            return self.propagate(context.ticker, context.trade_date)
+
+        plan = self._planner.plan(trigger, context)
+        graph = self._dynamic_builder.build(plan)
+        init_state = self.propagator.create_initial_state(
+            context.ticker, context.trade_date,
+            past_context=self.memory_log.get_past_context(context.ticker),
+            knowledge_context=getattr(context, 'kb_context', {}),
+        )
+        result = graph.invoke(init_state, self.propagator.get_graph_args())
+        self._log_state(context.trade_date, result)
+        self.memory_log.store_decision(
+            ticker=context.ticker, trade_date=context.trade_date,
+            final_trade_decision=result.get("final_trade_decision", ""),
+        )
+        decision = self.process_signal(result.get("final_trade_decision", ""))
+        return result, decision
+
+    def configure_planner(self, planner, dynamic_builder):
+        self._planner = planner
+        self._dynamic_builder = dynamic_builder
+        logger.info("Planner + DynamicGraphBuilder configured")
+
     def _run_graph(self, company_name, trade_date):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM.
