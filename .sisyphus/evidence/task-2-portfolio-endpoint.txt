@@ -1,0 +1,35 @@
+证据文件 — Task 2: POST /portfolio/chat 端点
+==============================================
+时间: 2026-05-14
+文件: tradingagents/api_server.py (153 → 254 行)
+
+变更摘要:
+---------
+1. 添加 `import json` (第4行)
+2. 添加 Pydantic 模型 (第48-60行):
+   - PortfolioChatRequest: user_id (str), message (str)
+   - PortfolioChatResponse: action, ticker, name, cost_price, quantity, confirmation, error
+3. 添加 PORTFOLIO_PARSE_PROMPT 常量 (第63-84行)
+4. 添加 POST /portfolio/chat 端点 (第180-230行):
+   - 接受 user_id + message
+   - 调用 LLM (planner.llm) 解析自然语言为结构化 action
+   - 执行 add_holding / remove_holding / add_to_watchlist
+   - 解析失败/LLM不可用时返回清晰错误信息
+5. 添加 _resolve_portfolio_mgr() 辅助函数 (第249-254行)
+
+LSP 诊断:
+---------
+- 无新增错误
+- 预存在的 reportImportCycles (bootstrap.py ↔ api_server.py) 未变更
+
+PortfolioManager API 调用:
+--------------------------
+- add_holding(ticker, name, cost_price, quantity, entry_date, user_id)
+- remove_holding(ticker, user_id)
+- add_to_watchlist(ticker, name, reason, user_id)
+
+现有端点:
+---------
+- POST /analyze — 未修改
+- GET /health — 未修改
+- GET /analyze — 未修改

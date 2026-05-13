@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+import json
 import logging
 
 app = FastAPI(title="TradingAgents API")
@@ -42,6 +43,45 @@ class StatusResponse(BaseModel):
     status: str
     kb_entries: int
     user_count: int
+
+
+class PortfolioChatRequest(BaseModel):
+    user_id: str = "default"
+    message: str
+
+
+class PortfolioChatResponse(BaseModel):
+    action: str = ""
+    ticker: str = ""
+    name: str = ""
+    cost_price: float = 0.0
+    quantity: int = 0
+    confirmation: str = ""
+    error: str = ""
+
+
+PORTFOLIO_PARSE_PROMPT = """
+从用户消息中提取持仓操作，输出严格JSON。
+只输出JSON，不要其他文字。
+
+支持的action:
+- add_holding: 添加持仓（需要ticker, name, cost_price, quantity, entry_date）
+- remove_holding: 移除持仓（需要ticker）
+- add_watchlist: 加入自选（需要ticker, name）
+- unknown: 无法解析
+
+JSON格式:
+{
+  "action": "...",
+  "ticker": "6位数字代码",
+  "name": "股票名称",
+  "cost_price": 数字,
+  "quantity": 整数,
+  "entry_date": "YYYY-MM-DD"
+}
+
+消息: {message}
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +177,59 @@ async def analyze_get(user_id: str = "default", message: str = "", ticker: str =
     return await analyze(req)
 
 
+@app.post("/portfolio/chat", response_model=PortfolioChatResponse)
+async def portfolio_chat(req: PortfolioChatRequest):
+    """Parse natural language portfolio command and execute it."""
+    if not req.message.strip():
+        return PortfolioChatResponse(error="请输入持仓信息，例如：我买了600519茅台1000股成本1800")
+
+    planner = _resolve_planner()
+    llm = planner.llm if hasattr(planner, 'llm') else None
+
+    if llm:
+        try:
+            prompt = PORTFOLIO_PARSE_PROMPT.format(message=req.message)
+            resp = llm.invoke(prompt)
+            content = resp.content if hasattr(resp, 'content') else str(resp)
+            parsed = json.loads(content)
+
+            action = parsed.get("action", "unknown")
+            ticker = parsed.get("ticker", "")
+            name = parsed.get("name", "")
+            cost_price = float(parsed.get("cost_price", 0))
+            quantity = int(parsed.get("quantity", 0))
+            entry_date = parsed.get("entry_date", "")
+
+            pm = _resolve_portfolio_mgr()
+
+            if action == "add_holding" and ticker:
+                pm.add_holding(ticker, name or ticker, cost_price, quantity, entry_date, req.user_id)
+                return PortfolioChatResponse(
+                    action="add_holding", ticker=ticker, name=name,
+                    cost_price=cost_price, quantity=quantity,
+                    confirmation=f"已添加持仓：{ticker} {name}，成本{cost_price}元，{quantity}股"
+                )
+            elif action == "remove_holding" and ticker:
+                pm.remove_holding(ticker, req.user_id)
+                return PortfolioChatResponse(
+                    action="remove_holding", ticker=ticker,
+                    confirmation=f"已移除持仓：{ticker}"
+                )
+            elif action == "add_watchlist" and ticker:
+                pm.add_to_watchlist(ticker, name or ticker, "", req.user_id)
+                return PortfolioChatResponse(
+                    action="add_watchlist", ticker=ticker, name=name,
+                    confirmation=f"已加入自选：{ticker} {name}"
+                )
+            else:
+                return PortfolioChatResponse(error="无法解析持仓信息。请提供股票代码和成本价，例如：我买了600519茅台1000股成本1800")
+        except Exception as e:
+            logger.warning("Portfolio chat LLM parse failed: %s", e)
+            return PortfolioChatResponse(error="无法解析持仓信息。请提供股票代码和成本价，例如：我买了600519茅台1000股成本1800")
+
+    return PortfolioChatResponse(error="LLM 不可用，请配置 API Key 后重试")
+
+
 def _resolve_planner():
     if _planner is None:
         from .planner.llm_planner import LLMPlanner
@@ -151,3 +244,11 @@ def _resolve_executor():
             detail="Executor not configured. Call api_server.configure() at startup.",
         )
     return _executor
+
+
+def _resolve_portfolio_mgr():
+    global _portfolio_mgr
+    if _portfolio_mgr is None:
+        from .portfolio.portfolio_manager import PortfolioManager
+        _portfolio_mgr = PortfolioManager()
+    return _portfolio_mgr
