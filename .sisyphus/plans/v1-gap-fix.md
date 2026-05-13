@@ -197,7 +197,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   - 消息：`fix(collector): remove duplicate set_llm in PolicyCollector`
   - 文件：`tradingagents/collector/policy_collector.py`
 
-- [ ] 3. MarketDataCollector 接入 AkShare + LLM 摘要
+- [x] 3. MarketDataCollector 接入 AkShare + LLM 摘要
 
   **推荐 Agent**：`unspecified-high`
   **并行**：否（依赖 Task 1 的 LLM 配置）
