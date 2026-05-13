@@ -17,9 +17,6 @@ class PolicyCollector:
     def set_llm(self, llm):
         self._llm = llm
 
-    def set_llm(self, llm):
-        self._llm = llm
-
     async def collect(self) -> Optional[dict]:
         try:
             raw = await self._fetch_policy_news()
