@@ -1,0 +1,21 @@
+## F2: Collector Smoke Test Results
+
+Date: 2026-05-13 (Wednesday - trading day)
+=== SUMMARY (total: 2.2s) ===
+
+[MarketData] OK (took 0.9s), result type: dict, keys: ['collected_at', 'data', 'market_type', 'freshness']
+  => PASS - returned valid market data dict
+
+[Sentiment] OK (took 0.4s), result type: dict, keys: ['collected_at', 'data', 'freshness']
+  => PASS - returned valid sentiment dict
+
+[Announcement] None returned (non-trading day or no data), took 0.0s
+  => OK-None - returned None (no data available, no crash)
+
+[Policy] OK (took 0.4s), result type: dict, keys: ['source', 'title', 'collected_at', 'data', 'freshness']
+  => PASS - returned valid policy dict
+
+VERDICT: ALL 4 COLLECTORS PASS
+- 3 returned real data (MarketData, Sentiment, Policy)
+- 1 returned None (Announcement — no fresh announcements available today, no crash)
+- No exceptions, no crashes

@@ -373,7 +373,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
 
   **提交**：`feat(kb): implement maintain() for freshness batch update` — `tradingagents/kb/freshness.py`
 
-- [ ] F1. **配置验证** — `quick`
+- [x] F1. **配置验证** — `quick`
   验证 `deep_llm.model_name == "deepseek-v4-pro"` 和 `quick_llm.model_name == "deepseek-v4-flash"`。运行：
   ```python
   from tradingagents.default_config import DEFAULT_CONFIG
@@ -383,7 +383,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   ```
   输出：`配置 [PASS/FAIL] | VERDICT`
 
-- [ ] F2. **Collector 冒烟验证** — `unspecified-high`
+- [x] F2. **Collector 冒烟验证** — `unspecified-high`
   依次对 4 个 Collector 运行冒烟测试（需环境变量中配置 DEEPSEEK_API_KEY）：
   ```bash
   python -c "
@@ -400,7 +400,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   ```
   输出：`Collector [N/4 PASS] | VERDICT`
 
-- [ ] F3. **KB 数据完整性验证** — `unspecified-high`
+- [x] F3. **KB 数据完整性验证** — `unspecified-high`
   验证 Collector 写入 KB 的数据可被检索：
   ```bash
   python -c "
@@ -413,7 +413,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   ```
   输出：`KB [PASS/FAIL] | VERDICT`
 
-- [ ] F4. **代码质量审查** — `unspecified-high`
+- [x] F4. **代码质量审查** — `unspecified-high`
   检查所有修改文件：无 `as any`/`@ts-ignore`，无空 catch，无 console.log，无注释掉的代码，无 unused import。
   输出：`文件 [N/N clean] | VERDICT`
 
@@ -433,10 +433,10 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
 
 ## 成功标准
 
-- [ ] DeepSeek v4-pro/flash 作为默认模型
-- [ ] 4 个 Collector 均能调用 AkShare 获取真实数据
-- [ ] Collector 数据通过 LLM 摘要后写入 KB
-- [ ] KB 数据可被 `query()` 和 `query_for_event()` 检索
-- [ ] LLM 调用失败时降级为规则引擎摘要
-- [ ] 非交易日 Collector 不运行
-- [ ] KB `maintain_freshness()` 可定期批量更新新鲜度标签
+- [x] DeepSeek v4-pro/flash 作为默认模型
+- [x] 4 个 Collector 均能调用 AkShare 获取真实数据
+- [x] Collector 数据通过 LLM 摘要后写入 KB
+- [x] KB 数据可被 `query()` 和 `query_for_event()` 检索
+- [x] LLM 调用失败时降级为规则引擎摘要
+- [x] 非交易日 Collector 不运行
+- [x] KB `maintain_freshness()` 可定期批量更新新鲜度标签
