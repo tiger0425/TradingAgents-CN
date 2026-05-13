@@ -329,7 +329,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
 
   **提交**：`feat(collector): integrate AkShare into AnnouncementCollector with portfolio-driven stock list` — `tradingagents/collector/announcement_collector.py`
 
-- [ ] 6. PolicyCollector 接入 AkShare + LLM 分析
+- [x] 6. PolicyCollector 接入 AkShare + LLM 分析
 
   **推荐 Agent**：`unspecified-high` | **并行**：否
 
