@@ -1,0 +1,31 @@
+=== Task 3: OHLCV Prefetch System ===
+Date: 2026-05-14
+
+--- Import Verification ---
+$ python3 -c "from tradingagents.collector.prefetch import PrefetchManager; print('PASS')"
+PASS
+
+--- Files Created/Modified ---
+1. CREATED: tradingagents/collector/prefetch.py
+   - PrefetchManager class with prefetch_all() and _gather_all_tickers()
+   - Imports: KnowledgeBase, PortfolioManager, get_stock_data (lazy)
+   - _gather_all_tickers(): collects tickers from portfolio_mgr.get_holdings_list("default") and get_watchlist("default")
+   - prefetch_all(): fetches 60-day OHLCV via get_stock_data() using asyncio.to_thread(), saves to KB as "stock_snapshot"
+
+2. MODIFIED: tradingagents/scheduler/scheduler.py
+   - Added cron job registration in _start_events(): mon-fri 09:00, id='prefetch_ohlcv'
+   - Added _prefetch_ohlcv() method after _sunday_screening()
+   - Method checks _is_trading_day(), then creates PrefetchManager and calls prefetch_all()
+   - Existing scheduler behavior unchanged
+
+--- LSP Diagnostics ---
+- prefetch.py: 0 errors (only pre-existing project-wide warnings: Optional/List/dict type hints)
+- scheduler.py: 0 new errors (all warnings existed before changes)
+
+--- Verification Checklist ---
+[x] prefetch.py created with PrefetchManager class
+[x] prefetch_all() gathers tickers, fetches 60-day OHLCV, saves to KB
+[x] Scheduler cron job registered at 09:00 mon-fri
+[x] All imports resolve: PrefetchManager import test PASS
+[x] No modifications to akshare.py, market_context.py, or PortfolioManager
+[x] No existing scheduler jobs removed or changed

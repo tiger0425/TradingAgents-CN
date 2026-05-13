@@ -216,7 +216,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 3 并行验证）
 
   **提交**：`feat(api): add POST /portfolio/chat for natural language portfolio entry` — `tradingagents/api_server.py`
 
-- [ ] 3. 自选股 OHLCV 数据预取
+- [x] 3. 自选股 OHLCV 数据预取
 
   **推荐 Agent**：`unspecified-high` | **并行**：否
 

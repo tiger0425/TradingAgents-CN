@@ -68,6 +68,10 @@ class TradingAgentsScheduler:
         self.event_scheduler.add_job(
             self.kb.maintain_freshness, 'interval', hours=1, id='kb_maintenance',
         )
+        self.event_scheduler.add_job(
+            self._prefetch_ohlcv, 'cron', day_of_week='mon-fri', hour=9, minute=0,
+            id='prefetch_ohlcv',
+        )
         self.event_scheduler.start()
 
     async def _morning_briefing(self):
@@ -103,6 +107,16 @@ class TradingAgentsScheduler:
             timeout=20,
             report_type="weekly_screening",
         )
+
+    async def _prefetch_ohlcv(self):
+        if not self._is_trading_day():
+            return
+        try:
+            from ..collector.prefetch import PrefetchManager
+            pf = PrefetchManager(self.portfolio_mgr, self.kb)
+            await pf.prefetch_all()
+        except Exception:
+            logger.exception("OHLCV prefetch failed")
 
     async def _run_event_for_all(self, task, timeout, report_type):
         for user_id in self._active_users():
