@@ -351,7 +351,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
 
   **提交**：`feat(collector): integrate AkShare into PolicyCollector` — `tradingagents/collector/policy_collector.py`
 
-- [ ] 7. KB freshness.maintain() 实现
+- [x] 7. KB freshness.maintain() 实现
 
   **推荐 Agent**：`quick` | **并行**：否
 

@@ -5,8 +5,11 @@ Each collection has:
 - stale_ttl: seconds before STALE → EXPIRED
 """
 
+import json
+import logging
 from datetime import datetime, timedelta
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Tuple
 
 # --- freshness constants ---
 FRESH = "FRESH"
@@ -51,6 +54,51 @@ class FreshnessManager:
 
     def maintain(self):
         """Walk all KB entries and update freshness labels."""
-        # This is a placeholder — actual implementation will iterate
-        # over collection directories and update freshness in-place.
-        pass
+        logger = logging.getLogger(__name__)
+        base = Path(self.base_dir).expanduser()
+
+        updated = 0
+        checked = 0
+
+        # Walk shared/ and users/ directories
+        for scope_dir in [base / "shared", base / "users"]:
+            if not scope_dir.exists():
+                continue
+
+            if scope_dir.name == "users":
+                # users/{user_id}/{collection_name}/
+                for user_dir in scope_dir.iterdir():
+                    if user_dir.is_dir():
+                        for coll_dir in user_dir.iterdir():
+                            if coll_dir.is_dir():
+                                checked, updated = self._process_collection(
+                                    coll_dir, coll_dir.name, checked, updated, logger
+                                )
+            else:
+                # shared/{collection_name}/
+                for coll_dir in scope_dir.iterdir():
+                    if coll_dir.is_dir():
+                        checked, updated = self._process_collection(
+                            coll_dir, coll_dir.name, checked, updated, logger
+                        )
+
+        logger.info("KB freshness maintained: %d checked, %d updated", checked, updated)
+
+    def _process_collection(self, coll_dir: Path, coll_name: str, checked: int, updated: int, logger: logging.Logger) -> Tuple[int, int]:
+        """Process all JSON files in a collection directory."""
+        for f in sorted(coll_dir.glob("*.json")):
+            checked += 1
+            try:
+                data = json.loads(f.read_text())
+                old_freshness = data.get("freshness", "")
+                new_freshness = self.compute_freshness(
+                    coll_name, data.get("collected_at", "")
+                )
+                if old_freshness != new_freshness:
+                    data["freshness"] = new_freshness
+                    f.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+                    updated += 1
+            except Exception:
+                logger.warning("Failed to process KB entry: %s", f)
+                continue
+        return checked, updated
