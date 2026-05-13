@@ -265,7 +265,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   - 消息：`feat(collector): integrate AkShare into MarketDataCollector`
   - 文件：`tradingagents/collector/market_collector.py`
 
-- [ ] 4. SentimentCollector 接入 AkShare + LLM 分析
+- [x] 4. SentimentCollector 接入 AkShare + LLM 分析
 
   **推荐 Agent**：`unspecified-high`
   **并行**：否（顺序执行，可借鉴 Task 3 模式）
