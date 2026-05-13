@@ -309,7 +309,7 @@ Wave FINAL: 冒烟验证（ALL 完成后 — 4 并行验证）
   - 消息：`feat(collector): integrate AkShare into SentimentCollector`
   - 文件：`tradingagents/collector/sentiment_collector.py`
 
-- [ ] 5. AnnouncementCollector 接入 AkShare + 解决参数注入
+- [x] 5. AnnouncementCollector 接入 AkShare + 解决参数注入
 
   **推荐 Agent**：`unspecified-high` | **并行**：否
 
