@@ -5,6 +5,7 @@ Supports multiple notification channels:
 - Feishu (飞书) custom robot webhook
 - ServerChan (Server酱) — WeChat push
 - PushPlus — multi-channel push
+- OpenClaw — 定时报告推送到 OpenClaw Agent
 
 Usage:
     from tradingagents.notifier import create_notifier
@@ -16,6 +17,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -247,20 +249,6 @@ class PushPlusNotifier(Notifier):
 
 
 def create_notifier(config: Optional[Dict[str, Any]] = None) -> List[Notifier]:
-    """Create notifiers based on available config keys.
-
-    Returns a list of configured notifiers (empty if none configured).
-
-    Args:
-        config: Configuration dict. Keys checked:
-            - "feishu_webhook" → FeishuNotifier
-            - "server_chan_key" → ServerChanNotifier
-            - "pushplus_token" → PushPlusNotifier
-        Falls back to corresponding env vars if keys are missing.
-
-    Returns:
-        List of Notifier instances. Empty list if no notifier is configured.
-    """
     notifiers: List[Notifier] = []
 
     feishu = FeishuNotifier(config=config)
@@ -276,3 +264,72 @@ def create_notifier(config: Optional[Dict[str, Any]] = None) -> List[Notifier]:
         notifiers.append(pushplus)
 
     return notifiers
+
+
+# ------------------------------------------------------------------
+# OpenClaw — 定时报告推送客户端
+# ------------------------------------------------------------------
+
+
+class OpenClawPushClient:
+    """将定时报告推送到 OpenClaw，由 OpenClaw 投递至用户渠道。
+
+    调度器调用 push() 将晨会/午评/收盘复盘/周选股报告推送到 OpenClaw。
+    支持三种推送方式：
+      - push()   → POST /hooks/agent  (推荐，Agent 投递)
+      - wake()   → POST /hooks/wake   (轻量唤醒)
+      - direct() → POST /hooks/direct (绕过 Agent 直接发送)
+
+    环境变量:
+      OPENCLAW_URL         OpenClaw 服务地址 (例: http://openclaw:18789)
+      OPENCLAW_HOOK_TOKEN  Webhook 认证令牌
+    """
+
+    def __init__(self, url: Optional[str] = None, token: Optional[str] = None):
+        self._url = (url or os.environ.get("OPENCLAW_URL", "")).rstrip("/")
+        self._token = token or os.environ.get("OPENCLAW_HOOK_TOKEN", "")
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._url and self._token)
+
+    async def push(self, user_id: str, report: str, report_type: str) -> bool:
+        """方式 A: POST /hooks/agent — 推送报告到 OpenClaw Agent 投递。"""
+        return await self._post("/hooks/agent", {
+            "user_id": user_id,
+            "report": report,
+            "report_type": report_type,
+        })
+
+    async def wake(self, user_id: str, message: str = "") -> bool:
+        """方式 B: POST /hooks/wake — 轻量唤醒 Agent。"""
+        return await self._post("/hooks/wake", {
+            "user_id": user_id,
+            "message": message,
+        })
+
+    async def direct(self, user_id: str, message: str, method: str = "send_message") -> bool:
+        """方式 C: POST /hooks/direct — 绕过 Agent 直接发送消息。"""
+        return await self._post("/hooks/direct", {
+            "user_id": user_id,
+            "message": message,
+            "method": method,
+        })
+
+    async def _post(self, path: str, payload: Dict[str, Any]) -> bool:
+        if not self.configured:
+            logger.warning("OpenClawPushClient: OPENCLAW_URL / OPENCLAW_HOOK_TOKEN not configured")
+            return False
+        try:
+            url = f"{self._url}{path}"
+            headers = {"X-Hook-Token": self._token}
+            resp = await asyncio.to_thread(
+                requests.post, url, json=payload, headers=headers, timeout=15,
+            )
+            if resp.status_code == 200:
+                return True
+            logger.warning("OpenClaw HTTP %d: %s", resp.status_code, resp.text[:200])
+            return False
+        except requests.RequestException as exc:
+            logger.warning("OpenClawPushClient request failed: %s", exc)
+            return False

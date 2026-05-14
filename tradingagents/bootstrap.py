@@ -156,12 +156,19 @@ def _create_tool_nodes():
 
 def _start_scheduler(kb, planner, portfolio_mgr, executor, config):
     from .scheduler.scheduler import TradingAgentsScheduler
+    from .notifier import OpenClawPushClient
+
+    openclaw = OpenClawPushClient()
+    if not openclaw.configured:
+        openclaw = None
+        logger.info("OpenClaw push not configured (set OPENCLAW_URL + OPENCLAW_HOOK_TOKEN to enable)")
 
     scheduler = TradingAgentsScheduler(
         kb=kb,
         planner=planner,
         portfolio_mgr=portfolio_mgr,
         executor=executor,
+        openclaw=openclaw,
         config=config,
     )
     scheduler.start()

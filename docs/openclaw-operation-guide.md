@@ -174,6 +174,16 @@ tools:
 
 TradingAgents 定时任务（晨会/午评/收盘/周选股）完成后通过 OpenClaw Webhook 推送到用户渠道。
 
+实现状态：✅ 已实现，由 `notifier.py` 中的 `OpenClawPushClient` 类负责推送，`bootstrap.py` 启动时自动注入到调度器。
+
+**三种推送方式**：
+
+| 方法 | 端点 | 用途 |
+|------|------|------|
+| `push(user_id, report, report_type)` | `POST /hooks/agent` | 推送定时报告（推荐） |
+| `wake(user_id, message)` | `POST /hooks/wake` | 轻量唤醒 Agent |
+| `direct(user_id, message, method)` | `POST /hooks/direct` | 绕过 Agent 直接发送 |
+
 **OpenClaw 侧配置** — `openclaw.json`：
 
 ```json5
