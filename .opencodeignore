@@ -1,0 +1,21 @@
+# 虚拟环境 - 394MB, 15K+ 文件
+.venv/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 依赖
+node_modules/
+
+# Graphify 缓存（可重新生成）
+graphify-out/cache/
+
+# 构建产物
+build/
+dist/
+*.egg-info/
