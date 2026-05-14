@@ -30,11 +30,11 @@
 
 ## News
 
-- [2026-05] **V1.2 双层智能架构上线**：后台采集层不间断研究并写入知识库；LLM Planner 收到消息后优先查 KB，只对缺失部分启动 Agent。新增 FastAPI HTTP 服务（`POST /analyze`）、Docker Compose 一键部署、多用户数据隔离、成本追踪、模板进化。
+- [2026-05] **V1.2 冒烟验证全部通过**：4 Collector（AkShare 真实数据）+ KB 时效管理 + Planner 覆盖率计算 + OHLCV 预取 + 对话录入持仓全部验证通过，`docker compose up` 可部署。
+- [2026-05] **V1.2 双层智能架构上线**：后台采集层不间断研究并写入知识库；LLM Planner 收到消息后优先查 KB，只对缺失部分启动 Agent。新增 `POST /analyze` + `POST /portfolio/chat` 端点、OHLCV 开盘前预取、DeepSeek 支持。
 - [2026-05] **国信证券数据源接入**：`dataflows/guosen.py` 提供实时行情、财务三表、宏观经济、智能选股、基金对比、ETF 筛选等 13 个数据函数。
 - [2026-05] **知识消费体系上线**：ContextAssembly 节点自动装配历史知识（CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），统一 DataCache 缓存层，三重缓存检查链。
 - [2026-05] **分析存档 + Wiki + MCP Server**：分析结果自动归档，按 ticker/日期/决策检索。Wiki 导航 + MCP 工具暴露 6 个知识查询接口。
-- [2026-04] **v0.2.4**：结构化输出智能体、LangGraph 检查点恢复、DeepSeek/Qwen/GLM/Azure 支持。
 
 ---
 
@@ -148,6 +148,16 @@ tradingagents                              # 交互式 CLI
 tradingagents batch --ticker 600519 --output json  # 非交互式
 ```
 
+### `POST /portfolio/chat` — 对话录入持仓
+
+用自然语言管理持仓，LLM 自动解析股票代码、成本价、数量并写入 portfolio.yaml：
+
+```bash
+curl -X POST http://localhost:8000/portfolio/chat \
+  -d "user_id=test&message=我买了600519茅台1000股成本1800"
+# → {"action":"add_holding","ticker":"600519","name":"贵州茅台","cost_price":1800,"quantity":1000}
+```
+
 ---
 
 ## 知识库（KB）
@@ -161,7 +171,7 @@ tradingagents batch --ticker 600519 --output json  # 非交互式
 | 政策监控 | 2h | 央行/证监会/产业政策 |
 | 舆情报告 | 15min | 财经新闻 + 情感分析 |
 
-数据存在 `~/.tradingagents/kb/`，市场数据所有用户共享，个股快照按用户生成。
+数据存在 `~/.tradingagents/kb/`，市场数据所有用户共享，个股快照按用户生成。每日 09:00 自动预取持仓/自选股 60 日 OHLCV 到 KB，分析时无需等待数据拉取。
 
 ### 知识消费
 
@@ -194,8 +204,9 @@ LLM Planner 使用模板匹配优先策略，6 个核心模板：
 ### 环境变量
 
 ```bash
-OPENAI_API_KEY=sk-...          # 必须
-DEEPSEEK_API_KEY=...           # 可选
+# 首次启动自动从 .env.example 创建 .env
+DEEPSEEK_API_KEY=sk-...        # DeepSeek（推荐，成本低）
+OPENAI_API_KEY=sk-...          # OpenAI
 GS_API_KEY=...                 # 国信证券（可选）
 OPENCLAW_HOOK_TOKEN=...        # OpenClaw 推送令牌
 ```

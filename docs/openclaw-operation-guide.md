@@ -10,6 +10,7 @@
 | 接口 | 方法 | 用途 | 是否需要 LLM API |
 |------|------|------|:---:|
 | `/analyze` | POST | 自然语言消息 → 智能分析 | ✅ 需要 |
+| `/portfolio/chat` | POST | 对话录入持仓 | ✅ 需要（轻量） |
 | `/health` | GET | 服务状态检查 | ❌ |
 | `tradingagents batch` | CLI | 单股票深度分析（兼容保留） | ✅ 需要 |
 | `tradingagents check-alerts` | CLI | 预警条件检查 | ❌ |
@@ -108,6 +109,41 @@ GET /health
 |------|------|
 | `kb_entries` | 知识库条目总数 |
 | `user_count` | 活跃用户数 |
+
+### 2.4 `POST /portfolio/chat` — 对话录入持仓
+
+用自然语言管理持仓。LLM 自动解析股票代码、成本价、数量并写入 portfolio.yaml。
+
+**请求**：
+
+```http
+POST /portfolio/chat?user_id=alice&message=我买了600519茅台1000股成本1800
+```
+
+**成功响应（200）**：
+
+```json
+{
+  "action": "add_holding",
+  "ticker": "600519",
+  "name": "贵州茅台",
+  "cost_price": 1800,
+  "quantity": 1000,
+  "entry_date": "2026-05-13",
+  "confirmation": "已添加持仓：600519 贵州茅台，成本1800元，1000股"
+}
+```
+
+**无法解析时**：
+
+```json
+{
+  "action": "unknown",
+  "error": "无法解析持仓信息，请提供股票代码和成本价，例如：我买了600519茅台1000股成本1800"
+}
+```
+
+**支持的操作**：`add_holding`（新增持仓）、`add_watchlist`（加自选）、`remove_holding`（删除持仓）。
 
 ---
 
@@ -355,6 +391,7 @@ done
 
 ## 十、版本信息
 
-- 适用版本：V1.2+
-- 最后更新：2026-05-13
+- 适用版本：V1.2
+- 最后更新：2026-05-14
 - 计划文档：`.sisyphus/plans/v1-llm-planner.md`
+- 收尾计划：`.sisyphus/plans/v1-final-polish.md`
