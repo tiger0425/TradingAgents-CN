@@ -1,1 +1,57 @@
-{}
+{
+  "session_ids": [
+    "ses_1de250847ffeoCkWFpz6O1hxJv"
+  ],
+  "session_origins": {
+    "ses_1de250847ffeoCkWFpz6O1hxJv": "direct"
+  },
+  "task_sessions": {},
+  "schema_version": 2,
+  "works": {
+    "v1-gap-fix-f0e249ae": {
+      "work_id": "v1-gap-fix-f0e249ae",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/v1-gap-fix.md",
+      "plan_name": "v1-gap-fix",
+      "status": "completed",
+      "started_at": "2026-05-13T15:22:33.222Z",
+      "updated_at": "2026-05-13T16:06:11.508Z",
+      "session_ids": [
+        "ses_1de250847ffeoCkWFpz6O1hxJv"
+      ],
+      "session_origins": {
+        "ses_1de250847ffeoCkWFpz6O1hxJv": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {},
+      "ended_at": "2026-05-13T16:06:11.508Z",
+      "elapsed_ms": 2618286
+    },
+    "v1-final-polish-b429be69": {
+      "work_id": "v1-final-polish-b429be69",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/v1-final-polish.md",
+      "plan_name": "v1-final-polish",
+      "status": "completed",
+      "started_at": "2026-05-13T23:09:40.219Z",
+      "updated_at": "2026-05-13T23:34:50.743Z",
+      "session_ids": [
+        "ses_1de250847ffeoCkWFpz6O1hxJv"
+      ],
+      "session_origins": {
+        "ses_1de250847ffeoCkWFpz6O1hxJv": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {},
+      "ended_at": "2026-05-13T23:34:50.743Z",
+      "elapsed_ms": 1510524
+    }
+  },
+  "active_work_id": "v1-final-polish-b429be69",
+  "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/v1-final-polish.md",
+  "plan_name": "v1-final-polish",
+  "status": "completed",
+  "started_at": "2026-05-13T23:09:40.219Z",
+  "updated_at": "2026-05-13T23:34:50.743Z",
+  "agent": "atlas",
+  "ended_at": "2026-05-13T23:34:50.743Z",
+  "elapsed_ms": 1510524
+}
