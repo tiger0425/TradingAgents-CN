@@ -34,6 +34,16 @@ ANALYST_AGENTS = {
 }
 
 
+# State key for each agent (for conflict detection)
+_STATE_KEYS = {
+    "market_analyst": "market_report",
+    "macro_analyst": "market_report",
+    "fundamentals_analyst": "fundamentals_report",
+    "news_analyst": "news_report",
+    "social_analyst": "sentiment_report",
+}
+
+
 class DynamicGraphBuilder:
     def __init__(self, quick_thinking_llm, deep_thinking_llm, tool_nodes,
                  max_debate_rounds=2, max_risk_rounds=2):
@@ -97,6 +107,15 @@ class DynamicGraphBuilder:
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
                     self._add_tool_cycle(graph, agent_id, step["step"])
+                # Check if a PREVIOUS step writes to the same state key → add dependency
+                state_key = _STATE_KEYS.get(agent_id)
+                if state_key:
+                    for prev in workflow_steps[:step["step"]-1]:
+                        if _STATE_KEYS.get(prev.get("agent", "")) == state_key:
+                            prev_num = prev["step"]
+                            if prev_num in node_names:
+                                graph.add_edge(node_names[prev_num], start_node)
+                                break
                 graph.add_edge(START, start_node)
 
             for dep_num in step.get("depends_on", []):
