@@ -621,6 +621,25 @@ class TradingAgentsGraph:
         # Log state to disk.
         self._log_state(trade_date, final_state)
 
+        # ★ FIX-10: Causal trace — record (decision, basis, source) triples
+        if self.config.get("enable_causal_trace", True):
+            try:
+                from tradingagents.graph.causal_tracer import (
+                    CausalTracer,
+                    build_trace_from_state,
+                )
+                tracer = CausalTracer(f"{company_name}:{trade_date}")
+                build_trace_from_state(tracer, final_state, self.quick_thinking_llm)
+
+                safe_ticker = safe_ticker_component(company_name)
+                trace_dir = Path(self.config["results_dir"]) / safe_ticker / "traces"
+                tracer.save(trace_dir, str(trade_date))
+            except Exception as e:
+                logger.warning(
+                    "Causal trace failed for %s on %s: %s",
+                    company_name, trade_date, e,
+                )
+
         # Store decision for deferred reflection on the next same-ticker run.
         self.memory_log.store_decision(
             ticker=company_name,

@@ -71,6 +71,9 @@ DEFAULT_CONFIG = {
     # Market context injection switch
     "enable_market_context": True,
 
+    # Causal trace — logs (decision, basis, source) triples for each agent node
+    "enable_causal_trace": True,
+
     # Confidence tags
     "confidence_tags_enabled": True,
     # Threshold: CONFIRMED > SINGLE > DERIVED > CONFLICTING > STALE
