@@ -20,6 +20,8 @@ from tradingagents.dataflows.a_stock_data import (
     get_dividend_history,
     get_cls_flash,
     get_cninfo_announcements,
+    get_concept_blocks,
+    get_hot_stock_reasons,
 )
 
 # 数据来源标记 — 所有正例应包含该字符串
@@ -198,3 +200,37 @@ def test_invalid_code_comprehensive():
             assert isinstance(r, str), f"{fn.__name__} 未返回字符串"
         except Exception as e:
             assert False, f"{fn.__name__} 抛异常而非返回 str: {e}"
+
+
+# ===========================================================================
+# 新增：概念板块 + 涨停原因
+# ===========================================================================
+
+
+@pytest.mark.smoke
+def test_concept_blocks_moutai():
+    """概念板块归属 — 正例"""
+    r = get_concept_blocks("600519")
+    assert isinstance(r, str)
+
+
+@pytest.mark.smoke
+def test_concept_blocks_invalid_code():
+    """概念板块归属 — 无效股票代码应返回错误 str"""
+    r = get_concept_blocks("000000")
+    assert isinstance(r, str)
+    assert any(kw in r for kw in ["错误", "失败", "无数据"])
+
+
+@pytest.mark.smoke
+def test_hot_stock_reasons():
+    """涨停原因 — 正例（默认当天）"""
+    r = get_hot_stock_reasons()
+    assert isinstance(r, str)
+
+
+@pytest.mark.smoke
+def test_hot_stock_reasons_invalid_date():
+    """涨停原因 — 无效日期不抛异常（API 回退当日数据）"""
+    r = get_hot_stock_reasons("2000-01-01")
+    assert isinstance(r, str)

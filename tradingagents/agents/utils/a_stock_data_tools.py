@@ -90,3 +90,19 @@ def get_cninfo_announcements(
 ) -> str:
     """查询巨潮公告历史，包含公告标题、发布时间、PDF详情页链接。"""
     return route_to_vendor("get_cninfo_announcements", code=code, page_size=page_size)
+
+
+@tool
+def get_concept_blocks(
+    code: Annotated[str, "A股6位代码，如 600519"],
+) -> str:
+    """查询个股所属的概念板块、行业板块和地域板块分类。"""
+    return route_to_vendor("get_concept_blocks", code=code)
+
+
+@tool
+def get_hot_stock_reasons(
+    date: Annotated[str, "日期 YYYY-MM-DD，默认今日"] = "",
+) -> str:
+    """查询当日强势股及其题材归因，返回题材标签如"算力租赁+AI"。"""
+    return route_to_vendor("get_hot_stock_reasons", date=date)

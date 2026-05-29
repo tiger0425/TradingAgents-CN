@@ -59,6 +59,8 @@ from .a_stock_data import (
     get_dividend_history,
     get_cls_flash,
     get_cninfo_announcements,
+    get_concept_blocks,
+    get_hot_stock_reasons,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
@@ -166,6 +168,7 @@ TOOLS_CATEGORIES = {
             "get_margin_trading", "get_block_trade", "get_lockup_expiry",
             "get_shareholder_count", "get_dividend_history",
             "get_cls_flash", "get_cninfo_announcements",
+            "get_concept_blocks", "get_hot_stock_reasons",
         ],
     },
 }
@@ -273,6 +276,8 @@ VENDOR_METHODS = {
     "get_dividend_history": {"a_stock_data": get_dividend_history},
     "get_cls_flash": {"a_stock_data": get_cls_flash},
     "get_cninfo_announcements": {"a_stock_data": get_cninfo_announcements},
+    "get_concept_blocks": {"a_stock_data": get_concept_blocks},
+    "get_hot_stock_reasons": {"a_stock_data": get_hot_stock_reasons},
 }
 
 def get_category_for_method(method: str) -> str:
