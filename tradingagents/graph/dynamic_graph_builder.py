@@ -1,6 +1,7 @@
 import logging
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 
+from langgraph.types import Send
 from langgraph.graph import END, START, StateGraph
 
 from ..agents import (
@@ -34,31 +35,23 @@ ANALYST_AGENTS = {
 }
 
 
-# State key for each agent (for conflict detection)
-_STATE_KEYS = {
-    "market_analyst": "market_report",
-    "macro_analyst": "market_report",
-    "fundamentals_analyst": "fundamentals_report",
-    "news_analyst": "news_report",
-    "social_analyst": "sentiment_report",
-}
-
-
 class DynamicGraphBuilder:
     def __init__(self, quick_thinking_llm, deep_thinking_llm, tool_nodes,
-                 max_debate_rounds=2, max_risk_rounds=2):
+                 max_debate_rounds=2, max_risk_rounds=2, fan_out_enabled=True):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional = ConditionalLogic(max_debate_rounds, max_risk_rounds)
+        self.fan_out_enabled = fan_out_enabled
 
-    def build(self, plan: dict, checkpointer=None):
+    def build(self, plan: dict, fan_out_enabled: Optional[bool] = None, checkpointer=None):
+        fan_out_enabled = fan_out_enabled if fan_out_enabled is not None else self.fan_out_enabled
         workflow_steps = plan.get("workflow", [])
         if not workflow_steps:
             raise ValueError("Workflow plan has no steps")
 
         graph = StateGraph(AgentState)
-        node_names: dict[int, str] = {}
+        node_names: Dict[int, str] = {}
         tool_keys_used = set()
 
         for step in workflow_steps:
@@ -84,12 +77,53 @@ class DynamicGraphBuilder:
                 setattr(self, f"_clear_node_{agent_id}_{step['step']}", clear_node_name)
                 setattr(self, f"_analyst_node_{agent_id}_{step['step']}", node_name)
 
+        # --- FIX-1: 并行分析师组检测与扇出节点创建 ---
+        parallel_steps: Set[int] = set()
+        parallel_meta: Dict[int, tuple] = {}  # step_num → (fanout_name, merge_name)
+        if fan_out_enabled:
+            groups = self._detect_parallel_analyst_groups(workflow_steps)
+            prev_end_node: str = ""  # node that precedes the current group
+            for gidx, group in enumerate(groups):
+                fanout_name = f"fanout_analysts_g{gidx}"
+                merge_name = f"merge_analysts_g{gidx}"
+                graph.add_node(fanout_name, self._make_fanout_node(group))
+                graph.add_node(merge_name, self._make_merge_node())
+
+                # Determine predecessor: START for first group, prev merge for subsequent
+                if gidx == 0:
+                    graph.add_edge(START, fanout_name)
+                else:
+                    graph.add_edge(prev_end_node, fanout_name)
+                prev_end_node = merge_name
+
+                for step in group:
+                    snum = step["step"]
+                    parallel_steps.add(snum)
+                    parallel_meta[snum] = (fanout_name, merge_name)
+
+            # After the last parallel group, wire merge → next step
+            if groups:
+                last_merge = getattr(self, f"_merge_group_{len(groups) - 1}", None) or \
+                              f"merge_analysts_g{len(groups) - 1}"
+                # Find the first step after the last parallel group
+                last_group_step_nums = {s["step"] for s in groups[-1]}
+                max_parallel_step = max(last_group_step_nums) if last_group_step_nums else -1
+                next_steps = [s for s in workflow_steps if s["step"] > max_parallel_step
+                              and s.get("agent", "") != ""]
+                if next_steps:
+                    next_step = next_steps[0]
+                    next_snum = next_step["step"]
+                    if next_snum in node_names:
+                        graph.add_edge(last_merge, node_names[next_snum])
+                logger.info("FIX-1: %d parallel analyst group(s) created, %d steps in parallel",
+                             len(groups), len(parallel_steps))
+
         # --- 辩论/风控辩论组检测 ---
         has_debate = self._detect_debate_group(workflow_steps)
         has_risk_debate = self._detect_risk_debate_group(workflow_steps)
         skip_depends_agents = set()
         if has_debate:
-            skip_depends_agents.update({"bull_researcher", "bear_researcher", "research_manager"})
+            skip_depends_agents.update({"bear_researcher", "research_manager"})
         if has_risk_debate:
             skip_depends_agents.update({"risk_conservative", "risk_neutral", "portfolio_manager"})
 
@@ -100,8 +134,33 @@ class DynamicGraphBuilder:
             if agent_id not in node_names.values() and agent_id not in self._known_agents():
                 continue
 
-            # Skip agents handled by debate/risk debate routing
-            if agent_id in skip_depends_agents:
+            target_node = self._resolve_node(step, node_names)
+
+            # --- FIX-1: 并行组步骤 → 跳过普通边，路由到 Merge 节点 ---
+            if snum in parallel_steps:
+                fanout_name, merge_name = parallel_meta[snum]
+                tool_key = TOOL_KEY_MAP.get(agent_id)
+                if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
+                    analyst_node = getattr(self, f"_analyst_node_{agent_id}_{snum}")
+                    clear_node = getattr(self, f"_clear_node_{agent_id}_{snum}")
+                    tool_node = getattr(self, f"_tool_node_{agent_id}_{snum}")
+                    condition_map = {
+                        "market_analyst": "should_continue_market",
+                        "fundamentals_analyst": "should_continue_fundamentals",
+                        "news_analyst": "should_continue_news",
+                        "social_analyst": "should_continue_social",
+                        "macro_analyst": "should_continue_market",
+                    }
+                    cond_method = condition_map.get(agent_id)
+                    if cond_method:
+                        graph.add_conditional_edges(
+                            analyst_node,
+                            getattr(self.conditional, cond_method),
+                            {tool_node: tool_node, clear_node: merge_name},
+                        )
+                        graph.add_edge(tool_node, analyst_node)
+                else:
+                    graph.add_edge(node_names[snum], merge_name)
                 continue
 
             if not step.get("depends_on"):
@@ -109,24 +168,7 @@ class DynamicGraphBuilder:
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
                     self._add_tool_cycle(graph, agent_id, step["step"])
-                # Avoid parallel writes to the same state key: if a previous step
-                # writes to the same key, route from its clear_node (not START).
-                added_dep = False
-                state_key = _STATE_KEYS.get(agent_id)
-                if state_key:
-                    for prev in workflow_steps[:step["step"]-1]:
-                        prev_agent = prev.get("agent", "")
-                        if _STATE_KEYS.get(prev_agent) == state_key:
-                            prev_num = prev["step"]
-                            prev_clear = getattr(self, f"_clear_node_{prev_agent}_{prev_num}", None)
-                            if prev_clear:
-                                graph.add_edge(prev_clear, start_node)
-                            elif prev_num in node_names:
-                                graph.add_edge(node_names[prev_num], start_node)
-                            added_dep = True
-                            break
-                if not added_dep:
-                    graph.add_edge(START, start_node)
+                graph.add_edge(START, start_node)
 
             for dep_num in step.get("depends_on", []):
                 # 辩论/风控辩论组：跳过 depends_on 边，由条件边接管路由
@@ -165,18 +207,6 @@ class DynamicGraphBuilder:
             return graph.compile(checkpointer=checkpointer)
         return graph.compile()
 
-    @staticmethod
-    def _tool_route_keys(agent_id):
-        """Return (tool_route_key, clear_route_key) matching ConditionalLogic return values."""
-        mapping = {
-            "market_analyst": ("tools_market", "Msg Clear Market"),
-            "fundamentals_analyst": ("tools_fundamentals", "Msg Clear Fundamentals"),
-            "news_analyst": ("tools_news", "Msg Clear News"),
-            "social_analyst": ("tools_social", "Msg Clear Social"),
-            "macro_analyst": ("tools_market", "Msg Clear Market"),
-        }
-        return mapping.get(agent_id, ("", ""))
-
     def _add_tool_cycle(self, graph, agent_id, step_num):
         analyst_node = getattr(self, f"_analyst_node_{agent_id}_{step_num}")
         tool_node = getattr(self, f"_tool_node_{agent_id}_{step_num}")
@@ -191,11 +221,10 @@ class DynamicGraphBuilder:
         }
         condition_method = condition_map.get(agent_id)
         if condition_method:
-            tool_key, clear_key = self._tool_route_keys(agent_id)
             graph.add_conditional_edges(
                 analyst_node,
                 getattr(self.conditional, condition_method),
-                {tool_key: tool_node, clear_key: clear_node, "continue": analyst_node},
+                {tool_node: tool_node, clear_node: clear_node}
             )
             graph.add_edge(tool_node, analyst_node)
 
@@ -220,25 +249,16 @@ class DynamicGraphBuilder:
         bear_node = node_names[bear_step["step"]]
         rm_node = node_names[rm_step["step"]]
 
-        if bull_node == bear_node:
-            same_node = bull_node
-            graph.add_conditional_edges(
-                same_node,
-                self.conditional.should_continue_debate,
-                {"Bull Researcher": same_node, "Bear Researcher": same_node,
-                 "Research Manager": rm_node},
-            )
-        else:
-            graph.add_conditional_edges(
-                bull_node,
-                self.conditional.should_continue_debate,
-                {"Bear Researcher": bear_node, "Research Manager": rm_node},
-            )
-            graph.add_conditional_edges(
-                bear_node,
-                self.conditional.should_continue_debate,
-                {"Bull Researcher": bull_node, "Research Manager": rm_node},
-            )
+        graph.add_conditional_edges(
+            bull_node,
+            self.conditional.should_continue_debate,
+            {"Bear Researcher": bear_node, "Research Manager": rm_node},
+        )
+        graph.add_conditional_edges(
+            bear_node,
+            self.conditional.should_continue_debate,
+            {"Bull Researcher": bull_node, "Research Manager": rm_node},
+        )
         logger.info("Debate cycle added: Bull ↔ Bear (%d rounds max)",
                      self.conditional.max_debate_rounds)
 
@@ -302,4 +322,48 @@ class DynamicGraphBuilder:
         }
         return mapping[agent_id]
 
+    # ------------------------------------------------------------------
+    # FIX-1: 并行分析师检测与扇出节点工厂
+    # ------------------------------------------------------------------
 
+    @staticmethod
+    def _detect_parallel_analyst_groups(workflow_steps):
+        """Find groups of contiguous independent analyst steps.
+
+        Returns a list of groups (each group is a list of steps). Steps in
+        the same group have no `depends_on` and belong to ANALYST_AGENTS.
+        A group ends when a non-analyst step or a step with `depends_on` is
+        encountered.
+        """
+        groups = []
+        current_group = []
+        for step in workflow_steps:
+            agent = step.get("agent", "")
+            if agent in ANALYST_AGENTS and not step.get("depends_on"):
+                current_group.append(step)
+            else:
+                if len(current_group) >= 2:
+                    groups.append(current_group)
+                current_group = []
+        if len(current_group) >= 2:
+            groups.append(current_group)
+        return groups
+
+    @staticmethod
+    def _make_fanout_node(group):
+        """Create a fan-out node that dispatches via LangGraph Send API."""
+        def fanout(state: AgentState):
+            sends = []
+            for step in group:
+                agent_id = step.get("agent", "")
+                target_name = f"step{step['step']}_{agent_id}"
+                sends.append(Send(target_name, state))
+            return sends
+        return fanout
+
+    @staticmethod
+    def _make_merge_node():
+        """Create a merge/sync barrier node after parallel analysts complete."""
+        def merge(state: AgentState):
+            return state
+        return merge
