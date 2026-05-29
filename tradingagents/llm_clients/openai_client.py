@@ -69,10 +69,26 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
     def _get_request_payload(self, input_, *, stop=None, **kwargs):
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         outgoing = payload.get("messages", [])
-        for message_dict, message in zip(outgoing, _input_to_messages(input_)):
-            if not isinstance(message, AIMessage):
+        input_msgs = _input_to_messages(input_)
+        # Correlate by counting AI messages instead of zip position,
+        # because a SystemMessage from the prompt template shifts indices.
+        ai_idx = 0
+        for message_dict in outgoing:
+            if message_dict.get("role") != "assistant":
                 continue
-            reasoning = message.additional_kwargs.get("reasoning_content")
+            # Find the Nth AIMessage in input_msgs
+            aim = None
+            count = 0
+            for m in input_msgs:
+                if isinstance(m, AIMessage):
+                    if count == ai_idx:
+                        aim = m
+                        break
+                    count += 1
+            ai_idx += 1
+            if aim is None:
+                continue
+            reasoning = aim.additional_kwargs.get("reasoning_content")
             if reasoning is not None:
                 message_dict["reasoning_content"] = reasoning
         return payload
