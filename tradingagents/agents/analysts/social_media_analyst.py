@@ -45,25 +45,12 @@ def create_social_media_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        # DeepSeek 兼容：清理孤立 tool_calls，防止 400 错误
+        # DeepSeek requires strict tool_call→ToolMessage ordering,
+        # but LangGraph's state mixes calls from multiple analyst cycles.
+        # Analysts have all context via state fields, so clean history is safe.
         msgs = state["messages"]
-
-        # 第一遍：收集所有有匹配 ToolMessage 的 tool_call_id
-        matched_tool_ids = set()
-        for m in msgs:
-            if isinstance(m, ToolMessage):
-                matched_tool_ids.add(m.tool_call_id)
-
-        # 第二遍：只保留 tool_calls 全部有匹配的 AIMessage
-        cleaned = []
-        for m in msgs:
-            if isinstance(m, AIMessage) and m.tool_calls:
-                if all(tc.get("id") in matched_tool_ids for tc in m.tool_calls if "id" in tc):
-                    cleaned.append(m)
-            elif isinstance(m, ToolMessage):
-                cleaned.append(m)
-            else:
-                cleaned.append(m)
+        cleaned = [m for m in msgs if not isinstance(m, (AIMessage, ToolMessage)) or
+                   (isinstance(m, AIMessage) and not m.tool_calls)]
 
         result = chain.invoke(cleaned)
 
