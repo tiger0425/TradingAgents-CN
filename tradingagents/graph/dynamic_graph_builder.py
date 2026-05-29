@@ -44,7 +44,7 @@ class DynamicGraphBuilder:
         self.conditional = ConditionalLogic(max_debate_rounds, max_risk_rounds)
         self.fan_out_enabled = fan_out_enabled
 
-    def build(self, plan: dict, fan_out_enabled: Optional[bool] = None):
+    def build(self, plan: dict, fan_out_enabled: Optional[bool] = None, checkpointer=None):
         fan_out_enabled = fan_out_enabled if fan_out_enabled is not None else self.fan_out_enabled
         workflow_steps = plan.get("workflow", [])
         if not workflow_steps:
@@ -203,6 +203,8 @@ class DynamicGraphBuilder:
             graph.add_edge(node_names[last_step["step"]], END)
 
         logger.info("Dynamic graph built: %d nodes", len(node_names) + len(tool_keys_used) * 2)
+        if checkpointer:
+            return graph.compile(checkpointer=checkpointer)
         return graph.compile()
 
     def _add_tool_cycle(self, graph, agent_id, step_num):

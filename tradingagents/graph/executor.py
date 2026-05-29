@@ -29,6 +29,8 @@ class GraphExecutor:
         max_risk_rounds: int = 2,
         max_recur_limit: int = 100,
         fan_out_enabled: bool = True,
+        enable_checkpoint: bool = False,
+        data_dir: str = "",
     ):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
@@ -37,6 +39,8 @@ class GraphExecutor:
         self.max_risk_rounds = max_risk_rounds
         self.max_recur_limit = max_recur_limit
         self.fan_out_enabled = fan_out_enabled
+        self.enable_checkpoint = enable_checkpoint
+        self.data_dir = data_dir
 
     # ------------------------------------------------------------------
     # Public API
@@ -60,6 +64,7 @@ class GraphExecutor:
             }
 
         init_state = self._build_init_state(plan, trigger, context)
+        ticker = context.ticker or self._guess_ticker(trigger, plan)
 
         builder = DynamicGraphBuilder(
             self.quick_llm,
@@ -70,12 +75,49 @@ class GraphExecutor:
             fan_out_enabled=self.fan_out_enabled,
         )
 
-        compiled = builder.build(plan)
+        # --- Checkpoint setup (crash recovery / resume) ---
+        checkpointer_ctx = None
+        checkpoint_thread_id = None
+        checkpoint_task_id = None
+
+        if self.enable_checkpoint and self.data_dir:
+            from .checkpointer import (
+                get_checkpointer_for_task,
+                thread_id_for_task,
+            )
+            user_id = getattr(context, "user_id", "default") or "default"
+            trigger_type = getattr(trigger, "type", "manual") or "manual"
+            checkpoint_task_id = f"{ticker}:{user_id}:{trigger_type}"
+            checkpoint_thread_id = thread_id_for_task(checkpoint_task_id)
+
+            try:
+                checkpointer_ctx = get_checkpointer_for_task(
+                    self.data_dir, checkpoint_task_id
+                )
+                saver = checkpointer_ctx.__enter__()
+                compiled = builder.build(plan, checkpointer=saver)
+                logger.debug(
+                    "Checkpoint enabled tid=%s task=%s",
+                    checkpoint_thread_id, checkpoint_task_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Checkpoint setup failed, continuing without: %s", exc
+                )
+                compiled = builder.build(plan)
+                checkpointer_ctx = None
+                checkpoint_thread_id = None
+        else:
+            compiled = builder.build(plan)
 
         invoke_kwargs: dict = {
             "input": init_state,
             "config": {"recursion_limit": self.max_recur_limit},
         }
+        if checkpoint_thread_id:
+            invoke_kwargs["config"]["configurable"] = {
+                "thread_id": checkpoint_thread_id
+            }
         if callbacks:
             invoke_kwargs["config"]["callbacks"] = callbacks
 
@@ -86,10 +128,21 @@ class GraphExecutor:
             len(workflow),
         )
 
+        graph_error: Exception | None = None
         try:
             final_state = compiled.invoke(**invoke_kwargs)
-        except Exception:
+        except Exception as exc:
             logger.exception("Graph execution failed")
+            graph_error = exc
+            final_state = {}
+        finally:
+            if checkpointer_ctx is not None:
+                try:
+                    checkpointer_ctx.__exit__(None, None, None)
+                except Exception:
+                    pass
+
+        if graph_error is not None:
             return {
                 "final_report": "",
                 "raw_state": {},
@@ -100,6 +153,16 @@ class GraphExecutor:
                 "plan_workflow_steps": len(workflow),
                 "error": "Graph execution failed — see logs",
             }
+
+        if checkpoint_task_id and checkpoint_thread_id and self.data_dir:
+            try:
+                from .checkpointer import clear_checkpoint_for_task
+                clear_checkpoint_for_task(
+                    self.data_dir, checkpoint_task_id, checkpoint_thread_id
+                )
+                logger.debug("Checkpoint cleared for %s", checkpoint_task_id)
+            except Exception:
+                logger.debug("Failed to clear checkpoint", exc_info=True)
 
         report = self._extract_report(final_state)
 

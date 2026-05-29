@@ -78,6 +78,66 @@ def checkpoint_step(data_dir: str | Path, ticker: str, date: str) -> int | None:
         return cp.metadata.get("step")
 
 
+# ------------------------------------------------------------------
+# Generic (non-ticker) checkpoint support
+# ------------------------------------------------------------------
+
+
+def _db_path_for_task(data_dir: str | Path, task_id_str: str) -> Path:
+    """Return the SQLite checkpoint DB path for a generic task ID.
+
+    Uses a hash of the task_id_str so the filename is always safe and
+    deterministic.
+    """
+    safe = hashlib.sha256(task_id_str.encode()).hexdigest()[:16]
+    p = Path(data_dir) / "checkpoints"
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"task_{safe}.db"
+
+
+def thread_id_for_task(task_id_str: str) -> str:
+    """Deterministic thread ID for an arbitrary task identifier string."""
+    return hashlib.sha256(task_id_str.encode()).hexdigest()[:16]
+
+
+@contextmanager
+def get_checkpointer_for_task(
+    data_dir: str | Path, task_id_str: str
+) -> Generator:
+    """Get a SqliteSaver for a generic task (not tied to a ticker name)."""
+    if SqliteSaver is None:
+        raise RuntimeError(
+            "Checkpointing requires langgraph-checkpoint-sqlite. "
+            "Install with: pip install langgraph-checkpoint-sqlite"
+        )
+    db = _db_path_for_task(data_dir, task_id_str)
+    conn = sqlite3.connect(str(db), check_same_thread=False)
+    try:
+        saver = SqliteSaver(conn)
+        saver.setup()
+        yield saver
+    finally:
+        conn.close()
+
+
+def clear_checkpoint_for_task(
+    data_dir: str | Path, task_id_str: str, thread_id_str: str
+) -> None:
+    """Remove checkpoint rows for a specific task thread."""
+    db = _db_path_for_task(data_dir, task_id_str)
+    if not db.exists():
+        return
+    conn = sqlite3.connect(str(db))
+    try:
+        for table in ("writes", "checkpoints"):
+            conn.execute(f"DELETE FROM {table} WHERE thread_id = ?", (thread_id_str,))
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass
+    finally:
+        conn.close()
+
+
 def clear_all_checkpoints(data_dir: str | Path) -> int:
     """Remove all checkpoint DBs. Returns number of files deleted."""
     cp_dir = Path(data_dir) / "checkpoints"
