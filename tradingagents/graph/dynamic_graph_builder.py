@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Set
+from typing import List, Optional, Set
 
 from langgraph.graph import END, START, StateGraph
 
@@ -36,21 +36,19 @@ ANALYST_AGENTS = {
 
 class DynamicGraphBuilder:
     def __init__(self, quick_thinking_llm, deep_thinking_llm, tool_nodes,
-                 max_debate_rounds=2, max_risk_rounds=2, fan_out_enabled=True):
+                 max_debate_rounds=2, max_risk_rounds=2):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional = ConditionalLogic(max_debate_rounds, max_risk_rounds)
-        self.fan_out_enabled = fan_out_enabled
 
-    def build(self, plan: dict, fan_out_enabled: Optional[bool] = None, checkpointer=None):
-        fan_out_enabled = fan_out_enabled if fan_out_enabled is not None else self.fan_out_enabled
+    def build(self, plan: dict, checkpointer=None):
         workflow_steps = plan.get("workflow", [])
         if not workflow_steps:
             raise ValueError("Workflow plan has no steps")
 
         graph = StateGraph(AgentState)
-        node_names: Dict[int, str] = {}
+        node_names: dict[int, str] = {}
         tool_keys_used = set()
 
         for step in workflow_steps:
@@ -76,46 +74,6 @@ class DynamicGraphBuilder:
                 setattr(self, f"_clear_node_{agent_id}_{step['step']}", clear_node_name)
                 setattr(self, f"_analyst_node_{agent_id}_{step['step']}", node_name)
 
-        # --- 分析师组顺序执行链（代替 Send 并行避免 state 冲突） ---
-        parallel_steps: Set[int] = set()
-        parallel_meta: Dict[int, str] = {}
-        if fan_out_enabled:
-            groups = self._detect_parallel_analyst_groups(workflow_steps)
-            prev_end_node: str = ""  # node that precedes the current group
-            for gidx, group in enumerate(groups):
-                merge_name = f"merge_analysts_g{gidx}"
-                graph.add_node(merge_name, self._make_merge_node())
-
-                # Chain analysts sequentially with clear_node between them
-                chain_prev: str = prev_end_node if gidx > 0 else START
-                for step in group:
-                    snum = step["step"]
-                    agent_id = step.get("agent", "")
-                    analyst_node_name = f"step{snum}_{agent_id}"
-                    # Add clear_node between sequential analysts
-                    clr_name = f"clr_between_{agent_id}_{snum}"
-                    graph.add_node(clr_name, create_msg_delete())
-                    graph.add_edge(chain_prev, analyst_node_name)
-                    graph.add_edge(analyst_node_name, clr_name)
-                    chain_prev = clr_name
-                    parallel_steps.add(snum)
-                    parallel_meta[snum] = merge_name
-                graph.add_edge(chain_prev, merge_name)
-                prev_end_node = merge_name
-
-            # After the last parallel group, wire merge → next step
-            if groups:
-                last_merge = f"merge_analysts_g{len(groups) - 1}"
-                last_group_step_nums = {s["step"] for s in groups[-1]}
-                max_parallel_step = max(last_group_step_nums) if last_group_step_nums else -1
-                next_steps = [s for s in workflow_steps if s["step"] > max_parallel_step
-                              and s.get("agent", "") != ""]
-                if next_steps:
-                    next_snum = next_steps[0]["step"]
-                    if next_snum in node_names:
-                        graph.add_edge(last_merge, node_names[next_snum])
-                logger.info("Groups: %d sequential chains, %d analyst steps", len(groups), len(parallel_steps))
-
         # --- 辩论/风控辩论组检测 ---
         has_debate = self._detect_debate_group(workflow_steps)
         has_risk_debate = self._detect_risk_debate_group(workflow_steps)
@@ -134,38 +92,7 @@ class DynamicGraphBuilder:
 
             target_node = self._resolve_node(step, node_names)
 
-            # --- FIX-1: 并行组步骤 → 跳过普通边，路由到 Merge 节点 ---
-            if snum in parallel_steps:
-                merge_name = parallel_meta[snum]
-                tool_key = TOOL_KEY_MAP.get(agent_id)
-                if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
-                    analyst_node = getattr(self, f"_analyst_node_{agent_id}_{snum}")
-                    clear_node = getattr(self, f"_clear_node_{agent_id}_{snum}")
-                    tool_node = getattr(self, f"_tool_node_{agent_id}_{snum}")
-                    condition_map = {
-                        "market_analyst": "should_continue_market",
-                        "fundamentals_analyst": "should_continue_fundamentals",
-                        "news_analyst": "should_continue_news",
-                        "social_analyst": "should_continue_social",
-                        "macro_analyst": "should_continue_market",
-                    }
-                    cond_method = condition_map.get(agent_id)
-                    if cond_method:
-                        tool_key, clear_key = self._tool_route_keys(agent_id)
-                        graph.add_conditional_edges(
-                            analyst_node,
-                            getattr(self.conditional, cond_method),
-                            {tool_key: tool_node, clear_key: merge_name, "continue": analyst_node},
-                        )
-                        graph.add_edge(tool_node, analyst_node)
-                else:
-                    graph.add_edge(node_names[snum], merge_name)
-                continue
-
             if not step.get("depends_on"):
-                # Skip START edge for steps handled by parallel group wiring
-                if snum in parallel_steps:
-                    continue
                 start_node = node_names[step["step"]]
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
@@ -337,55 +264,4 @@ class DynamicGraphBuilder:
         }
         return mapping[agent_id]
 
-    # ------------------------------------------------------------------
-    # FIX-1: 并行分析师检测与扇出节点工厂
-    # ------------------------------------------------------------------
 
-    # Agents whose outputs write to the same state key (can't run in parallel)
-    _ANALYST_STATE_KEY_MAP = {
-        "market_analyst": "market_report",
-        "macro_analyst": "market_report",         # same factory → same key
-        "fundamentals_analyst": "fundamentals_report",
-        "news_analyst": "news_report",
-        "social_analyst": "sentiment_report",
-    }
-
-    @staticmethod
-    def _detect_parallel_analyst_groups(workflow_steps):
-        """Find groups of contiguous independent analyst steps.
-
-        Returns a list of groups (each group is a list of steps). Steps in
-        the same group have no `depends_on` and belong to ANALYST_AGENTS.
-        A group ends when a non-analyst step or a step with `depends_on` is
-        encountered.
-
-        Agents writing to the same state key are never grouped together
-        (LangGraph Send parallel execution can't write to the same key).
-        """
-        key_map = DynamicGraphBuilder._ANALYST_STATE_KEY_MAP
-        groups = []
-        current_group = []
-        for step in workflow_steps:
-            agent = step.get("agent", "")
-            if agent in ANALYST_AGENTS and not step.get("depends_on"):
-                # Flush group if this agent shares a state key with any existing member
-                agent_key = key_map.get(agent)
-                if agent_key and any(key_map.get(m.get("agent", "")) == agent_key for m in current_group):
-                    if current_group:  # flush all accumulated
-                        groups.append(current_group)
-                    current_group = []
-                current_group.append(step)
-            else:
-                if len(current_group) >= 1:
-                    groups.append(current_group)
-                current_group = []
-        if len(current_group) >= 1:
-            groups.append(current_group)
-        return groups
-
-    @staticmethod
-    def _make_merge_node():
-        """Create a merge/sync barrier node after parallel analysts complete."""
-        def merge(state: AgentState):
-            return state
-        return merge

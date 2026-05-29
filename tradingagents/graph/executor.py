@@ -28,7 +28,6 @@ class GraphExecutor:
         max_debate_rounds: int = 2,
         max_risk_rounds: int = 2,
         max_recur_limit: int = 100,
-        fan_out_enabled: bool = True,
         enable_checkpoint: bool = False,
         data_dir: str = "",
     ):
@@ -38,7 +37,6 @@ class GraphExecutor:
         self.max_debate_rounds = max_debate_rounds
         self.max_risk_rounds = max_risk_rounds
         self.max_recur_limit = max_recur_limit
-        self.fan_out_enabled = fan_out_enabled
         self.enable_checkpoint = enable_checkpoint
         self.data_dir = data_dir
 
@@ -72,7 +70,6 @@ class GraphExecutor:
             self.tool_nodes,
             self.max_debate_rounds,
             self.max_risk_rounds,
-            fan_out_enabled=self.fan_out_enabled,
         )
 
         # --- Checkpoint setup (crash recovery / resume) ---

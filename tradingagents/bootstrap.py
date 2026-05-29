@@ -48,7 +48,6 @@ def bootstrap(env_file: str = ".env"):
         max_debate_rounds=config.get("max_debate_rounds", 1),
         max_risk_rounds=config.get("max_risk_discuss_rounds", 1),
         max_recur_limit=config.get("max_recur_limit", 100),
-        fan_out_enabled=config.get("fan_out_enabled", True),
         enable_checkpoint=config.get("enable_checkpoint", False),
         data_dir=config.get("data_cache_dir", "~/.tradingagents/cache"),
     )
