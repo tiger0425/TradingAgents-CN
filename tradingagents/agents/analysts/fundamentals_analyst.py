@@ -50,7 +50,7 @@ def create_fundamentals_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"][-8:])
+        result = chain.invoke(state["messages"])
 
         report = result.content if result.content else ""
 
