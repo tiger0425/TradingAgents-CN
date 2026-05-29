@@ -9,6 +9,7 @@ It is a pure data function that returns a formatted Markdown string.
 """
 
 import pandas as pd
+import requests
 
 # Lazy import guard — akshare is large and may not be installed everywhere
 try:
@@ -64,28 +65,42 @@ def _fetch_index_status() -> str:
 
 def _fetch_sector_rotation() -> str:
     try:
-        df = ak.stock_sector_fund_flow_rank(
-            indicator="今日", sector_type="行业资金流"
-        )
-        if df is None or df.empty:
+        url = "https://push2.eastmoney.com/api/qt/clist/get"
+        params = {
+            "pn": 1,
+            "pz": 100,
+            "po": 1,
+            "np": 1,
+            "fltt": 2,
+            "invt": 2,
+            "fs": "m:90+t:2",
+            "fields": "f2,f3,f4,f12,f13,f14,f104,f105,f128,f136,f140,f141",
+        }
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        diff = data.get("data", {}).get("diff", [])
+        if not diff:
             return "（数据暂不可用）"
 
-        flow_col = "主力净流入-净额"
-        if flow_col not in df.columns:
+        sectors = []
+        for item in diff:
+            name = str(item.get("f14", ""))
+            if not name:
+                continue
+            change_pct = _safe_float(item.get("f3", 0))
+            sectors.append((name, change_pct))
+
+        if not sectors:
             return "（数据暂不可用）"
 
-        df = df.sort_values(flow_col, ascending=False).reset_index(drop=True)
+        sectors.sort(key=lambda x: x[1], reverse=True)
 
-        def _fmt_sector(sub_df) -> str:
-            parts = []
-            for _, row in sub_df.iterrows():
-                name = str(row.get("名称", ""))
-                val = _safe_float(row.get(flow_col, 0))
-                parts.append(f"{name}({val:+.0f})")
-            return "、".join(parts)
+        top3 = sectors[:3]
+        bottom3 = sectors[-3:]
 
-        top_str = _fmt_sector(df.head(3))
-        bottom_str = _fmt_sector(df.tail(3))
+        top_str = "、".join(f"{name}({val:+.2f})" for name, val in top3)
+        bottom_str = "、".join(f"{name}({val:+.2f})" for name, val in reversed(bottom3))
 
         return f"领涨: {top_str} | 领跌: {bottom_str}"
     except Exception:
