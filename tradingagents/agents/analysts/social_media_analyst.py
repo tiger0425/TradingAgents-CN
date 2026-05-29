@@ -1,3 +1,4 @@
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news, get_degradation_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
@@ -44,7 +45,19 @@ def create_social_media_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        # Keep only the last tool_call cycle to avoid DeepSeek ordering errors
+        filtered = []
+        for m in reversed(state["messages"]):
+            filtered.insert(0, m)
+            # If we hit an AIMessage with tool_calls, keep it + all previous non-tool messages
+            if isinstance(m, AIMessage) and m.tool_calls:
+                break
+        # Start fresh with the filtered (last cycle only)
+        # If the last message was a tool result, chain will get [user, ai(tc), tool] = valid
+        # If only non-tool messages, chain gets all of them = also valid
+        if not filtered:
+            filtered = [HumanMessage(content="Continue")]
+        result = chain.invoke(filtered)
 
         report = result.content if result.content else ""
 
