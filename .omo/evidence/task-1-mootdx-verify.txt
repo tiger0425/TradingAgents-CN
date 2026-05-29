@@ -1,0 +1,19 @@
+Task 1: mootdx 依赖安装与 TCP 连通性验证
+时间: 2026-05-29 18:49
+
+1. pip install mootdx>=0.11.7
+   说明: mootdx 无 1.0.0 版本，安装最新版 0.11.7
+   结果: 成功 (mootdx-0.11.7, 依赖: httpx-0.25.2, prettytable-3.17.0, tdxpy-0.2.7, tenacity-8.5.0)
+
+2. python -c "import mootdx; print(mootdx.__version__)"
+   结果: mootdx version: 0.11.7
+
+3. TCP 连接验证 (通达信 600519 日线):
+   - 方法: Quotes.factory(market='std'), bars(symbol='600519', category=4, offset=1)
+   - 结果: DataFrame, 1 行 13 列
+   - 列: ['open', 'close', 'high', 'low', 'vol', 'amount', 'year', 'month', 'day', 'hour', 'minute', 'datetime', 'volume']
+   - 最新行情: open=1270.6, close=1326.0, high=1329.0, low=1270.0, vol=76478, amount=10037388288.0
+   - 日期: 2026-05-29
+   - 结论: TCP 连接通达信服务端成功
+
+结论: ✅ mootdx 安装成功, 导入正常, TCP 连接通达信服务端可正常拉取数据

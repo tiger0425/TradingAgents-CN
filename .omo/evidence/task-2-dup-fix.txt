@@ -1,0 +1,12 @@
+Task: Remove duplicate set_llm method in PolicyCollector
+File: tradingagents/collector/policy_collector.py
+Date: 2026-05-13
+
+Change:
+- Removed the second identical `def set_llm(self, llm): self._llm = llm` (was lines 19-21)
+- Kept the first occurrence (now at lines 17-18)
+
+Verification:
+- `grep -c "def set_llm" tradingagents/collector/policy_collector.py` returns 1
+- LSP diagnostics: no new errors (only pre-existing type annotation warnings)
+- File length reduced from 53 to 51 lines

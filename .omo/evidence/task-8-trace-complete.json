@@ -1,0 +1,110 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/six/YifuAIForge/tradingagents-cn
+configfile: pyproject.toml
+plugins: anyio-4.13.0, cov-7.1.0, langsmith-0.8.1
+collecting ... collected 34 items
+
+tests/test_causal_tracer.py::TestCausalTracerBasics::test_empty_trace_to_dict PASSED [  2%]
+tests/test_causal_tracer.py::TestCausalTracerBasics::test_empty_trace_save PASSED [  5%]
+tests/test_causal_tracer.py::TestCausalTracerBasics::test_chain_appends_in_order PASSED [  8%]
+tests/test_causal_tracer.py::TestRecordAnalystReport::test_without_llm_fallback PASSED [ 11%]
+tests/test_causal_tracer.py::TestRecordAnalystReport::test_with_llm_extraction PASSED [ 14%]
+tests/test_causal_tracer.py::TestRecordAnalystReport::test_llm_failure_does_not_crash PASSED [ 17%]
+tests/test_causal_tracer.py::TestRecordAnalystReport::test_empty_report FAILED [ 20%]
+tests/test_causal_tracer.py::TestRecordDebateArgument::test_bull_argument PASSED [ 23%]
+tests/test_causal_tracer.py::TestRecordDebateArgument::test_llm_failure_does_not_crash FAILED [ 26%]
+tests/test_causal_tracer.py::TestRecordDebateArgument::test_evidence_heuristic_extraction PASSED [ 29%]
+tests/test_causal_tracer.py::TestRecordJudgment::test_judgment_records_all_fields PASSED [ 32%]
+tests/test_causal_tracer.py::TestRecordJudgment::test_multiple_judgments_extract_final PASSED [ 35%]
+tests/test_causal_tracer.py::TestRecordTraderPlan::test_trader_plan_recorded PASSED [ 38%]
+tests/test_causal_tracer.py::TestRecordTraderPlan::test_trader_plan_llm_failure PASSED [ 41%]
+tests/test_causal_tracer.py::TestExtractRating::test_buy PASSED          [ 44%]
+tests/test_causal_tracer.py::TestExtractRating::test_overweight_wins_over_hold PASSED [ 47%]
+tests/test_causal_tracer.py::TestExtractRating::test_fallback_to_hold PASSED [ 50%]
+tests/test_causal_tracer.py::TestExtractRating::test_sell PASSED         [ 52%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_bull_wins PASSED [ 55%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_bear_wins FAILED [ 58%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_balanced PASSED [ 61%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_risk_aggressive PASSED [ 64%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_risk_conservative PASSED [ 67%]
+tests/test_causal_tracer.py::TestExtractWinningSide::test_risk_balanced PASSED [ 70%]
+tests/test_causal_tracer.py::TestExtractBasis::test_extracts_list_items PASSED [ 73%]
+tests/test_causal_tracer.py::TestExtractBasis::test_extracts_sentences FAILED [ 76%]
+tests/test_causal_tracer.py::TestExtractBasis::test_empty_text PASSED    [ 79%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_full_chain_all_agents PASSED [ 82%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_empty_state_produces_empty_trace PASSED [ 85%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_state_with_only_reports PASSED [ 88%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_state_with_debate_and_judgment PASSED [ 91%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_llm_failure_during_build_does_not_crash PASSED [ 94%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_summary_contains_key_agents PASSED [ 97%]
+tests/test_causal_tracer.py::TestBuildTraceFromState::test_save_produces_valid_json PASSED [100%]
+
+=================================== FAILURES ===================================
+__________________ TestRecordAnalystReport.test_empty_report ___________________
+
+self = <test_causal_tracer.TestRecordAnalystReport object at 0x7ca8c9b91f70>
+tracer = <tradingagents.graph.causal_tracer.CausalTracer object at 0x7ca8c9b916a0>
+
+    def test_empty_report(self, tracer):
+        tracer.record_analyst_report("Fundamentals Analyst", "")
+>       assert "[empty report]" in tracer.chain[0]["key_claim"].lower()
+E       AssertionError: assert '[empty report]' in '[empty]'
+E        +  where '[empty]' = <built-in method lower of str object at 0x7ca8c9bcde00>()
+E        +    where <built-in method lower of str object at 0x7ca8c9bcde00> = '[empty]'.lower
+
+tests/test_causal_tracer.py:206: AssertionError
+___________ TestRecordDebateArgument.test_llm_failure_does_not_crash ___________
+
+self = <test_causal_tracer.TestRecordDebateArgument object at 0x7ca8c9b925d0>
+tracer = <tradingagents.graph.causal_tracer.CausalTracer object at 0x7ca8c9b92180>
+
+    def test_llm_failure_does_not_crash(self, tracer):
+        fail_llm = _MockFailLLM()
+        tracer.record_debate_argument(
+            "Bear", "Valuation is stretched at 35x earnings.", 2, fail_llm,
+        )
+        entry = tracer.chain[0]
+>       assert "extraction failed" in entry["claim"]
+E       AssertionError: assert 'extraction failed' in 'Valuation is stretched at 35x earnings.'
+
+tests/test_causal_tracer.py:229: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  tradingagents.graph.causal_tracer:causal_tracer.py:349 LLM JSON extraction failed: simulated LLM failure
+____________________ TestExtractWinningSide.test_bear_wins _____________________
+
+self = <test_causal_tracer.TestExtractWinningSide object at 0x7ca8c9b93410>
+
+    def test_bear_wins(self):
+>       assert _extract_winning_side("bear argument about valuation is convincing, bull is weak", "bull_bear") == "Bear"
+E       AssertionError: assert 'Balanced' == 'Bear'
+E         
+E         - Bear
+E         + Balanced
+
+tests/test_causal_tracer.py:300: AssertionError
+___________________ TestExtractBasis.test_extracts_sentences ___________________
+
+self = <test_causal_tracer.TestExtractBasis object at 0x7ca8c9bb80e0>
+
+    def test_extracts_sentences(self):
+        text = "First key reason. Second important factor. Third consideration."
+        basis = _extract_basis(text)
+>       assert len(basis) >= 2
+E       AssertionError: assert 1 >= 2
+E        +  where 1 = len(['First key reason. Second important factor. Third consideration.'])
+
+tests/test_causal_tracer.py:325: AssertionError
+=============================== warnings summary ===============================
+../../.local/lib/python3.12/site-packages/langgraph/checkpoint/serde/encrypted.py:5
+  /home/six/.local/lib/python3.12/site-packages/langgraph/checkpoint/serde/encrypted.py:5: LangChainPendingDeprecationWarning: The default value of `allowed_objects` will change in a future version. Pass an explicit value (e.g., allowed_objects='messages' or allowed_objects='core') to suppress this warning.
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_causal_tracer.py::TestRecordAnalystReport::test_empty_report
+FAILED tests/test_causal_tracer.py::TestRecordDebateArgument::test_llm_failure_does_not_crash
+FAILED tests/test_causal_tracer.py::TestExtractWinningSide::test_bear_wins - ...
+FAILED tests/test_causal_tracer.py::TestExtractBasis::test_extracts_sentences
+=================== 4 failed, 30 passed, 1 warning in 0.86s ====================

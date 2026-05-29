@@ -1,0 +1,12 @@
+=== F1 Collector Smoke Test Results ===
+Date: 2026-05-14
+Test: All 4 collectors run collect() without crashes
+
+Results:
+  MarketDataCollector: OK (returned dict with market data)
+  SentimentCollector: OK (returned dict with sentiment data)
+  AnnouncementCollector: None (no announcements available / non-trading day — valid behavior)
+  PolicyCollector: OK (returned dict with policy data)
+
+Conclusion: ALL COLLECTORS PASSED — no exceptions, no crashes.
+All collectors either returned a dict (trading day) or None (non-trading day / no data).

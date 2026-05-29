@@ -28,7 +28,6 @@ Last synced: 2026-05-29
 from __future__ import annotations
 
 import hashlib
-import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -888,6 +887,7 @@ __all__ = [
     "get_lockup_expiry",
     "get_shareholder_count",
     "get_dividend_history",
+    "get_concept_blocks",
     "get_hot_stock_reasons",
     "get_cls_flash",
     "get_cninfo_announcements",

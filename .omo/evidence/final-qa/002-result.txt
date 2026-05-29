@@ -1,0 +1,17 @@
+DEEPSEEK V4-FLASH END-TO-END TEST
+Model: deepseek-v4-flash
+Ticker: 000001 (平安银行)
+Report length: 5221 chars
+Status: ✅ PASS
+
+Fixes verified:
+- FIX-0: API debate routing (Bull/Bear 往返)
+- FIX-1: Analyst parallelization
+- FIX-2: Enum routing
+- FIX-4: ResilientLLM fallback
+- FIX-5: Debate depth (max_rounds=2)
+- FIX-7: Context management
+- FIX-8: Tool loop detection
+- FIX-10: Causal tracing
+
+Bug fix: DeepSeek reasoning_content + orphaned tool_calls cleanup

@@ -1,0 +1,172 @@
+{
+  "session_ids": [
+    "ses_18d5f8deeffebHJDBzxJHERdoP",
+    "ses_18ca5edb4fferFxmMUkPjgl5ta",
+    "ses_18ca5c92fffedVn3zC6WMi9tY7",
+    "ses_18ca5aeb7ffeeTKvlAnNsnEI5Y",
+    "ses_18ca1f02dffeVJ3Qutlos4msz2",
+    "ses_18ca1e3f2ffe0gqjQywxNESciL",
+    "ses_18ca1d9bdffeYNco4sRx7pDS8y",
+    "ses_18ca1d06fffe9ht4DQ39c44k4v",
+    "ses_18ca1c5f9ffe5dI58TB7AtYmFU",
+    "ses_18ca187c7ffeLxlNZERMKNNiyu",
+    "ses_18ca12fc7ffel6VSvle2h7VwZm",
+    "ses_18ca104adffe93ucTLUNdYWy6x",
+    "ses_18ca1043affeb04IVQb6ABx297",
+    "ses_18c9bd477ffe9sRkP51jLnBnPv",
+    "ses_18c9afd64ffeDPe2szutzBwhuA",
+    "ses_18c9acee1ffe1nIwt0Os5N9Vjb",
+    "ses_18c97f815ffenKomjfPg5rNtu8",
+    "ses_18c97eb1effeuvDH7nUQroIk4I",
+    "ses_18c97d7d7ffe28CIpTLy7lsT3M",
+    "ses_18c97c818ffezLhreybfWr0bkf"
+  ],
+  "session_origins": {
+    "ses_18d5f8deeffebHJDBzxJHERdoP": "direct",
+    "ses_18ca5edb4fferFxmMUkPjgl5ta": "appended",
+    "ses_18ca5c92fffedVn3zC6WMi9tY7": "appended",
+    "ses_18ca5aeb7ffeeTKvlAnNsnEI5Y": "appended",
+    "ses_18ca1f02dffeVJ3Qutlos4msz2": "appended",
+    "ses_18ca1e3f2ffe0gqjQywxNESciL": "appended",
+    "ses_18ca1d9bdffeYNco4sRx7pDS8y": "appended",
+    "ses_18ca1d06fffe9ht4DQ39c44k4v": "appended",
+    "ses_18ca1c5f9ffe5dI58TB7AtYmFU": "appended",
+    "ses_18ca187c7ffeLxlNZERMKNNiyu": "appended",
+    "ses_18ca12fc7ffel6VSvle2h7VwZm": "appended",
+    "ses_18ca104adffe93ucTLUNdYWy6x": "appended",
+    "ses_18ca1043affeb04IVQb6ABx297": "appended",
+    "ses_18c9bd477ffe9sRkP51jLnBnPv": "appended",
+    "ses_18c9afd64ffeDPe2szutzBwhuA": "appended",
+    "ses_18c9acee1ffe1nIwt0Os5N9Vjb": "appended",
+    "ses_18c97f815ffenKomjfPg5rNtu8": "appended",
+    "ses_18c97eb1effeuvDH7nUQroIk4I": "appended",
+    "ses_18c97d7d7ffe28CIpTLy7lsT3M": "appended",
+    "ses_18c97c818ffezLhreybfWr0bkf": "appended"
+  },
+  "task_sessions": {},
+  "schema_version": 2,
+  "works": {
+    "v1-gap-fix-f0e249ae": {
+      "work_id": "v1-gap-fix-f0e249ae",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/v1-gap-fix.md",
+      "plan_name": "v1-gap-fix",
+      "status": "completed",
+      "started_at": "2026-05-13T15:22:33.222Z",
+      "updated_at": "2026-05-13T16:06:11.508Z",
+      "session_ids": [
+        "ses_1de250847ffeoCkWFpz6O1hxJv"
+      ],
+      "session_origins": {
+        "ses_1de250847ffeoCkWFpz6O1hxJv": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {},
+      "ended_at": "2026-05-13T16:06:11.508Z",
+      "elapsed_ms": 2618286
+    },
+    "v1-final-polish-b429be69": {
+      "work_id": "v1-final-polish-b429be69",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.sisyphus/plans/v1-final-polish.md",
+      "plan_name": "v1-final-polish",
+      "status": "completed",
+      "started_at": "2026-05-13T23:09:40.219Z",
+      "updated_at": "2026-05-13T23:34:50.743Z",
+      "session_ids": [
+        "ses_1de250847ffeoCkWFpz6O1hxJv"
+      ],
+      "session_origins": {
+        "ses_1de250847ffeoCkWFpz6O1hxJv": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {},
+      "ended_at": "2026-05-13T23:34:50.743Z",
+      "elapsed_ms": 1510524
+    },
+    "v1-architecture-fix-31ad8eb5": {
+      "work_id": "v1-architecture-fix-31ad8eb5",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/v1-architecture-fix.md",
+      "plan_name": "v1-architecture-fix",
+      "status": "active",
+      "started_at": "2026-05-29T03:50:16.214Z",
+      "updated_at": "2026-05-29T03:50:45.540Z",
+      "session_ids": [
+        "ses_18e424e3affe7Xzm758tWstq7J",
+        "ses_18e24e48bffeRugXYUoyFThMxk"
+      ],
+      "session_origins": {
+        "ses_18e424e3affe7Xzm758tWstq7J": "direct",
+        "ses_18e24e48bffeRugXYUoyFThMxk": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {}
+    },
+    "a-stock-data-integration-2138fde1": {
+      "work_id": "a-stock-data-integration-2138fde1",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/a-stock-data-integration.md",
+      "plan_name": "a-stock-data-integration",
+      "status": "completed",
+      "started_at": "2026-05-29T10:48:41.879Z",
+      "updated_at": "2026-05-29T11:04:30.650Z",
+      "ended_at": "2026-05-29T12:21:00.000Z",
+      "elapsed_ms": 5539000,
+      "session_ids": [
+        "ses_18d5f8deeffebHJDBzxJHERdoP",
+        "ses_18ca5edb4fferFxmMUkPjgl5ta",
+        "ses_18ca5c92fffedVn3zC6WMi9tY7",
+        "ses_18ca5aeb7ffeeTKvlAnNsnEI5Y",
+        "ses_18ca1f02dffeVJ3Qutlos4msz2",
+        "ses_18ca1e3f2ffe0gqjQywxNESciL",
+        "ses_18ca1d9bdffeYNco4sRx7pDS8y",
+        "ses_18ca1d06fffe9ht4DQ39c44k4v",
+        "ses_18ca1c5f9ffe5dI58TB7AtYmFU",
+        "ses_18ca187c7ffeLxlNZERMKNNiyu",
+        "ses_18ca12fc7ffel6VSvle2h7VwZm",
+        "ses_18ca104adffe93ucTLUNdYWy6x",
+        "ses_18ca1043affeb04IVQb6ABx297",
+        "ses_18c9bd477ffe9sRkP51jLnBnPv",
+        "ses_18c9afd64ffeDPe2szutzBwhuA",
+        "ses_18c9acee1ffe1nIwt0Os5N9Vjb",
+        "ses_18c97f815ffenKomjfPg5rNtu8",
+        "ses_18c97eb1effeuvDH7nUQroIk4I",
+        "ses_18c97d7d7ffe28CIpTLy7lsT3M",
+        "ses_18c97c818ffezLhreybfWr0bkf"
+      ],
+      "session_origins": {
+        "ses_18d5f8deeffebHJDBzxJHERdoP": "direct",
+        "ses_18ca5edb4fferFxmMUkPjgl5ta": "appended",
+        "ses_18ca5c92fffedVn3zC6WMi9tY7": "appended",
+        "ses_18ca5aeb7ffeeTKvlAnNsnEI5Y": "appended",
+        "ses_18ca1f02dffeVJ3Qutlos4msz2": "appended",
+        "ses_18ca1e3f2ffe0gqjQywxNESciL": "appended",
+        "ses_18ca1d9bdffeYNco4sRx7pDS8y": "appended",
+        "ses_18ca1d06fffe9ht4DQ39c44k4v": "appended",
+        "ses_18ca1c5f9ffe5dI58TB7AtYmFU": "appended",
+        "ses_18ca187c7ffeLxlNZERMKNNiyu": "appended",
+        "ses_18ca12fc7ffel6VSvle2h7VwZm": "appended",
+        "ses_18ca104adffe93ucTLUNdYWy6x": "appended",
+        "ses_18ca1043affeb04IVQb6ABx297": "appended",
+        "ses_18c9bd477ffe9sRkP51jLnBnPv": "appended",
+        "ses_18c9afd64ffeDPe2szutzBwhuA": "appended",
+        "ses_18c9acee1ffe1nIwt0Os5N9Vjb": "appended",
+        "ses_18c97f815ffenKomjfPg5rNtu8": "appended",
+        "ses_18c97eb1effeuvDH7nUQroIk4I": "appended",
+        "ses_18c97d7d7ffe28CIpTLy7lsT3M": "appended",
+        "ses_18c97c818ffezLhreybfWr0bkf": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {}
+    },
+    "a-stock-data-phase2-2138fde2": {
+      "work_id": "a-stock-data-phase2-2138fde2",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/a-stock-data-phase2.md",
+      "plan_name": "a-stock-data-phase2",
+      "status": "active",
+      "started_at": "2026-05-29T12:30:00.000Z"
+    },
+    "active_work_id": "a-stock-data-phase2-2138fde2",
+    "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/a-stock-data-phase2.md",
+    "plan_name": "a-stock-data-phase2",
+    "status": "active",
+    "started_at": "2026-05-29T12:30:00.000Z",
+    "agent": "atlas"
+}

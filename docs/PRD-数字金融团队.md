@@ -32,7 +32,7 @@
 | **产品代号** | "华创量化研究院"（Huachuang Quant Research） |
 | **原型对标** | 华创证券研究所（宏观策略 + 行业研究 + 金工量化 + 销售交易） |
 | **目标用户** | 个人投资者、小型私募、家族办公室 |
-| **技术底座** | TradingAgents（分析引擎）+ Paperclip（组织治理）+ OpenClaw（客户接入）+ GEPA 方法论（持续学习） |
+| **技术底座** | TradingAgents（分析引擎）+ OpenClaw（客户接入）+ GEPA 方法论（持续学习）。⚠️ Paperclip 集成计划已重新评估（2026-05-28），详见 `docs/开发进度表.md` |
 | **许可证** | MIT |
 
 ---
