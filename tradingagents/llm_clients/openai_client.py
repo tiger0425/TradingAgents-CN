@@ -70,13 +70,10 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         outgoing = payload.get("messages", [])
         input_msgs = _input_to_messages(input_)
-        # Correlate by counting AI messages instead of zip position,
-        # because a SystemMessage from the prompt template shifts indices.
         ai_idx = 0
         for message_dict in outgoing:
             if message_dict.get("role") != "assistant":
                 continue
-            # Find the Nth AIMessage in input_msgs
             aim = None
             count = 0
             for m in input_msgs:
