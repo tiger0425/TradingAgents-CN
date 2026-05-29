@@ -80,9 +80,24 @@ def _apply_env_overrides(config: dict) -> dict:
 
 def _create_llms(config: dict):
     from .llm_clients import create_llm_client
+    from .llm_clients.validators import validate_model
 
     llm_kwargs = {}
     provider = config.get("llm_provider", "").lower()
+
+    deep_model = config.get("deep_think_llm", "")
+    quick_model = config.get("quick_think_llm", "")
+    if not validate_model(provider, deep_model):
+        logger.warning(
+            "deep_think_llm '%s' is not in the known model list for provider '%s'. Continuing anyway.",
+            deep_model, provider,
+        )
+    if not validate_model(provider, quick_model):
+        logger.warning(
+            "quick_think_llm '%s' is not in the known model list for provider '%s'. Continuing anyway.",
+            quick_model, provider,
+        )
+
     if provider == "google":
         if config.get("google_thinking_level"):
             llm_kwargs["thinking_level"] = config["google_thinking_level"]

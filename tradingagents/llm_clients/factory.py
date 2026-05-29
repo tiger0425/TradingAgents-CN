@@ -1,6 +1,10 @@
+import logging
 from typing import Optional
 
 from .base_client import BaseLLMClient
+from .validators import validate_model
+
+logger = logging.getLogger(__name__)
 
 # Providers that use the OpenAI-compatible chat completions API
 _OPENAI_COMPATIBLE = (
@@ -33,6 +37,12 @@ def create_llm_client(
         ValueError: If provider is not supported
     """
     provider_lower = provider.lower()
+
+    if not validate_model(provider_lower, model):
+        logger.warning(
+            "Model '%s' is not in the known model list for provider '%s'. Continuing anyway.",
+            model, provider_lower,
+        )
 
     if provider_lower in _OPENAI_COMPATIBLE:
         from .openai_client import OpenAIClient
