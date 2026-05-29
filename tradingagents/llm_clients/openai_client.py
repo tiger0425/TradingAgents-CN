@@ -118,6 +118,16 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                     current_tc_ids = set()
                 sanitized.append(msg)
 
+        if current_tc_ids:
+            for i in range(len(sanitized) - 1, -1, -1):
+                if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
+                    if sanitized[i].get("content"):
+                        del sanitized[i]["tool_calls"]
+                    else:
+                        sanitized[i]["tool_calls"] = []
+                        sanitized[i]["content"] = "[Tool results processed]"
+                    break
+
         payload["messages"] = sanitized
         return payload
 
