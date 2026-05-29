@@ -1,3 +1,4 @@
+from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
@@ -61,7 +62,15 @@ def create_news_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        # Keep only the last tool cycle to avoid DeepSeek ordering errors
+        msgs = state["messages"]
+        cut = len(msgs)
+        for i in range(len(msgs) - 1, -1, -1):
+            if isinstance(msgs[i], AIMessage) and msgs[i].tool_calls:
+                cut = i
+            elif i < cut and getattr(msgs[i], "tool_call_id", None):
+                cut = min(cut, i + 1)
+        result = chain.invoke(msgs[cut:])
 
         report = result.content if result.content else ""
 
