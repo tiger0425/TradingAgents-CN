@@ -100,7 +100,9 @@ class DynamicGraphBuilder:
             if agent_id not in node_names.values() and agent_id not in self._known_agents():
                 continue
 
-            target_node = self._resolve_node(step, node_names)
+            # Skip agents handled by debate/risk debate routing
+            if agent_id in skip_depends_agents:
+                continue
 
             if not step.get("depends_on"):
                 start_node = node_names[step["step"]]
