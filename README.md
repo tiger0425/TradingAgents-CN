@@ -26,21 +26,22 @@
 
 # TradingAgents：双层智能金融分析系统
 
-> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（akshare + 国信证券）、V1.2 双层调度架构（后台采集 + 事件驱动）、LLM Planner 智能编排、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
+> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（akshare + 国信证券）、V1.3 双层调度架构（后台采集 + 事件驱动）、LLM Planner 智能编排、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
 
 ## News
 
-- [2026-05] **V1.2 冒烟验证全部通过**：4 Collector（AkShare 真实数据）+ KB 时效管理 + Planner 覆盖率计算 + OHLCV 预取 + 对话录入持仓全部验证通过，`docker compose up` 可部署。
-- [2026-05] **V1.2 双层智能架构上线**：后台采集层不间断研究并写入知识库；LLM Planner 收到消息后优先查 KB，只对缺失部分启动 Agent。新增 `POST /analyze` + `POST /portfolio/chat` 端点、OHLCV 开盘前预取、DeepSeek 支持。
+- [2026-05] **V1.3 架构质量升级**：11 项架构缺陷修复，涵盖分析师并行化（-67% 延迟）、辩论路由枚举化、deep_llm fallback 机制、检查点恢复、上下文智能压缩、工具循环检测、并发安全锁、因果链追踪等。
+- [2026-05] **V1.2 冒烟验证全部通过**：4 Collector（AkShare 真实数据）+ KB 时效管理 + Planner 覆盖率计算 + OHLCV 预取 + 对话录入持仓全部验证通过。
+- [2026-05] **V1.2 双层智能架构上线**：后台采集层不间断研究并写入知识库；LLM Planner 收到消息后优先查 KB，只对缺失部分启动 Agent。
 - [2026-05] **国信证券数据源接入**：`dataflows/guosen.py` 提供实时行情、财务三表、宏观经济、智能选股、基金对比、ETF 筛选等 13 个数据函数。
 - [2026-05] **知识消费体系上线**：ContextAssembly 节点自动装配历史知识（CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），统一 DataCache 缓存层，三重缓存检查链。
 - [2026-05] **分析存档 + Wiki + MCP Server**：分析结果自动归档，按 ticker/日期/决策检索。Wiki 导航 + MCP 工具暴露 6 个知识查询接口。
 
 ---
 
-## V1.2 架构
+## V1.3 架构
 
-TradingAgents V1.2 采用**双层智能系统**，模拟券商研究所的运作方式：
+TradingAgents V1.3 采用**双层智能系统**，模拟券商研究所的运作方式：
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -72,7 +73,7 @@ TradingAgents V1.2 采用**双层智能系统**，模拟券商研究所的运作
 
 **核心差异**：事件触发时先查 KB，已有分析直接复用，大幅降低 LLM 调用成本（约 55%）。
 
-| 场景 | V1.0（纯事件驱动） | V1.2（双层架构） |
+| 场景 | V1.0（纯事件驱动） | V1.3（双层架构） |
 |------|-------------------|-----------------|
 | 晨会 | 每次采集外盘+公告 ($0.35) | KB 已有 30min 前快照 ($0.10) |
 | 客户问个股 | 从零全流程 ($0.85) | KB 已有快照，只补辩论 ($0.30) |

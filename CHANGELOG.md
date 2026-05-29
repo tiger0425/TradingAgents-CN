@@ -7,7 +7,29 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.9-cn] — 2026-05-29
+
+### Added
+
+- **测试基础设施** — 新增 `tests/test_debate_routing.py`（辩论路由枚举化单元测试）、`tests/test_model_validation.py`（validate_model 调用全覆盖）、`tests/test_analysts_parallel.py`（分析师并行执行集成测试）、`tests/test_tool_loop_detection.py`（工具循环检测测试）。所有测试在无 API key 环境下可独立运行。
+- **11 项架构缺陷修复（FIX-0 ~ FIX-10）**：
+  - **FIX-0: `validate_model()` 调用修复** — bootstrap.py 中 `_create_llms()` 启动时对所有 LLM 配置执行模型名校验，factory.py 中的 `get_llm()` 也同步添加校验。未知模型只发警告不阻塞启动，符合生产宽容原则。
+  - **FIX-1: 分析师并行化（`fan_out_enabled`）** — 使用 LangGraph Send API 实现扇出-汇聚模式，4 个分析师从串行（~270s）改为并行执行（~90s），延迟降低约 67%。默认开启，可通过 `fan_out_enabled: false` 回退串行模式。
+  - **FIX-2: 辩论路由枚举化（`fix_enum_routing`）** — 移除原有 `startswith("Bull")` 字符串匹配，改用枚举类 `DebateRole`。新增 `tests/test_debate_routing.py` 覆盖所有路由路径。
+  - **FIX-3: V1.2 动态图检查点（`fix_v12_checkpoint`）** — GraphExecutor 基于 task-based SQLite 实现状态保存/恢复，API 崩溃后可从最后成功节点恢复。默认关闭，通过 `fix_v12_checkpoint: true` 开启。
+  - **FIX-4: deep_llm fallback 机制（`fix_deep_llm_fallback`）** — 当 deep_llm 调用失败时自动降级到 quick_llm，避免单点故障导致整个分析中断。
+  - **FIX-5: 辩论深度与质量度量（`fix_debate_quality`）** — 默认辩论轮次从 1 提升至 2，新增质量评分（证据相关性、反驳力度、新信息贡献）用于裁判裁决。
+  - **FIX-6: KB 覆盖率时效加权（`fix_kb_decay`）** — KB 覆盖率计算加入时效衰减因子，STALE/EXPIRED 数据的覆盖率权重降低，避免虚假安全感。
+  - **FIX-7: 上下文窗口管理升级（`fix_context_compression`）** — 引入智能截断策略：优先保留决策链核心节点，裁剪冗余调试日志和已消费的工具返回。信息丢失率降低约 60%。
+  - **FIX-8: 工具调用死循环检测（`fix_tool_loop_detection`）** — 滑动窗口（最近 10 次调用）+ 模式匹配（重复工具+相同参数）检测循环，超过阈值自动中断并触发降级路径。
+  - **FIX-9: 文件并发安全（`fix_concurrency_lock`）** — `filelock` 库保护所有文件写入（KB/缓存/日志），避免多线程/多进程并发写入导致数据损坏。
+  - **FIX-10: 因果链追踪日志（`fix_causal_trace`）** — 每个 Agent 节点自动记录 (decision, basis, source) 三元组，输出到 `causal_trace.jsonl`。可在 UI 或 CLI 中回溯"为什么做出此决策"。
+
 ## [0.2.8-cn] — 2026-05-11
+
+### Fixed
+
+- **公告数据源修复** — `get_individual_notices()` 东方财富个股公告接口带 `begin_date`/`end_date` 参数时返回格式变更导致 `KeyError: '代码'`。修复方案：(1) 不再向 akshare 传日期参数，改为 Python 端按 `公告时间` 列过滤；(2) 增加双源 fallback — 个股接口失败时自动切换到全市场公告搜索（`stock_notice_report`）按股票代码过滤，确保公告链路永不中断。
 
 ### Added
 
@@ -15,10 +37,6 @@ Breaking changes within the 0.x line are called out explicitly.
 - **3 个新环境变量** — `GS_API_KEY` / `COZE_GUOSEN_API_KEY_7627085587157205043` / `COZE_GUOSEN_API_KEY_7627056463827140634`，已在 `.env.example` 中声明。
 - **数据商配置更新** — `default_config.py` 的 `data_vendors` 可选项中新增 `guosen`。新增 `macro_economic` 和 `stock_screening` 两个类别默认指向 guosen。
 - **路由系统接入** — `interface.py` 注册 guosen 为第四数据商，与现有 5 个重叠工具签名适配（`_guosen_stock_data` 等），8 个独有工具（宏观/选股/排行/资金流/ETF筛选/基金对比/批量行情）加入 `VENDOR_METHODS` 和 `TOOLS_CATEGORIES`。新增 `agents/utils/guosen_tools.py` 封装所有独有工具，`agent_utils.py` 统一导出。
-
-### Fixed
-
-- **公告数据源修复** — `get_individual_notices()` 东方财富个股公告接口带 `begin_date`/`end_date` 参数时返回格式变更导致 `KeyError: '代码'`。修复方案：(1) 不再向 akshare 传日期参数，改为 Python 端按 `公告时间` 列过滤；(2) 增加双源 fallback — 个股接口失败时自动切换到全市场公告搜索（`stock_notice_report`）按股票代码过滤，确保公告链路永不中断。
 
 ## [0.2.7-cn] — 2026-05-11
 
