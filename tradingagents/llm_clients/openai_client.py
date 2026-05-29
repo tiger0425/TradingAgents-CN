@@ -70,6 +70,8 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         outgoing = payload.get("messages", [])
         input_msgs = _input_to_messages(input_)
+
+        # Step 1: Echo reasoning_content from captured LangChain AIMessages
         ai_idx = 0
         for message_dict in outgoing:
             if message_dict.get("role") != "assistant":
@@ -88,6 +90,44 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
             reasoning = aim.additional_kwargs.get("reasoning_content")
             if reasoning is not None:
                 message_dict["reasoning_content"] = reasoning
+
+        # Step 2: Sanitize message sequence for DeepSeek's strict ordering
+        sanitized = []
+        pending_tc_ids = set()
+        for msg in outgoing:
+            role = msg.get("role", "")
+            if role == "assistant" and msg.get("tool_calls"):
+                sanitized.append(msg)
+                pending_tc_ids = {tc["id"] for tc in msg["tool_calls"] if "id" in tc}
+            elif role == "tool":
+                tc_id = msg.get("tool_call_id")
+                if tc_id and tc_id in pending_tc_ids:
+                    sanitized.append(msg)
+                    pending_tc_ids.discard(tc_id)
+                # orphaned tool message without matching tool_calls: drop it
+            else:
+                # Non-tool message: if there are pending tool IDs,
+                # strip tool_calls from the last assistant message
+                if pending_tc_ids:
+                    for i in range(len(sanitized) - 1, -1, -1):
+                        if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
+                            del sanitized[i]["tool_calls"]
+                            if not sanitized[i].get("content"):
+                                sanitized[i]["content"] = "[Tool results processed]"
+                            break
+                    pending_tc_ids = set()
+                sanitized.append(msg)
+
+        # Trailing tool_calls at end: strip them
+        if pending_tc_ids:
+            for i in range(len(sanitized) - 1, -1, -1):
+                if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
+                    del sanitized[i]["tool_calls"]
+                    if not sanitized[i].get("content"):
+                        sanitized[i]["content"] = "[Tool results processed]"
+                    break
+
+        payload["messages"] = sanitized
         return payload
 
     def _create_chat_result(self, response, generation_info=None):
