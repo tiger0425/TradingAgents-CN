@@ -1,16 +1,12 @@
+from tradingagents.graph.context_manager import ContextWindowManager
 
 
 def create_bull_researcher(llm):
     def bull_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
-        history = investment_debate_state.get("history", "")
         bull_history = investment_debate_state.get("bull_history", "")
 
         current_response = investment_debate_state.get("current_response", "")
-        market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
-        news_report = state["news_report"]
-        fundamentals_report = state["fundamentals_report"]
 
         # Round-awareness: first round vs rebuttal
         is_first_round = investment_debate_state.get("count", 0) == 0
@@ -32,12 +28,14 @@ def create_bull_researcher(llm):
             )
             opponent_reference = f"Last bear argument: {current_response}"
 
-        # Keep only last 2 rounds of history to prevent context overflow
-        history_lines = history.strip().split('\n')
-        if len(history_lines) > 20:  # Roughly 2 rounds worth
-            history = '\n'.join(history_lines[-20:])
+        # ---- ContextWindowManager: 三级策略管理上下文 (FIX-7) ----
+        ctx = ContextWindowManager.inject_context(
+            state, agent_type="bull", quick_llm=llm,
+        )
 
-        market_context = state.get("market_context", "")
+        reports_text = ctx["reports_summary"]
+        debate_history = ctx["debate_history"]
+        market_context = ctx.get("market_context", state.get("market_context", ""))
 
         prompt = f"""You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
@@ -59,12 +57,9 @@ Key points to focus on:
 - Engagement: Present your argument in a conversational style, engaging directly with the bear analyst's points and debating effectively rather than just listing data.
 
 Resources available:
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
+Market research report: {reports_text}
 Conversation history of the debate:
-{history}
+{debate_history}
 {opponent_reference}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
 """
@@ -83,6 +78,7 @@ market tailwind amplifies bullish signals.
 
         argument = f"Bull Analyst: {response.content}"
 
+        history = investment_debate_state.get("history", "")
         new_investment_debate_state = {
             "history": history + "\n" + argument,
             "bull_history": bull_history + "\n" + argument,

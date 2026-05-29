@@ -1,17 +1,12 @@
+from tradingagents.graph.context_manager import ContextWindowManager
 
 
 def create_bear_researcher(llm):
     def bear_node(state) -> dict:
         investment_debate_state = state["investment_debate_state"]
-        history = investment_debate_state.get("history", "")
         bear_history = investment_debate_state.get("bear_history", "")
 
         current_response = investment_debate_state.get("current_response", "")
-        market_research_report = state["market_report"]
-        sentiment_report = state["sentiment_report"]
-        news_report = state["news_report"]
-        fundamentals_report = state["fundamentals_report"]
-        market_context = state.get("market_context", "")
 
         # Round-awareness: first round vs rebuttal
         is_first_round = investment_debate_state.get("count", 0) == 0
@@ -33,10 +28,14 @@ def create_bear_researcher(llm):
             )
             opponent_reference = f"Last bull argument: {current_response}"
 
-        # Keep only last 2 rounds of history to prevent context overflow
-        history_lines = history.strip().split('\n')
-        if len(history_lines) > 20:  # Roughly 2 rounds worth
-            history = '\n'.join(history_lines[-20:])
+        # ---- ContextWindowManager: 三级策略管理上下文 (FIX-7) ----
+        ctx = ContextWindowManager.inject_context(
+            state, agent_type="bear", quick_llm=llm,
+        )
+
+        reports_text = ctx["reports_summary"]
+        debate_history = ctx["debate_history"]
+        market_context = ctx.get("market_context", state.get("market_context", ""))
 
         prompt = f"""You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
 
@@ -60,12 +59,9 @@ Key points to focus on:
 
 Resources available:
 
-Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
-Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
+Market research report: {reports_text}
 Conversation history of the debate:
-{history}
+{debate_history}
 {opponent_reference}
 Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock.
 """
@@ -85,6 +81,7 @@ bearish signals contradict a bullish market backdrop.
 
         argument = f"Bear Analyst: {response.content}"
 
+        history = investment_debate_state.get("history", "")
         new_investment_debate_state = {
             "history": history + "\n" + argument,
             "bear_history": bear_history + "\n" + argument,
