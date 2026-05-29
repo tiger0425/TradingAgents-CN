@@ -175,6 +175,7 @@ VENDOR_LIST = [
     "yfinance",
     "alpha_vantage",
     "guosen",
+    "a_stock_data",
 ]
 
 # Mapping of methods to their vendor-specific implementations

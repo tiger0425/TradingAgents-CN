@@ -43,7 +43,7 @@ def _fake_vix() -> pd.DataFrame:
 
 def _fake_northbound() -> pd.DataFrame:
     return pd.DataFrame([
-        {"北向资金-净流入": 3.5e8, "北向资金-买入成交额": 50e8, "北向资金-卖出成交额": 46.5e8},
+        {"资金方向": "北向", "交易状态": 1, "资金净流入": 3.5e8},
     ])
 
 
