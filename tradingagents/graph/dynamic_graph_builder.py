@@ -158,6 +158,9 @@ class DynamicGraphBuilder:
                 continue
 
             if not step.get("depends_on"):
+                # Skip START edge for steps handled by parallel group wiring
+                if snum in parallel_steps:
+                    continue
                 start_node = node_names[step["step"]]
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
