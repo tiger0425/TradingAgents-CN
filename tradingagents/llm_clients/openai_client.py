@@ -97,6 +97,14 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
         for msg in outgoing:
             role = msg.get("role", "")
             if role == "assistant" and msg.get("tool_calls"):
+                # New assistant with tool_calls: resolve any pending from previous
+                if pending_tc_ids:
+                    for i in range(len(sanitized) - 1, -1, -1):
+                        if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
+                            del sanitized[i]["tool_calls"]
+                            if not sanitized[i].get("content"):
+                                sanitized[i]["content"] = "[Tool results processed earlier]"
+                            break
                 sanitized.append(msg)
                 pending_tc_ids = {tc["id"] for tc in msg["tool_calls"] if "id" in tc}
             elif role == "tool":
@@ -104,10 +112,7 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                 if tc_id and tc_id in pending_tc_ids:
                     sanitized.append(msg)
                     pending_tc_ids.discard(tc_id)
-                # orphaned tool message without matching tool_calls: drop it
             else:
-                # Non-tool message: if there are pending tool IDs,
-                # strip tool_calls from the last assistant message
                 if pending_tc_ids:
                     for i in range(len(sanitized) - 1, -1, -1):
                         if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
