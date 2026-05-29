@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
     # FIX-1: 分析师并行化 — 扇出-汇聚并行模式开关
     # true: 4 个分析师通过 LangGraph Send API 并行执行 (~90s 总耗时)
     # false: 回退串行模式 (~270s 总耗时)
-    "fan_out_enabled": False,
+    "fan_out_enabled": True,
     # Debate and discussion settings
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,

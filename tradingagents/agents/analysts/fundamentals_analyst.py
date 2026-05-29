@@ -1,4 +1,3 @@
-from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
@@ -51,14 +50,7 @@ def create_fundamentals_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        # DeepSeek requires strict tool_call→ToolMessage ordering,
-        # but LangGraph's state mixes calls from multiple analyst cycles.
-        # Analysts have all context via state fields, so clean history is safe.
-        msgs = state["messages"]
-        cleaned = [m for m in msgs if not isinstance(m, (AIMessage, ToolMessage)) or
-                   (isinstance(m, AIMessage) and not m.tool_calls)]
-
-        result = chain.invoke(cleaned)
+        result = chain.invoke(state["messages"])
 
         report = result.content if result.content else ""
 

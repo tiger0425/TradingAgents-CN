@@ -1,4 +1,3 @@
-from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news, get_degradation_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
@@ -45,14 +44,7 @@ def create_social_media_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        # DeepSeek requires strict tool_call→ToolMessage ordering,
-        # but LangGraph's state mixes calls from multiple analyst cycles.
-        # Analysts have all context via state fields, so clean history is safe.
-        msgs = state["messages"]
-        cleaned = [m for m in msgs if not isinstance(m, (AIMessage, ToolMessage)) or
-                   (isinstance(m, AIMessage) and not m.tool_calls)]
-
-        result = chain.invoke(cleaned)
+        result = chain.invoke(state["messages"])
 
         report = result.content if result.content else ""
 
