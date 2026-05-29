@@ -1,4 +1,3 @@
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
@@ -62,19 +61,7 @@ def create_news_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        # Keep only the last tool_call cycle to avoid DeepSeek ordering errors
-        filtered = []
-        for m in reversed(state["messages"]):
-            filtered.insert(0, m)
-            # If we hit an AIMessage with tool_calls, keep it + all previous non-tool messages
-            if isinstance(m, AIMessage) and m.tool_calls:
-                break
-        # Start fresh with the filtered (last cycle only)
-        # If the last message was a tool result, chain will get [user, ai(tc), tool] = valid
-        # If only non-tool messages, chain gets all of them = also valid
-        if not filtered:
-            filtered = [HumanMessage(content="Continue")]
-        result = chain.invoke(state["messages"][-4:])
+        result = chain.invoke(state["messages"])
 
         report = result.content if result.content else ""
 
