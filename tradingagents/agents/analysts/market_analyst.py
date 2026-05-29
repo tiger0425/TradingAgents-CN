@@ -60,7 +60,27 @@ Select indicators that provide diverse and complementary information. Avoid redu
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        # DeepSeek thinking models (v4-flash/pro/reasoner) require tool_calls
+        # to be immediately followed by matching ToolMessages. Clean any orphaned
+        # tool_calls from previous cycles to prevent 400 errors.
+        msgs = state["messages"]
+        cleaned = []
+        pending_tool_ids = set()
+        for m in msgs:
+            if hasattr(m, "tool_calls") and m.tool_calls:
+                tc_ids = {tc.get("id", "") for tc in m.tool_calls if hasattr(tc, "get")}
+                pending_tool_ids |= tc_ids
+                cleaned.append(m)
+            elif hasattr(m, "name") and m.name == "tool" and hasattr(m, "tool_call_id"):
+                # Tool response that matches a pending call → keep
+                if m.tool_call_id in pending_tool_ids:
+                    pending_tool_ids.discard(m.tool_call_id)
+                    cleaned.append(m)
+                # Orphaned tool response → skip
+            else:
+                cleaned.append(m)
+
+        result = chain.invoke(cleaned)
 
         report = result.content if result.content else ""
 

@@ -50,7 +50,23 @@ def create_fundamentals_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result = chain.invoke(state["messages"])
+        # DeepSeek 兼容：清理孤立 tool_calls，防止 400 错误
+        msgs = state["messages"]
+        cleaned = []
+        pending_tool_ids = set()
+        for m in msgs:
+            if hasattr(m, "tool_calls") and m.tool_calls:
+                tc_ids = {tc.get("id", "") for tc in m.tool_calls if hasattr(tc, "get")}
+                pending_tool_ids |= tc_ids
+                cleaned.append(m)
+            elif hasattr(m, "name") and m.name == "tool" and hasattr(m, "tool_call_id"):
+                if m.tool_call_id in pending_tool_ids:
+                    pending_tool_ids.discard(m.tool_call_id)
+                    cleaned.append(m)
+            else:
+                cleaned.append(m)
+
+        result = chain.invoke(cleaned)
 
         report = result.content if result.content else ""
 
