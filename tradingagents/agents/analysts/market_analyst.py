@@ -65,17 +65,21 @@ Select indicators that provide diverse and complementary information. Avoid redu
         # to be immediately followed by matching ToolMessages. Clean any orphaned
         # tool_calls from previous cycles to prevent 400 errors.
         msgs = state["messages"]
+
+        # 第一遍：收集所有有匹配 ToolMessage 的 tool_call_id
+        matched_tool_ids = set()
+        for m in msgs:
+            if isinstance(m, ToolMessage):
+                matched_tool_ids.add(m.tool_call_id)
+
+        # 第二遍：只保留 tool_calls 全部有匹配的 AIMessage
         cleaned = []
-        pending_tool_ids = set()
         for m in msgs:
             if isinstance(m, AIMessage) and m.tool_calls:
-                tc_ids = {tc["id"] for tc in m.tool_calls if "id" in tc}
-                pending_tool_ids |= tc_ids
-                cleaned.append(m)
-            elif isinstance(m, ToolMessage):
-                if m.tool_call_id in pending_tool_ids:
-                    pending_tool_ids.discard(m.tool_call_id)
+                if all(tc.get("id") in matched_tool_ids for tc in m.tool_calls if "id" in tc):
                     cleaned.append(m)
+            elif isinstance(m, ToolMessage):
+                cleaned.append(m)
             else:
                 cleaned.append(m)
 
