@@ -28,6 +28,7 @@ class GraphExecutor:
         max_debate_rounds: int = 2,
         max_risk_rounds: int = 2,
         max_recur_limit: int = 100,
+        fan_out_enabled: bool = True,
     ):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
@@ -35,6 +36,7 @@ class GraphExecutor:
         self.max_debate_rounds = max_debate_rounds
         self.max_risk_rounds = max_risk_rounds
         self.max_recur_limit = max_recur_limit
+        self.fan_out_enabled = fan_out_enabled
 
     # ------------------------------------------------------------------
     # Public API
@@ -65,6 +67,7 @@ class GraphExecutor:
             self.tool_nodes,
             self.max_debate_rounds,
             self.max_risk_rounds,
+            fan_out_enabled=self.fan_out_enabled,
         )
 
         compiled = builder.build(plan)

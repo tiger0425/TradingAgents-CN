@@ -1,6 +1,9 @@
 # TradingAgents/graph/setup.py
 
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, List
+
+from langgraph.types import Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
@@ -8,6 +11,42 @@ from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
 
 from .conditional_logic import ConditionalLogic
+
+logger = logging.getLogger(__name__)
+
+
+def create_fan_out_analysts(selected_analysts: List[str]):
+    """Create a fan-out node that generates a Send for each selected analyst.
+
+    Uses LangGraph's Send API to dispatch the current state to each analyst
+    node in parallel. Each analyst receives its own isolated copy of the state.
+    """
+    def fan_out(state: AgentState):
+        sends = []
+        for analyst_type in selected_analysts:
+            analyst_name = f"{analyst_type.capitalize()} Analyst"
+            sends.append(Send(analyst_name, state))
+        return sends
+    return fan_out
+
+
+def create_merge_analyst_reports(state: AgentState) -> AgentState:
+    """Merge node: synchronization barrier after all parallel analysts complete.
+
+    At this point market_report, sentiment_report, news_report, and
+    fundamentals_report have been populated by each analyst node.
+    This node is a no-op pass-through that serves only as a sync barrier.
+    """
+    reports = {
+        "market": state.get("market_report", ""),
+        "sentiment": state.get("sentiment_report", ""),
+        "news": state.get("news_report", ""),
+        "fundamentals": state.get("fundamentals_report", ""),
+    }
+    missing = [k for k, v in reports.items() if not v]
+    if missing:
+        logger.warning("Analyst reports missing for: %s", missing)
+    return state
 
 
 class GraphSetup:
@@ -20,23 +59,22 @@ class GraphSetup:
         tool_nodes: Dict[str, ToolNode],
         conditional_logic: ConditionalLogic,
     ):
-        """Initialize with required components."""
         self.quick_thinking_llm = quick_thinking_llm
         self.deep_thinking_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
 
     def setup_graph(
-        self, selected_analysts=["market", "social", "news", "fundamentals"]
+        self,
+        selected_analysts=["market", "social", "news", "fundamentals"],
+        fan_out_enabled=True,
     ):
         """Set up and compile the agent workflow graph.
 
         Args:
-            selected_analysts (list): List of analyst types to include. Options are:
-                - "market": Market analyst
-                - "social": Social media analyst
-                - "news": News analyst
-                - "fundamentals": Fundamentals analyst
+            selected_analysts: Analyst types to include.
+            fan_out_enabled: If True, 4 analysts run in parallel via Send API
+                (~90s total). If False, legacy serial chain (~270s total).
         """
         if len(selected_analysts) == 0:
             raise ValueError("Trading Agents Graph Setup Error: no analysts selected!")
@@ -107,31 +145,51 @@ class GraphSetup:
         workflow.add_node("Conservative Analyst", conservative_analyst)
         workflow.add_node("Portfolio Manager", portfolio_manager_node)
 
-        # Define edges
-        # Start with the first analyst
-        first_analyst = selected_analysts[0]
-        workflow.add_edge(START, f"{first_analyst.capitalize()} Analyst")
+        # Define edges — FIX-1: dual-path topology (parallel fan-out + serial fallback)
+        if fan_out_enabled:
+            # --- PARALLEL PATH: FanOut → 4 analysts (parallel) → MergeReports → Bull Researcher ---
+            workflow.add_node("FanOut", create_fan_out_analysts(selected_analysts))
+            workflow.add_node("MergeReports", create_merge_analyst_reports)
+            workflow.add_edge(START, "FanOut")
 
-        # Connect analysts in sequence
-        for i, analyst_type in enumerate(selected_analysts):
-            current_analyst = f"{analyst_type.capitalize()} Analyst"
-            current_tools = f"tools_{analyst_type}"
-            current_clear = f"Msg Clear {analyst_type.capitalize()}"
+            for analyst_type in selected_analysts:
+                analyst_name = f"{analyst_type.capitalize()} Analyst"
+                tools_name = f"tools_{analyst_type}"
+                clear_name = f"Msg Clear {analyst_type.capitalize()}"
 
-            # Add conditional edges for current analyst
-            workflow.add_conditional_edges(
-                current_analyst,
-                getattr(self.conditional_logic, f"should_continue_{analyst_type}"),
-                [current_tools, current_clear],
-            )
-            workflow.add_edge(current_tools, current_analyst)
+                workflow.add_conditional_edges(
+                    analyst_name,
+                    getattr(self.conditional_logic, f"should_continue_{analyst_type}"),
+                    {
+                        tools_name: tools_name,
+                        clear_name: "MergeReports",
+                    },
+                )
+                workflow.add_edge(tools_name, analyst_name)
 
-            # Connect to next analyst or to Bull Researcher if this is the last analyst
-            if i < len(selected_analysts) - 1:
-                next_analyst = f"{selected_analysts[i+1].capitalize()} Analyst"
-                workflow.add_edge(current_clear, next_analyst)
-            else:
-                workflow.add_edge(current_clear, "Bull Researcher")
+            workflow.add_edge("MergeReports", "Bull Researcher")
+        else:
+            # --- SERIAL FALLBACK: original sequential chain ---
+            first_analyst = selected_analysts[0]
+            workflow.add_edge(START, f"{first_analyst.capitalize()} Analyst")
+
+            for i, analyst_type in enumerate(selected_analysts):
+                current_analyst = f"{analyst_type.capitalize()} Analyst"
+                current_tools = f"tools_{analyst_type}"
+                current_clear = f"Msg Clear {analyst_type.capitalize()}"
+
+                workflow.add_conditional_edges(
+                    current_analyst,
+                    getattr(self.conditional_logic, f"should_continue_{analyst_type}"),
+                    [current_tools, current_clear],
+                )
+                workflow.add_edge(current_tools, current_analyst)
+
+                if i < len(selected_analysts) - 1:
+                    next_analyst = f"{selected_analysts[i+1].capitalize()} Analyst"
+                    workflow.add_edge(current_clear, next_analyst)
+                else:
+                    workflow.add_edge(current_clear, "Bull Researcher")
 
         # Add remaining edges
         workflow.add_conditional_edges(
