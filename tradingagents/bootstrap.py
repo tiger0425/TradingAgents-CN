@@ -125,7 +125,18 @@ def _create_llms(config: dict):
         logger.warning("LLM client creation failed (missing API key?): %s", e)
         return None, None
 
-    return deep_client.get_llm(), quick_client.get_llm()
+    deep_llm = deep_client.get_llm()
+    quick_llm = quick_client.get_llm()
+
+    # FIX-4: wrap deep_llm with automatic retry + fallback to quick_llm
+    from .llm_clients.resilient_llm import ResilientLLM
+    resilient_deep = ResilientLLM(
+        primary=deep_llm,
+        fallback=quick_llm,
+        max_retries=2,
+        retry_delay=3.0,
+    )
+    return resilient_deep, quick_llm
 
 
 def _create_tool_nodes():
