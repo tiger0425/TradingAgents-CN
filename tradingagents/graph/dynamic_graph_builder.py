@@ -124,7 +124,7 @@ class DynamicGraphBuilder:
         has_risk_debate = self._detect_risk_debate_group(workflow_steps)
         skip_depends_agents = set()
         if has_debate:
-            skip_depends_agents.update({"bear_researcher", "research_manager"})
+            skip_depends_agents.update({"bull_researcher", "bear_researcher", "research_manager"})
         if has_risk_debate:
             skip_depends_agents.update({"risk_conservative", "risk_neutral", "portfolio_manager"})
 
@@ -163,6 +163,9 @@ class DynamicGraphBuilder:
                         graph.add_edge(tool_node, analyst_node)
                 else:
                     graph.add_edge(node_names[snum], merge_name)
+                continue
+
+            if agent_id in skip_depends_agents:
                 continue
 
             if not step.get("depends_on"):
@@ -278,16 +281,17 @@ class DynamicGraphBuilder:
         bear_node = node_names[bear_step["step"]]
         rm_node = node_names[rm_step["step"]]
 
-        graph.add_conditional_edges(
-            bull_node,
-            self.conditional.should_continue_debate,
-            {"Bear Researcher": bear_node, "Research Manager": rm_node},
-        )
-        graph.add_conditional_edges(
-            bear_node,
-            self.conditional.should_continue_debate,
-            {"Bull Researcher": bull_node, "Research Manager": rm_node},
-        )
+        if bull_node == bear_node:
+            same_node = bull_node
+            graph.add_conditional_edges(same_node, self.conditional.should_continue_debate,
+                {"Bull Researcher": same_node, "Bear Researcher": same_node, "Research Manager": rm_node})
+            graph.add_edge(START, same_node)
+        else:
+            graph.add_conditional_edges(bull_node, self.conditional.should_continue_debate,
+                {"Bear Researcher": bear_node, "Research Manager": rm_node})
+            graph.add_conditional_edges(bear_node, self.conditional.should_continue_debate,
+                {"Bull Researcher": bull_node, "Research Manager": rm_node})
+            graph.add_edge(START, bull_node)
         logger.info("Debate cycle added: Bull ↔ Bear (%d rounds max)",
                      self.conditional.max_debate_rounds)
 
