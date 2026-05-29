@@ -220,16 +220,25 @@ class DynamicGraphBuilder:
         bear_node = node_names[bear_step["step"]]
         rm_node = node_names[rm_step["step"]]
 
-        graph.add_conditional_edges(
-            bull_node,
-            self.conditional.should_continue_debate,
-            {"Bear Researcher": bear_node, "Research Manager": rm_node},
-        )
-        graph.add_conditional_edges(
-            bear_node,
-            self.conditional.should_continue_debate,
-            {"Bull Researcher": bull_node, "Research Manager": rm_node},
-        )
+        if bull_node == bear_node:
+            same_node = bull_node
+            graph.add_conditional_edges(
+                same_node,
+                self.conditional.should_continue_debate,
+                {"Bull Researcher": same_node, "Bear Researcher": same_node,
+                 "Research Manager": rm_node},
+            )
+        else:
+            graph.add_conditional_edges(
+                bull_node,
+                self.conditional.should_continue_debate,
+                {"Bear Researcher": bear_node, "Research Manager": rm_node},
+            )
+            graph.add_conditional_edges(
+                bear_node,
+                self.conditional.should_continue_debate,
+                {"Bull Researcher": bull_node, "Research Manager": rm_node},
+            )
         logger.info("Debate cycle added: Bull ↔ Bear (%d rounds max)",
                      self.conditional.max_debate_rounds)
 
