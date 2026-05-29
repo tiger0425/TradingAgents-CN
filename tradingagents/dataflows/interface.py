@@ -49,6 +49,17 @@ from .guosen import (
     filter_etf_pro,
     filter_etf_custom,
 )
+from .a_stock_data import (
+    get_dragon_tiger_stock,
+    get_dragon_tiger_market,
+    get_margin_trading,
+    get_block_trade,
+    get_lockup_expiry,
+    get_shareholder_count,
+    get_dividend_history,
+    get_cls_flash,
+    get_cninfo_announcements,
+)
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
 # Configuration and routing logic
@@ -148,6 +159,15 @@ TOOLS_CATEGORIES = {
             "filter_etf_custom",
         ],
     },
+    "specialty_data": {
+        "description": "A股特色数据（龙虎榜/融资融券/大宗交易/解禁/股东户数/分红/快讯/公告）",
+        "tools": [
+            "get_dragon_tiger_stock", "get_dragon_tiger_market",
+            "get_margin_trading", "get_block_trade", "get_lockup_expiry",
+            "get_shareholder_count", "get_dividend_history",
+            "get_cls_flash", "get_cninfo_announcements",
+        ],
+    },
 }
 
 VENDOR_LIST = [
@@ -242,6 +262,16 @@ VENDOR_METHODS = {
     "filter_etf_custom": {
         "guosen": filter_etf_custom,
     },
+    # === a-stock-data 独有能力 ===
+    "get_dragon_tiger_stock": {"a_stock_data": get_dragon_tiger_stock},
+    "get_dragon_tiger_market": {"a_stock_data": get_dragon_tiger_market},
+    "get_margin_trading": {"a_stock_data": get_margin_trading},
+    "get_block_trade": {"a_stock_data": get_block_trade},
+    "get_lockup_expiry": {"a_stock_data": get_lockup_expiry},
+    "get_shareholder_count": {"a_stock_data": get_shareholder_count},
+    "get_dividend_history": {"a_stock_data": get_dividend_history},
+    "get_cls_flash": {"a_stock_data": get_cls_flash},
+    "get_cninfo_announcements": {"a_stock_data": get_cninfo_announcements},
 }
 
 def get_category_for_method(method: str) -> str:

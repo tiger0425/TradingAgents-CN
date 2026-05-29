@@ -52,6 +52,7 @@ DEFAULT_CONFIG = {
         "news_data": "akshare",             # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
         "macro_economic": "guosen",         # 宏观经济数据 (仅 guosen)
         "stock_screening": "guosen",        # 选股/ETF筛选/基金对比/排行 (仅 guosen)
+        "specialty_data": "a_stock_data",  # 龙虎榜/融资融券/大宗交易/解禁/股东户数/分红/快讯/公告
     },
     # Benchmark index for alpha calculation
     "benchmark_ticker": "000300",       # A-share: 沪深300 CSI 300 index
