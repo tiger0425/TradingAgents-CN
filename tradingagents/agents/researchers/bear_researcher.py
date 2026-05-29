@@ -90,6 +90,7 @@ bearish signals contradict a bullish market backdrop.
             "bear_history": bear_history + "\n" + argument,
             "bull_history": investment_debate_state.get("bull_history", ""),
             "current_response": argument,
+            "latest_speaker": "Bear",
             "count": investment_debate_state["count"] + 1,
         }
 

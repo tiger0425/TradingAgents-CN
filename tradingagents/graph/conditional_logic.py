@@ -157,25 +157,53 @@ class ConditionalLogic:
             ).format(reason=reason))
         )
 
+    # ------------------------------------------------------------------
+    # FIX-2: 辩论路由枚举化（基于 latest_speaker，防死循环安全上限）
+    # ------------------------------------------------------------------
     def should_continue_debate(self, state: AgentState) -> str:
-        """Determine if debate should continue."""
+        """基于 latest_speaker 的枚举路由，替代脆弱的 startswith 字符串匹配。"""
+        debate = state["investment_debate_state"]
 
-        if (
-            state["investment_debate_state"]["count"] >= 2 * self.max_debate_rounds
-        ):  # 3 rounds of back-and-forth between 2 agents
+        # 安全上限：防死循环（正常轮数 + 2 轮冗余）
+        max_total = 2 * self.max_debate_rounds + 2
+        if debate["count"] >= max_total:
+            logger.warning(
+                "Debate exceeded safety limit: %d rounds (max=%d)",
+                debate["count"], max_total,
+            )
             return "Research Manager"
-        if state["investment_debate_state"]["current_response"].startswith("Bull"):
+
+        # 枚举路由（与 risk debate 风格一致）
+        speaker = debate.get("latest_speaker", "")
+        if speaker == "Bull":
             return "Bear Researcher"
-        return "Bull Researcher"
+        elif speaker == "Bear":
+            return "Bull Researcher"
+        else:
+            # Fallback: 首轮 latest_speaker 为空 → 从 Bull 开始
+            return "Bull Researcher"
 
     def should_continue_risk_analysis(self, state: AgentState) -> str:
-        """Determine if risk analysis should continue."""
-        if (
-            state["risk_debate_state"]["count"] >= 3 * self.max_risk_discuss_rounds
-        ):  # 3 rounds of back-and-forth between 3 agents
+        """基于 latest_speaker 的枚举路由，替代脆弱的 startswith 字符串匹配。"""
+        risk = state["risk_debate_state"]
+
+        # 安全上限：防死循环（正常轮数 + 2 轮冗余）
+        max_total = 3 * self.max_risk_discuss_rounds + 2
+        if risk["count"] >= max_total:
+            logger.warning(
+                "Risk debate exceeded safety limit: %d rounds (max=%d)",
+                risk["count"], max_total,
+            )
             return "Portfolio Manager"
-        if state["risk_debate_state"]["latest_speaker"].startswith("Aggressive"):
+
+        # 枚举路由（精确匹配，不再依赖 LLM 输出的 startswith）
+        speaker = risk.get("latest_speaker", "")
+        if speaker == "Aggressive":
             return "Conservative Analyst"
-        if state["risk_debate_state"]["latest_speaker"].startswith("Conservative"):
+        elif speaker == "Conservative":
             return "Neutral Analyst"
-        return "Aggressive Analyst"
+        elif speaker == "Neutral":
+            return "Aggressive Analyst"
+        else:
+            # Fallback: 首轮 latest_speaker 为空 → 从 Aggressive 开始
+            return "Aggressive Analyst"

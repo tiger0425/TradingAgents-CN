@@ -74,6 +74,7 @@ Both the Bull and Bear analysts were instructed to state a **本轮核心证据*
             "bear_history": investment_debate_state.get("bear_history", ""),
             "bull_history": investment_debate_state.get("bull_history", ""),
             "current_response": investment_plan,
+            "latest_speaker": "Manager",
             "count": investment_debate_state["count"],
         }
 

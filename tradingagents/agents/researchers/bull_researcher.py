@@ -88,6 +88,7 @@ market tailwind amplifies bullish signals.
             "bull_history": bull_history + "\n" + argument,
             "bear_history": investment_debate_state.get("bear_history", ""),
             "current_response": argument,
+            "latest_speaker": "Bull",
             "count": investment_debate_state["count"] + 1,
         }
 
