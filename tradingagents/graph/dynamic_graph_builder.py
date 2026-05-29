@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Dict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -68,6 +68,15 @@ class DynamicGraphBuilder:
                 setattr(self, f"_clear_node_{agent_id}_{step['step']}", clear_node_name)
                 setattr(self, f"_analyst_node_{agent_id}_{step['step']}", node_name)
 
+        # --- 辩论/风控辩论组检测 ---
+        has_debate = self._detect_debate_group(workflow_steps)
+        has_risk_debate = self._detect_risk_debate_group(workflow_steps)
+        skip_depends_agents = set()
+        if has_debate:
+            skip_depends_agents.update({"bear_researcher", "research_manager"})
+        if has_risk_debate:
+            skip_depends_agents.update({"risk_conservative", "risk_neutral", "portfolio_manager"})
+
         for step in workflow_steps:
             agent_id = step.get("agent", "")
             if agent_id not in node_names.values() and agent_id not in self._known_agents():
@@ -83,6 +92,9 @@ class DynamicGraphBuilder:
                 graph.add_edge(START, start_node)
 
             for dep_num in step.get("depends_on", []):
+                # 辩论/风控辩论组：跳过 depends_on 边，由条件边接管路由
+                if agent_id in skip_depends_agents:
+                    continue
                 if dep_num in node_names:
                     prev_agent = next((s.get("agent", "") for s in workflow_steps if s["step"] == dep_num), "")
                     prev_tool_key = TOOL_KEY_MAP.get(prev_agent)
@@ -93,6 +105,12 @@ class DynamicGraphBuilder:
                         )
                     else:
                         graph.add_edge(node_names[dep_num], node_names[step["step"]])
+
+        # --- 辩论条件边 ---
+        if has_debate:
+            self._add_debate_cycle(graph, workflow_steps, node_names)
+        if has_risk_debate:
+            self._add_risk_debate_cycle(graph, workflow_steps, node_names)
 
         last_step = workflow_steps[-1]
         last_agent = last_step.get("agent", "")
@@ -128,6 +146,69 @@ class DynamicGraphBuilder:
                 {tool_node: tool_node, clear_node: clear_node}
             )
             graph.add_edge(tool_node, analyst_node)
+
+    @staticmethod
+    def _detect_debate_group(workflow_steps):
+        required = {"bull_researcher", "bear_researcher", "research_manager"}
+        agents = {s.get("agent", "") for s in workflow_steps}
+        return required.issubset(agents)
+
+    @staticmethod
+    def _detect_risk_debate_group(workflow_steps):
+        required = {"risk_aggressive", "risk_conservative", "risk_neutral", "portfolio_manager"}
+        agents = {s.get("agent", "") for s in workflow_steps}
+        return required.issubset(agents)
+
+    def _add_debate_cycle(self, graph, workflow_steps, node_names):
+        bull_step = next(s for s in workflow_steps if s["agent"] == "bull_researcher")
+        bear_step = next(s for s in workflow_steps if s["agent"] == "bear_researcher")
+        rm_step = next(s for s in workflow_steps if s["agent"] == "research_manager")
+
+        bull_node = node_names[bull_step["step"]]
+        bear_node = node_names[bear_step["step"]]
+        rm_node = node_names[rm_step["step"]]
+
+        graph.add_conditional_edges(
+            bull_node,
+            self.conditional.should_continue_debate,
+            {"Bear Researcher": bear_node, "Research Manager": rm_node},
+        )
+        graph.add_conditional_edges(
+            bear_node,
+            self.conditional.should_continue_debate,
+            {"Bull Researcher": bull_node, "Research Manager": rm_node},
+        )
+        logger.info("Debate cycle added: Bull ↔ Bear (%d rounds max)",
+                     self.conditional.max_debate_rounds)
+
+    def _add_risk_debate_cycle(self, graph, workflow_steps, node_names):
+        agg_step = next(s for s in workflow_steps if s["agent"] == "risk_aggressive")
+        con_step = next(s for s in workflow_steps if s["agent"] == "risk_conservative")
+        neu_step = next(s for s in workflow_steps if s["agent"] == "risk_neutral")
+        pm_step = next(s for s in workflow_steps if s["agent"] == "portfolio_manager")
+
+        agg_node = node_names[agg_step["step"]]
+        con_node = node_names[con_step["step"]]
+        neu_node = node_names[neu_step["step"]]
+        pm_node = node_names[pm_step["step"]]
+
+        graph.add_conditional_edges(
+            agg_node,
+            self.conditional.should_continue_risk_analysis,
+            {"Conservative Analyst": con_node, "Portfolio Manager": pm_node},
+        )
+        graph.add_conditional_edges(
+            con_node,
+            self.conditional.should_continue_risk_analysis,
+            {"Neutral Analyst": neu_node, "Portfolio Manager": pm_node},
+        )
+        graph.add_conditional_edges(
+            neu_node,
+            self.conditional.should_continue_risk_analysis,
+            {"Aggressive Analyst": agg_node, "Portfolio Manager": pm_node},
+        )
+        logger.info("Risk debate cycle added: Aggressive ↔ Conservative ↔ Neutral (%d rounds max)",
+                     self.conditional.max_risk_discuss_rounds)
 
     def _resolve_node(self, step, node_names):
         return node_names.get(step["step"], "")
