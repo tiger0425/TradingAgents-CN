@@ -91,53 +91,25 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
             if reasoning is not None:
                 message_dict["reasoning_content"] = reasoning
 
-        # Step 2: Sanitize message sequence for DeepSeek's strict ordering
-        # Build a set of all tool_call_ids that have matching ToolMessages.
-        matched = {m["tool_call_id"] for m in outgoing
-                   if m.get("role") == "tool" and "tool_call_id" in m}
+        # Step 2: Prune orphaned tool_calls/ToolMessages for DeepSeek ordering
+        matched_ids = {m["tool_call_id"] for m in outgoing
+                       if m.get("role") == "tool" and "tool_call_id" in m}
         sanitized = []
-        pending_tc_ids = set()
         for msg in outgoing:
             role = msg.get("role", "")
             if role == "assistant" and msg.get("tool_calls"):
-                # Keep only tool_calls that have matching tool responses
                 tcs = msg["tool_calls"]
-                good = [tc for tc in tcs if tc.get("id") in matched]
+                good = [tc for tc in tcs if tc.get("id") in matched_ids]
                 if good:
                     sanitized.append({**msg, "tool_calls": good})
-                    pending_tc_ids = {tc["id"] for tc in good}
                 elif msg.get("content"):
-                    sanitized.append({k: v for k, v in msg.items()
-                                      if k != "tool_calls"})
-                # else: assistant with only unmatched tool_calls, skip entirely
+                    sanitized.append({k: v for k, v in msg.items() if k != "tool_calls"})
+                # else: only orphaned tool_calls, no content → skip
             elif role == "tool":
-                tc_id = msg.get("tool_call_id")
-                if tc_id and tc_id in pending_tc_ids:
+                if msg.get("tool_call_id") in matched_ids:
                     sanitized.append(msg)
-                    pending_tc_ids.discard(tc_id)
             else:
-                if pending_tc_ids:
-                    for i in range(len(sanitized) - 1, -1, -1):
-                        if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
-                            good = [tc for tc in sanitized[i]["tool_calls"]
-                                    if tc.get("id") in pending_tc_ids]
-                            sanitized[i]["tool_calls"] = good
-                            if not good:
-                                del sanitized[i]["tool_calls"]
-                                if not sanitized[i].get("content"):
-                                    sanitized[i]["content"] = "[Tool results processed]"
-                            break
-                    pending_tc_ids = set()
                 sanitized.append(msg)
-
-        # Trailing tool_calls at end: strip them
-        if pending_tc_ids:
-            for i in range(len(sanitized) - 1, -1, -1):
-                if sanitized[i].get("role") == "assistant" and sanitized[i].get("tool_calls"):
-                    del sanitized[i]["tool_calls"]
-                    if not sanitized[i].get("content"):
-                        sanitized[i]["content"] = "[Tool results processed]"
-                    break
 
         payload["messages"] = sanitized
         return payload
