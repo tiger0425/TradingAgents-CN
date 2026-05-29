@@ -124,7 +124,7 @@ class DynamicGraphBuilder:
         has_risk_debate = self._detect_risk_debate_group(workflow_steps)
         skip_depends_agents = set()
         if has_debate:
-            skip_depends_agents.update({"bear_researcher", "research_manager"})
+            skip_depends_agents.update({"bull_researcher", "bear_researcher", "research_manager"})
         if has_risk_debate:
             skip_depends_agents.update({"risk_conservative", "risk_neutral", "portfolio_manager"})
 
