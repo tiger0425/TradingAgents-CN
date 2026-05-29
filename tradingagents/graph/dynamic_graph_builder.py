@@ -36,7 +36,7 @@ ANALYST_AGENTS = {
 
 class DynamicGraphBuilder:
     def __init__(self, quick_thinking_llm, deep_thinking_llm, tool_nodes,
-                 max_debate_rounds=2, max_risk_rounds=2, fan_out_enabled=True):
+                 max_debate_rounds=2, max_risk_rounds=2, fan_out_enabled=False):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes

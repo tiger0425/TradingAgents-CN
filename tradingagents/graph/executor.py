@@ -28,7 +28,7 @@ class GraphExecutor:
         max_debate_rounds: int = 2,
         max_risk_rounds: int = 2,
         max_recur_limit: int = 100,
-        fan_out_enabled: bool = True,
+        fan_out_enabled: bool = False,
         enable_checkpoint: bool = False,
         data_dir: str = "",
     ):
