@@ -753,6 +753,130 @@ def get_cninfo_announcements(code: str, page_size: int = 20) -> str:
 
 
 # ============================================================================
+# 10. 概念板块 (Layer 3.3)
+# ============================================================================
+
+
+def get_concept_blocks(code: str) -> str:
+    """查询个股关联的概念板块、行业板块和地域板块。
+
+    直连百度股市通 PAE API，返回板块名称、涨跌幅和描述。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含板块分类、名称、涨跌幅和描述
+
+    数据源:
+        https://finance.pae.baidu.com/api/getrelatedblock
+    """
+    url = "https://finance.pae.baidu.com/api/getrelatedblock"
+    params = {
+        "code": code,
+        "market": "ab",
+        "typeCode": "all",
+        "finClientType": "pc",
+    }
+    headers = {
+        "User-Agent": UA,
+        "Host": "finance.pae.baidu.com",
+        "Accept": "application/vnd.finance-web.v1+json",
+        "Origin": "https://gushitong.baidu.com",
+        "Referer": "https://gushitong.baidu.com/",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        d = resp.json()
+
+        if str(d.get("ResultCode", -1)) != "0":
+            raise ValueError(f"API 返回异常 ResultCode: {d.get('ResultCode')}")
+
+        result = d.get("Result", [])
+        if not result:
+            return _format_result([], f"概念板块 — {code}")
+
+        # 类型映射
+        type_map = {
+            "industry": "行业",
+            "concept": "概念",
+            "region": "地域",
+        }
+
+        rows: List[Dict[str, Any]] = []
+        for item in result:
+            raw_type = item.get("type", "")
+            rows.append({
+                "分类": type_map.get(raw_type, raw_type),
+                "名称": item.get("name", ""),
+                "涨跌幅": item.get("increase", ""),
+                "描述": item.get("desc", ""),
+            })
+
+        return _format_result(rows, f"概念板块 — {code}")
+    except Exception as e:
+        return f"概念板块查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
+# 10. 强势股题材归因 — 同花顺热点 (Layer 3.1)
+# ============================================================================
+
+
+def get_hot_stock_reasons(date: str = "") -> str:
+    """查询同花顺强势股题材归因。
+
+    直连同花顺热点 API，获取当日强势股及其题材标签（如 "算力租赁+AI"）。
+
+    参数:
+        date: 日期（YYYY-MM-DD），默认当天
+
+    返回:
+        Markdown 格式字符串，包含 code/name/reason/zhangfu/huanshou/chengjiaoe
+        出错时返回错误描述字符串
+    """
+    try:
+        if not date:
+            date = datetime.now().strftime("%Y-%m-%d")
+
+        url = (
+            "http://zx.10jqka.com.cn/event/api/getharden"
+            f"/date/{date}/orderby/date/orderway/desc/charset/GBK/"
+        )
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                " Chrome/117.0.0.0 Safari/537.36"
+            ),
+        }
+
+        resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        body = resp.json()
+
+        if body.get("errocode") != 0:
+            return (
+                f"同花顺热点查询失败: API 返回错误码 {body.get('errocode')}"
+            )
+
+        raw_data = body.get("data", [])
+        rows = []
+        for item in raw_data:
+            rows.append({
+                "code": item.get("code", ""),
+                "name": item.get("name", ""),
+                "reason": item.get("reason", ""),
+                "date": item.get("date", ""),
+            })
+
+        title = f"强势股题材归因 — {date}"
+        return _format_result(rows, title)
+    except Exception as e:
+        return f"同花顺热点查询失败: {str(e)}"
+
+
+# ============================================================================
 # 模块导出
 # ============================================================================
 
@@ -764,6 +888,7 @@ __all__ = [
     "get_lockup_expiry",
     "get_shareholder_count",
     "get_dividend_history",
+    "get_hot_stock_reasons",
     "get_cls_flash",
     "get_cninfo_announcements",
 ]
