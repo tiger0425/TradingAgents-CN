@@ -86,13 +86,18 @@ class DynamicGraphBuilder:
                 merge_name = f"merge_analysts_g{gidx}"
                 graph.add_node(merge_name, self._make_merge_node())
 
-                # Chain analysts sequentially: prev → analyst1 → ... → analystN → merge
+                # Chain analysts sequentially with clear_node between them
                 chain_prev: str = prev_end_node if gidx > 0 else START
                 for step in group:
                     snum = step["step"]
-                    analyst_node_name = f"step{snum}_{step['agent']}"
+                    agent_id = step.get("agent", "")
+                    analyst_node_name = f"step{snum}_{agent_id}"
+                    # Add clear_node between sequential analysts
+                    clr_name = f"clr_between_{agent_id}_{snum}"
+                    graph.add_node(clr_name, create_msg_delete())
                     graph.add_edge(chain_prev, analyst_node_name)
-                    chain_prev = analyst_node_name
+                    graph.add_edge(analyst_node_name, clr_name)
+                    chain_prev = clr_name
                     parallel_steps.add(snum)
                     parallel_meta[snum] = merge_name
                 graph.add_edge(chain_prev, merge_name)
