@@ -181,6 +181,8 @@ class DynamicGraphBuilder:
                             elif prev["step"] in node_names:
                                 graph.add_edge(node_names[prev["step"]], start_node)
                             break
+                    else:
+                        graph.add_edge(START, start_node)
                 else:
                     graph.add_edge(START, start_node)
 
