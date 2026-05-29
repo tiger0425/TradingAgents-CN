@@ -36,6 +36,7 @@
 - [2026-05] **国信证券数据源接入**：`dataflows/guosen.py` 提供实时行情、财务三表、宏观经济、智能选股、基金对比、ETF 筛选等 13 个数据函数。
 - [2026-05] **知识消费体系上线**：ContextAssembly 节点自动装配历史知识（CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），统一 DataCache 缓存层，三重缓存检查链。
 - [2026-05] **分析存档 + Wiki + MCP Server**：分析结果自动归档，按 ticker/日期/决策检索。Wiki 导航 + MCP 工具暴露 6 个知识查询接口。
+- [2026-05] **a-stock-data 数据源接入**：`dataflows/a_stock_data.py` 基于 simonlin1212/a-stock-data V3.1，覆盖 A 股龙虎榜（个股+全市场）、融资融券、大宗交易、限售解禁、股东户数变化（筹码集中度）、分红送转、财联社快讯、巨潮公告等 9 个缺失端点。直连 HTTP API，全部免费无 Key。
 
 ---
 
@@ -227,6 +228,7 @@ DEFAULT_CONFIG = {
         "core_stock_apis": "akshare",
         "macro_economic": "guosen",
         "stock_screening": "guosen",
+        "specialty_data": "a_stock_data",
     },
 }
 ```

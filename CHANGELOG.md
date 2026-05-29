@@ -12,6 +12,11 @@ Breaking changes within the 0.x line are called out explicitly.
 ### Added
 
 - **测试基础设施** — 新增 `tests/test_debate_routing.py`（辩论路由枚举化单元测试）、`tests/test_model_validation.py`（validate_model 调用全覆盖）、`tests/test_analysts_parallel.py`（分析师并行执行集成测试）、`tests/test_tool_loop_detection.py`（工具循环检测测试）。所有测试在无 API key 环境下可独立运行。
+- **a-stock-data 数据源（Phase 1）** — `dataflows/a_stock_data.py`（769 行，基于 simonlin1212/a-stock-data V3.1）：九大 A 股特色数据直连 HTTP API，零第三方封装依赖。覆盖：(1) 龙虎榜个股席位 + (2) 全市场龙虎榜、(3) 融资融券明细、(4) 大宗交易、(5) 限售解禁日历、(6) 股东户数变化（含筹码集中度分析）、(7) 分红送转历史、(8) 财联社实时快讯、(9) 巨潮公告全文检索。全部免费无 Key。
+- **新依赖** — `mootdx>=0.11.7`（通达信行情 TCP 接口，可选安装，lazy import）。
+- **数据商配置更新** — `default_config.py` 的 `data_vendors` 新增 `specialty_data: "a_stock_data"` 分类。
+- **路由系统接入** — `interface.py` 新增 `specialty_data` 工具分类（9 个特色工具），`VENDOR_METHODS` 注册 9 个 `a_stock_data` 独有能力；`agents/utils/a_stock_data_tools.py` 封装全部 LangChain Tool 包装器。
+- **冒烟测试** — `tests/test_a_stock_data.py`（19 个 `@pytest.mark.smoke` 用例，覆盖 9 端点正负例）。
 - **11 项架构缺陷修复（FIX-0 ~ FIX-10）**：
   - **FIX-0: `validate_model()` 调用修复** — bootstrap.py 中 `_create_llms()` 启动时对所有 LLM 配置执行模型名校验，factory.py 中的 `get_llm()` 也同步添加校验。未知模型只发警告不阻塞启动，符合生产宽容原则。
   - **FIX-1: 分析师并行化（`fan_out_enabled`）** — 使用 LangGraph Send API 实现扇出-汇聚模式，4 个分析师从串行（~270s）改为并行执行（~90s），延迟降低约 67%。默认开启，可通过 `fan_out_enabled: false` 回退串行模式。
