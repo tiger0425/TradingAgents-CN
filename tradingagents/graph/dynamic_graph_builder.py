@@ -107,16 +107,24 @@ class DynamicGraphBuilder:
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
                     self._add_tool_cycle(graph, agent_id, step["step"])
-                # Check if a PREVIOUS step writes to the same state key → add dependency
+                # Avoid parallel writes to the same state key: if a previous step
+                # writes to the same key, route from its clear_node (not START).
+                added_dep = False
                 state_key = _STATE_KEYS.get(agent_id)
                 if state_key:
                     for prev in workflow_steps[:step["step"]-1]:
-                        if _STATE_KEYS.get(prev.get("agent", "")) == state_key:
+                        prev_agent = prev.get("agent", "")
+                        if _STATE_KEYS.get(prev_agent) == state_key:
                             prev_num = prev["step"]
-                            if prev_num in node_names:
+                            prev_clear = getattr(self, f"_clear_node_{prev_agent}_{prev_num}", None)
+                            if prev_clear:
+                                graph.add_edge(prev_clear, start_node)
+                            elif prev_num in node_names:
                                 graph.add_edge(node_names[prev_num], start_node)
-                                break
-                graph.add_edge(START, start_node)
+                            added_dep = True
+                            break
+                if not added_dep:
+                    graph.add_edge(START, start_node)
 
             for dep_num in step.get("depends_on", []):
                 # 辩论/风控辩论组：跳过 depends_on 边，由条件边接管路由
