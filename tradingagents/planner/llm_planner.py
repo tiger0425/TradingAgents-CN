@@ -57,7 +57,13 @@ class LLMPlanner:
         if self.kb:
             kb_ctx = self._query_kb(trigger, context)
 
-        if kb_ctx.coverage_score >= 0.7:
+        weighted_coverage = kb_ctx.coverage_detail.get("weighted_coverage", kb_ctx.coverage_score)
+        stale_items = kb_ctx.coverage_detail.get("stale_items", [])
+
+        if stale_items:
+            logger.info("KB stale items: %s — will NOT skip analysis", stale_items)
+
+        if weighted_coverage >= 0.7 and not stale_items:
             return self._plan_with_kb(kb_ctx, trigger, context)
 
         match = self.template_matcher.match(trigger, context)
@@ -68,6 +74,7 @@ class LLMPlanner:
         return KBContext(
             results=raw.get("results", []),
             coverage_score=raw.get("coverage_score", 0.0),
+            coverage_detail=raw.get("coverage_detail", {}),
             missing_aspects=raw.get("missing_aspects", []),
         )
 

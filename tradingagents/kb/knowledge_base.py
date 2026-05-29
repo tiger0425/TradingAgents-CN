@@ -11,11 +11,24 @@ Data is stored under ~/.tradingagents/kb/ as:
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .freshness import FreshnessManager, FRESH, STALE, EXPIRED
+
+# 时效衰减配置（半衰期，秒）
+# decay = 0.5 ^ (age / half_life)
+DECAY_CONFIG: Dict[str, int] = {
+    "market_snapshot":     600,    # 市场快照：10 分钟半衰期
+    "sentiment_report":    300,    # 舆情报告：5 分钟半衰期
+    "announcement_brief":  1800,   # 公告摘要：30 分钟半衰期
+    "policy_brief":        3600,   # 政策简报：60 分钟半衰期
+    "stock_snapshot":      1800,   # 个股快照：30 分钟半衰期
+}
+# 衰减 < 0.25 → 标记为 stale
+STALE_THRESHOLD = 0.25
 
 logger = logging.getLogger(__name__)
 
@@ -134,27 +147,103 @@ class KnowledgeBase:
             if matching:
                 results["policy_briefs"] = matching
 
-        coverage, missing = self._calculate_coverage(results, trigger)
+        weighted_coverage, detail = self._calculate_coverage(results)
         return {
             "results": list(results.values()),
-            "coverage_score": coverage,
-            "missing_aspects": missing,
+            "coverage_score": weighted_coverage,
+            "coverage_detail": detail,
+            "missing_aspects": detail.get("stale_items", []),
         }
 
-    def _calculate_coverage(self, results: Dict, trigger) -> tuple:
-        required = {
-            "晨会": ["market_snapshot", "announcement_brief"],
-            "午评": ["market_snapshot"],
-            "收盘复盘": ["market_snapshot"],
-            "周日选股": ["market_snapshot"],
+    def _calculate_coverage(self, results: Dict) -> Tuple[float, dict]:
+        """计算 KB 覆盖率（含时效衰减）。
+
+        对 results 中每条数据计算指数衰减:
+            decay = 0.5 ^ (age / half_life)
+        其中 half_life 按 collection 差异化配置。
+
+        Args:
+            results: {collection_name: data_or_list} 的字典
+
+        Returns:
+            (weighted_coverage, detail_dict)
+            detail_dict 包含:
+                raw_coverage: float      原始覆盖率
+                weighted_coverage: float 时效加权覆盖率
+                stale_items: list[str]   已过时效的数据项
+        """
+        total_weight = 0.0
+        available_weight = 0.0
+        stale_items: List[str] = []
+
+        for result_key, data in results.items():
+            collection_name = self._normalize_collection_key(result_key)
+            half_life = DECAY_CONFIG.get(collection_name, 1800)
+            base_weight = 1.0
+
+            if data is not None:
+                # 处理 dict（单个条目）或 list（如 policy_briefs）
+                if isinstance(data, list):
+                    timestamps = [self._extract_timestamp(item) for item in data if isinstance(item, dict)]
+                    timestamp = max(timestamps) if timestamps else 0.0
+                else:
+                    timestamp = self._extract_timestamp(data)
+
+                if timestamp > 0:
+                    age_seconds = time.time() - timestamp
+                    decay_factor = 0.5 ** (age_seconds / half_life)
+                    available_weight += base_weight * decay_factor
+
+                    if decay_factor < STALE_THRESHOLD:
+                        stale_items.append(result_key)
+                else:
+                    stale_items.append(result_key)
+
+            total_weight += base_weight
+
+        raw_coverage = available_weight / total_weight if total_weight > 0 else 0.0
+        stale_penalty = len(stale_items) * 0.1
+        weighted_coverage = max(0.0, raw_coverage - stale_penalty)
+
+        return weighted_coverage, {
+            "raw_coverage": raw_coverage,
+            "weighted_coverage": weighted_coverage,
+            "stale_items": stale_items,
         }
-        task = getattr(trigger, "task", "") or getattr(trigger, "type", "")
-        needed = required.get(task, ["market_snapshot"])
-        if not needed:
-            return 1.0, []
-        covered = sum(1 for n in needed if n in results)
-        missing = [n for n in needed if n not in results]
-        return covered / len(needed), missing
+
+    @staticmethod
+    def _normalize_collection_key(key: str) -> str:
+        """将 results 中的 key 标准化为 collection 名称。
+
+        处理 query_for_event 中使用的复数形式:
+            policy_briefs → policy_brief
+        """
+        plural_to_singular = {
+            "policy_briefs": "policy_brief",
+            "announcement_briefs": "announcement_brief",
+            "sentiment_reports": "sentiment_report",
+            "market_snapshots": "market_snapshot",
+            "stock_snapshots": "stock_snapshot",
+        }
+        return plural_to_singular.get(key, key)
+
+    @staticmethod
+    def _extract_timestamp(data) -> float:
+        """从 KB 数据中提取 unix 时间戳。
+
+        优先级: _ts > collected_at (ISO) > 0 (unknown)
+        """
+        ts = data.get("_ts", 0)
+        if not ts:
+            collected_at = data.get("collected_at", "")
+            if collected_at:
+                try:
+                    ts = datetime.fromisoformat(collected_at).timestamp()
+                except (ValueError, TypeError, OSError):
+                    return 0.0
+        if isinstance(ts, (int, float)) and ts > 0:
+            return float(ts)
+        return 0.0
 
     # ------------------------------------------------------------------
     # Freshness summary for dashboard

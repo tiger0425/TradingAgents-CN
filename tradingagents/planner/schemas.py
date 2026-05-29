@@ -24,6 +24,7 @@ class Context:
 class KBContext:
     results: List[Dict[str, Any]] = field(default_factory=list)
     coverage_score: float = 0.0
+    coverage_detail: Dict[str, Any] = field(default_factory=dict)
     missing_aspects: List[str] = field(default_factory=list)
 
 
