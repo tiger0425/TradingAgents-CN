@@ -91,24 +91,22 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
             if reasoning is not None:
                 message_dict["reasoning_content"] = reasoning
 
-        # Step 2: Prune orphaned tool_calls/ToolMessages for DeepSeek ordering
-        matched_ids = {m["tool_call_id"] for m in outgoing
-                       if m.get("role") == "tool" and "tool_call_id" in m}
+        # Step 2: Prune orphaned tool_calls/ToolMessages for DeepSeek ordering.
+        current_tc_ids = set()
         sanitized = []
         for msg in outgoing:
             role = msg.get("role", "")
             if role == "assistant" and msg.get("tool_calls"):
                 tcs = msg["tool_calls"]
-                good = [tc for tc in tcs if tc.get("id") in matched_ids]
-                if good:
-                    sanitized.append({**msg, "tool_calls": good})
-                elif msg.get("content"):
-                    sanitized.append({k: v for k, v in msg.items() if k != "tool_calls"})
-                # else: only orphaned tool_calls, no content → skip
+                current_tc_ids = {tc.get("id") for tc in tcs if "id" in tc}
+                sanitized.append(msg)
             elif role == "tool":
-                if msg.get("tool_call_id") in matched_ids:
+                tc_id = msg.get("tool_call_id")
+                if tc_id and tc_id in current_tc_ids:
                     sanitized.append(msg)
+                    current_tc_ids.discard(tc_id)
             else:
+                current_tc_ids = set()
                 sanitized.append(msg)
 
         payload["messages"] = sanitized
