@@ -63,7 +63,7 @@ def create_fundamentals_analyst(llm):
         # If only non-tool messages, chain gets all of them = also valid
         if not filtered:
             filtered = [HumanMessage(content="Continue")]
-        result = chain.invoke(filtered)
+        result = chain.invoke([])
 
         report = result.content if result.content else ""
 
