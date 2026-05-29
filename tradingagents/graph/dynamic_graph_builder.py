@@ -27,6 +27,14 @@ TOOL_KEY_MAP = {
     "macro_analyst": "market",
 }
 
+_STATE_KEYS = {
+    "market_analyst": "market_report",
+    "macro_analyst": "market_report",
+    "fundamentals_analyst": "fundamentals_report",
+    "news_analyst": "news_report",
+    "social_analyst": "sentiment_report",
+}
+
 
 ANALYST_AGENTS = {
     "market_analyst", "fundamentals_analyst", "news_analyst",
@@ -162,7 +170,19 @@ class DynamicGraphBuilder:
                 tool_key = TOOL_KEY_MAP.get(agent_id)
                 if tool_key and tool_key in self.tool_nodes and agent_id in tool_keys_used:
                     self._add_tool_cycle(graph, agent_id, step["step"])
-                graph.add_edge(START, start_node)
+                # Route from previous same-state-key analyst's clear_node (not START)
+                state_key = _STATE_KEYS.get(agent_id)
+                if state_key:
+                    for prev in workflow_steps[:step["step"] - 1]:
+                        if _STATE_KEYS.get(prev.get("agent", "")) == state_key:
+                            prev_clear = getattr(self, f"_clear_node_{prev['agent']}_{prev['step']}", None)
+                            if prev_clear:
+                                graph.add_edge(prev_clear, start_node)
+                            elif prev["step"] in node_names:
+                                graph.add_edge(node_names[prev["step"]], start_node)
+                            break
+                else:
+                    graph.add_edge(START, start_node)
 
             for dep_num in step.get("depends_on", []):
                 # 辩论/风控辩论组：跳过 depends_on 边，由条件边接管路由
