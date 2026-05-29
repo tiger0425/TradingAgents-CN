@@ -90,8 +90,8 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                             if clean[i].get("content"):
                                 del clean[i]["tool_calls"]
                             else:
-                                clean[i]["tool_calls"] = []
-                                clean[i]["content"] = "[Tool results processed]"
+                                clean[i]["content"] = "[Tool results]"
+                            del clean[i]["tool_calls"]
                             break
                 clean.append(msg)
                 pending_tc_ids = {tc["id"] for tc in msg["tool_calls"] if "id" in tc}
@@ -103,22 +103,18 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                 if pending_tc_ids:
                     for i in range(len(clean) - 1, -1, -1):
                         if clean[i].get("role") == "assistant" and clean[i].get("tool_calls"):
-                            if clean[i].get("content"):
-                                del clean[i]["tool_calls"]
-                            else:
-                                clean[i]["tool_calls"] = []
-                                clean[i]["content"] = "[Tool results processed]"
+                            if not clean[i].get("content"):
+                                clean[i]["content"] = "[Tool results]"
+                            del clean[i]["tool_calls"]
                             break
                     pending_tc_ids = set()
                 clean.append(msg)
         if pending_tc_ids:
             for i in range(len(clean) - 1, -1, -1):
                 if clean[i].get("role") == "assistant" and clean[i].get("tool_calls"):
-                    if clean[i].get("content"):
-                        del clean[i]["tool_calls"]
-                    else:
-                        clean[i]["tool_calls"] = []
-                        clean[i]["content"] = "[Tool results processed]"
+                    if not clean[i].get("content"):
+                        clean[i]["content"] = "[Tool results]"
+                    del clean[i]["tool_calls"]
                     break
         payload["messages"] = clean
         return payload
