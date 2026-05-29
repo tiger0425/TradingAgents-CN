@@ -6,6 +6,7 @@ from collections import Counter
 from langchain_core.messages import HumanMessage
 
 from tradingagents.agents.utils.agent_states import AgentState
+from tradingagents.graph.debate_quality import DebateQualityTracker
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,15 @@ logger = logging.getLogger(__name__)
 class ConditionalLogic:
     """Handles conditional logic for determining graph flow."""
 
-    def __init__(self, max_debate_rounds=1, max_risk_discuss_rounds=1):
+    def __init__(self, max_debate_rounds=2, max_risk_discuss_rounds=2):
         """Initialize with configuration parameters."""
         self.max_debate_rounds = max_debate_rounds
         self.max_risk_discuss_rounds = max_risk_discuss_rounds
         # 工具调用限制（FIX-8）
         self.max_tool_calls_per_analyst = 12      # 每个分析师最多 12 次工具调用
         self.max_repeat_calls = 3                 # 同一工具+参数最多重复 3 次
+        # 辩论质量追踪器（FIX-5）
+        self.quality_tracker = DebateQualityTracker()
 
     # ------------------------------------------------------------------
     # FIX-8: 工具调用死循环检测
@@ -159,9 +162,10 @@ class ConditionalLogic:
 
     # ------------------------------------------------------------------
     # FIX-2: 辩论路由枚举化（基于 latest_speaker，防死循环安全上限）
+    # FIX-5: 集成辩论质量追踪 — 提前终止低质量辩论
     # ------------------------------------------------------------------
     def should_continue_debate(self, state: AgentState) -> str:
-        """基于 latest_speaker 的枚举路由，替代脆弱的 startswith 字符串匹配。"""
+        """基于 latest_speaker 的枚举路由 + 质量驱动的提前终止。"""
         debate = state["investment_debate_state"]
 
         # 安全上限：防死循环（正常轮数 + 2 轮冗余）
@@ -172,6 +176,25 @@ class ConditionalLogic:
                 debate["count"], max_total,
             )
             return "Research Manager"
+
+        # --- FIX-5: 质量评估与提前终止 ---
+        current_response = debate.get("current_response", "")
+        count = debate.get("count", 0)
+        if current_response and count > 0:
+            # 每轮辩论后记录质量评分
+            self.quality_tracker.evaluate_from_state(debate, current_response)
+
+            # 完成正常轮数后开启质量检查（允许提前终止但不能增加轮数）
+            if count >= 2 * self.max_debate_rounds:
+                decision = self.quality_tracker.should_continue_with_quality(
+                    debate, self.max_debate_rounds
+                )
+                if decision == "terminate":
+                    logger.info(
+                        "Debate terminated early at round %d: quality degradation detected",
+                        count,
+                    )
+                    return "Research Manager"
 
         # 枚举路由（与 risk debate 风格一致）
         speaker = debate.get("latest_speaker", "")

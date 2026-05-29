@@ -25,8 +25,8 @@ class GraphExecutor:
         quick_thinking_llm,
         deep_thinking_llm,
         tool_nodes: Dict[str, ToolNode],
-        max_debate_rounds: int = 1,
-        max_risk_rounds: int = 1,
+        max_debate_rounds: int = 2,
+        max_risk_rounds: int = 2,
         max_recur_limit: int = 100,
     ):
         self.quick_llm = quick_thinking_llm

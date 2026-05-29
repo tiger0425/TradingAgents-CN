@@ -30,7 +30,7 @@ TOOL_KEY_MAP = {
 
 class DynamicGraphBuilder:
     def __init__(self, quick_thinking_llm, deep_thinking_llm, tool_nodes,
-                 max_debate_rounds=1, max_risk_rounds=1):
+                 max_debate_rounds=2, max_risk_rounds=2):
         self.quick_llm = quick_thinking_llm
         self.deep_llm = deep_thinking_llm
         self.tool_nodes = tool_nodes
