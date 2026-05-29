@@ -363,15 +363,15 @@ class DynamicGraphBuilder:
                 # Flush group if this agent shares a state key with any existing member
                 agent_key = key_map.get(agent)
                 if agent_key and any(key_map.get(m.get("agent", "")) == agent_key for m in current_group):
-                    if len(current_group) >= 2:
+                    if current_group:  # flush all accumulated
                         groups.append(current_group)
                     current_group = []
                 current_group.append(step)
             else:
-                if len(current_group) >= 2:
+                if len(current_group) >= 1:
                     groups.append(current_group)
                 current_group = []
-        if len(current_group) >= 2:
+        if len(current_group) >= 1:
             groups.append(current_group)
         return groups
 

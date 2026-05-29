@@ -1,3 +1,4 @@
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news, get_degradation_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
@@ -49,11 +50,11 @@ def create_social_media_analyst(llm):
         cleaned = []
         pending_tool_ids = set()
         for m in msgs:
-            if hasattr(m, "tool_calls") and m.tool_calls:
-                tc_ids = {tc.get("id", "") for tc in m.tool_calls if hasattr(tc, "get")}
+            if isinstance(m, AIMessage) and m.tool_calls:
+                tc_ids = {tc["id"] for tc in m.tool_calls if "id" in tc}
                 pending_tool_ids |= tc_ids
                 cleaned.append(m)
-            elif hasattr(m, "name") and m.name == "tool" and hasattr(m, "tool_call_id"):
+            elif isinstance(m, ToolMessage):
                 if m.tool_call_id in pending_tool_ids:
                     pending_tool_ids.discard(m.tool_call_id)
                     cleaned.append(m)
