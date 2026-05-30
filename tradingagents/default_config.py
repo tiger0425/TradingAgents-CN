@@ -46,13 +46,17 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "akshare",       # Options: akshare, guosen, alpha_vantage, yfinance
-        "technical_indicators": "akshare",  # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
-        "fundamental_data": "akshare",      # Options: akshare, guosen, alpha_vantage, yfinance
+        "core_stock_apis": "akshare",       # Options: akshare, guosen, alpha_vantage, yfinance, a_stock_data
+        "technical_indicators": "akshare",  # Options: akshare, alpha_vantage, yfinance, a_stock_data (guosen 不支持)
+        "fundamental_data": "akshare",      # Options: akshare, guosen, alpha_vantage, yfinance, a_stock_data
         "news_data": "akshare",             # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
         "macro_economic": "guosen",         # 宏观经济数据 (仅 guosen)
         "stock_screening": "guosen",        # 选股/ETF筛选/基金对比/排行 (仅 guosen)
         "specialty_data": "a_stock_data",  # 龙虎榜/融资融券/大宗交易/解禁/股东户数/分红/快讯/公告
+        # 以下为 a_stock_data 可选切换（取消注释即可启用）：
+        # "core_stock_apis": "a_stock_data",       # 可选：切换到 mootdx TCP 直连
+        # "fundamental_data": "a_stock_data",      # 可选：切换到腾讯财经 PE/PB
+        # "technical_indicators": "a_stock_data",  # 可选：切换到 mootdx + stockstats
     },
     # Benchmark index for alpha calculation
     "benchmark_ticker": "000300",       # A-share: 沪深300 CSI 300 index

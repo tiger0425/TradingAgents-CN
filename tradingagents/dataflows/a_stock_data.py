@@ -34,7 +34,7 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import time
 
@@ -239,6 +239,148 @@ def _load_ohlcv_mootdx(symbol: str, curr_date: str) -> pd.DataFrame:
         raise
     except Exception as e:
         raise RuntimeError(f"mootdx OHLCV 数据获取失败 ({symbol}): {e}")
+
+
+# ============================================================================
+# 公开包装函数 — 供 interface.py route_to_vendor 调度
+# ============================================================================
+
+
+def get_stock_data_a(symbol: str, start_date: str, end_date: str) -> str:
+    """获取 A 股日线 K 线数据（通过 mootdx TCP 直连）。
+
+    参数:
+        symbol:    股票代码，如 "600519"
+        start_date: 起始日期 "YYYY-MM-DD"
+        end_date:   截止日期 "YYYY-MM-DD"
+
+    返回:
+        Markdown 格式字符串，程序化行情数据
+    """
+    try:
+        data = _load_ohlcv_mootdx(symbol, end_date)
+
+        # 按 start_date 过滤
+        data = data[data["Date"] >= pd.Timestamp(start_date)]
+        data = data.sort_values("Date", ascending=False)
+
+        # 转 dict 列表并处理日期格式
+        rows = data.to_dict(orient="records")
+        for row in rows:
+            row["Date"] = str(row["Date"])[:10]
+            for c in ("Open", "High", "Low", "Close", "Volume"):
+                if c in row and row[c] is not None:
+                    try:
+                        row[c] = round(float(row[c]), 2)
+                    except (ValueError, TypeError):
+                        pass
+
+        return _format_result(rows, f"K线数据 — {symbol}")
+    except Exception as e:
+        return f"行情查询失败: {str(e)}"
+
+
+def get_fundamentals_a(ticker: str, curr_date: Optional[str] = None) -> str:
+    """获取 A 股个股基本面信息（PE/市值/股东户数等）。
+
+    委托给 get_stock_info（东财 push2 接口），curr_date 参数忽略。
+
+    参数:
+        ticker:    股票代码，如 "600519"
+        curr_date: 忽略（腾讯财经/东财返回实时数据）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_stock_info(ticker)
+    except Exception as e:
+        return f"基本面查询失败: {str(e)}"
+
+
+def get_indicators_a(
+    symbol: str,
+    indicator: str,
+    curr_date: str = "",
+    look_back_days: int = 30,
+) -> str:
+    """获取 A 股技术指标（通过 mootdx + stockstats）。
+
+    参数:
+        symbol:         股票代码，如 "600519"
+        indicator:      指标名，如 "rsi_14", "macd", "kdj_k", "sma_5"
+        curr_date:      截止日期 "YYYY-MM-DD"，默认当天
+        look_back_days: 回看天数（暂未使用，_load_ohlcv_mootdx 取约 5 年数据）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        if not curr_date:
+            curr_date = datetime.now().strftime("%Y-%m-%d")
+
+        data = _load_ohlcv_mootdx(symbol, curr_date)
+        if data.empty:
+            return f"指标查询失败: 未获取到 {symbol} 的行情数据"
+
+        # stockstats 需要小写列名
+        data = data.rename(
+            columns={
+                "Date": "date",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Volume": "volume",
+            }
+        )
+        data = data.sort_values("date")
+
+        from stockstats import wrap as stockstats_wrap
+
+        stock = stockstats_wrap(data)
+
+        # 常用指标名 → stockstats 内部列名映射
+        col_map = {
+            "rsi_14": "rsi_14",
+            "rsi": "rsi_14",
+            "macd": "macd",
+            "macd_diff": "macd_diff",
+            "macd_dea": "macd_dea",
+            "kdj_k": "kdjk_9_3_3",
+            "kdj_d": "kdjd_9_3_3",
+            "kdj_j": "kdjj_9_3_3",
+            "boll_upper": "boll_upper_20_2",
+            "boll_mid": "boll_mid_20_2",
+            "boll_lower": "boll_lower_20_2",
+            "sma_5": "close_5_sma",
+            "sma_10": "close_10_sma",
+            "sma_20": "close_20_sma",
+            "sma_30": "close_30_sma",
+        }
+
+        col = col_map.get(indicator, indicator)
+
+        if col not in stock.columns:
+            return (
+                f"指标查询失败: 不支持指标 '{indicator}'\n"
+                f"可用指标: {', '.join(sorted(set(col_map.keys())))}\n"
+            )
+
+        latest_val = stock[col].iloc[-1]
+        if isinstance(latest_val, (int, float)):
+            val_str = f"{latest_val:.4f}"
+        else:
+            val_str = str(latest_val)
+
+        return (
+            f"## 技术指标 — {symbol}\n\n"
+            f"- 指标: **{indicator}**\n"
+            f"- 当前值: **{val_str}**\n"
+            f"- 截止日期: {curr_date}"
+        )
+    except Exception as e:
+        return f"指标查询失败: {str(e)}"
 
 
 # ============================================================================
@@ -1677,4 +1819,8 @@ __all__ = [
     "get_global_news_em",
     "get_baidu_kline_ma",
     "get_fund_flow_120d",
+    # 公开包装函数 — 供 interface.py 路由
+    "get_stock_data_a",
+    "get_fundamentals_a",
+    "get_indicators_a",
 ]

@@ -60,10 +60,14 @@ from .a_stock_data import (
     get_cninfo_announcements,
     get_concept_blocks,
     get_hot_stock_reasons,
+    get_stock_data_a,
+    get_fundamentals_a,
+    get_indicators_a,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
 # Configuration and routing logic
+from typing import Optional
 from .config import get_config
 
 
@@ -108,6 +112,23 @@ def _guosen_is_(ticker: str, freq: str = "annual", curr_date: str = "") -> str:
     rtype = report_map.get(freq, "Q0")
     year = curr_date[:4] if curr_date else None
     return guosen_income_statement(ticker, report_type=rtype, report_year=year)
+
+
+# ---- a_stock_data adapter wrappers (unify signatures with standard tool interface) ----
+
+def _a_stock_data_stock(symbol: str, start_date: str, end_date: str) -> str:
+    """Adapt a_stock_data get_stock_data_a to standard (symbol, start, end) signature."""
+    return get_stock_data_a(symbol, start_date, end_date)
+
+
+def _a_stock_data_fundamentals(ticker: str, curr_date: Optional[str] = None) -> str:
+    """Adapt a_stock_data get_fundamentals_a to standard (ticker, curr_date) signature."""
+    return get_fundamentals_a(ticker, curr_date)
+
+
+def _a_stock_data_indicators(symbol: str, indicator: str, curr_date: str = "", look_back_days: int = 30) -> str:
+    """Adapt a_stock_data get_indicators_a to standard (symbol, indicator, curr_date, look_back) signature."""
+    return get_indicators_a(symbol, indicator, curr_date, look_back_days)
 
 
 # ---- Tool categories (extended with guosen-unique capabilities) ----
@@ -188,6 +209,7 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
         "guosen": _guosen_stock_data,
+        "a_stock_data": _a_stock_data_stock,
     },
     "get_current_price": {
         "akshare": get_akshare_current_price,
@@ -199,12 +221,14 @@ VENDOR_METHODS = {
         "akshare": get_akshare_indicators,
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
+        "a_stock_data": _a_stock_data_indicators,
     },
     # fundamental_data
     "get_fundamentals": {
         "akshare": get_akshare_fundamentals,
         "alpha_vantage": get_alpha_vantage_fundamentals,
         "yfinance": get_yfinance_fundamentals,
+        "a_stock_data": _a_stock_data_fundamentals,
     },
     "get_balance_sheet": {
         "akshare": get_akshare_balance_sheet,
