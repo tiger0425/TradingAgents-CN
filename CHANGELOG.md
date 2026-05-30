@@ -29,6 +29,18 @@ Breaking changes within the 0.x line are called out explicitly.
   - **FIX-8: 工具调用死循环检测（`fix_tool_loop_detection`）** — 滑动窗口（最近 10 次调用）+ 模式匹配（重复工具+相同参数）检测循环，超过阈值自动中断并触发降级路径。
   - **FIX-9: 文件并发安全（`fix_concurrency_lock`）** — `filelock` 库保护所有文件写入（KB/缓存/日志），避免多线程/多进程并发写入导致数据损坏。
   - **FIX-10: 因果链追踪日志（`fix_causal_trace`）** — 每个 Agent 节点自动记录 (decision, basis, source) 三元组，输出到 `causal_trace.jsonl`。可在 UI 或 CLI 中回溯"为什么做出此决策"。
+- **Phase 3: akshare 依赖递进替换** — 4 个核心函数切换为直连 HTTP：
+  - `_load_ohlcv_akshare()` → mootdx TCP（通达信 K 线，替换 `ak.stock_zh_a_daily`）
+  - `get_real_time_quotes()` → 东财 push2（替换 `ak.stock_zh_a_spot_em`）
+  - `get_individual_notices()` → 巨潮 cninfo（替换 `ak.stock_individual_notice_report`）
+  - `get_fundamentals()` → 腾讯财经（替换 `ak.stock_financial_analysis_indicator`）
+  所有替换保持函数签名和返回格式不变，6 个调用者零改动。
+
+- **a-stock-data 28 端点整合完成 26/28（93%）** — 新增 10 个端点：
+  资金流向(分钟)、120日资金流、个股新闻、东财全球资讯、个股基础信息、
+  百度K线 MA5/10/20、新浪财报三表、东财研报列表、同花顺一致预期 EPS、
+  mootdx 季报快照(37字段)、mootdx F10 公司资料(9大类)。
+  仅剩 iwencai NL 语义搜索未整合（需 API Key）。
 
 ## [0.2.8-cn] — 2026-05-11
 

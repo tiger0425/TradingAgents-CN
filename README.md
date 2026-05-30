@@ -37,6 +37,7 @@
 - [2026-05] **知识消费体系上线**：ContextAssembly 节点自动装配历史知识（CONFIRMED/SINGLE/CONFLICTING/STALE 置信度标签），统一 DataCache 缓存层，三重缓存检查链。
 - [2026-05] **分析存档 + Wiki + MCP Server**：分析结果自动归档，按 ticker/日期/决策检索。Wiki 导航 + MCP 工具暴露 6 个知识查询接口。
 - [2026-05] **a-stock-data 数据源接入**：`dataflows/a_stock_data.py` 基于 simonlin1212/a-stock-data V3.1，覆盖 A 股龙虎榜（个股+全市场）、融资融券、大宗交易、限售解禁、股东户数变化（筹码集中度）、分红送转、财联社快讯、巨潮公告等 9 个缺失端点。直连 HTTP API，全部免费无 Key。
+- [2026-05] **a-stock-data 28 端点全面整合**：经过 Phase 1/2/3 三个阶段的递进替换，已完成 26/28（93%）端点直连覆盖，涵盖行情、研报、信号、资金、新闻、基础数据、公告 7 层。akshare 核心依赖从 10 个函数降至 4 个。
 
 ---
 
@@ -229,6 +230,7 @@ DEFAULT_CONFIG = {
         "macro_economic": "guosen",
         "stock_screening": "guosen",
         "specialty_data": "a_stock_data",
+        "fundamental_data": "a_stock_data",  # 新增：腾讯财经PE/PB/市值
     },
 }
 ```
