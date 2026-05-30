@@ -623,95 +623,12 @@ def get_global_news(
     look_back_days: Annotated[int, "Number of days to look back"] = 7,
     limit: Annotated[int, "Maximum number of articles to return"] = 5,
 ) -> str:
-    """Retrieve global/macro financial news relevant to A-share markets.
-
-    Uses akshare's stock_info_global_em() (East Money global financial news)
-    as the primary source, with fallback to stock_info_sse().
-
-    Returns Markdown-formatted string.
-    """
+    """查询全球财经新闻（委托 a_stock_data）。"""
     try:
-        _ensure_akshare()
-
-        curr_dt = _to_date(curr_date)
-        start_dt = curr_dt - relativedelta(days=look_back_days)
-
-        all_news = []
-
-        # Primary source: East Money global financial info
-        try:
-            global_df = ak.stock_info_global_em()
-            if global_df is not None and not global_df.empty:
-                # Columns vary by API version; try common column names
-                for _, row in global_df.head(limit * 2).iterrows():
-                    title = (
-                        row.get("标题", "")
-                        or row.get("title", "")
-                        or row.get("名称", "")
-                    )
-                    content = (
-                        row.get("内容", "")
-                        or row.get("content", "")
-                        or row.get("最新价", "")
-                    )
-                    source = (
-                        row.get("来源", "")
-                        or row.get("source", "")
-                        or "Global Market"
-                    )
-                    if title:
-                        all_news.append({
-                            "title": str(title),
-                            "summary": str(content) if content else "",
-                            "source": str(source),
-                        })
-        except Exception:
-            pass  # Fallback below
-
-        # Fallback: use SSE announcements as macro indicators
-        if not all_news:
-            try:
-                sse_df = ak.stock_info_sse()
-                if sse_df is not None and not sse_df.empty:
-                    for _, row in sse_df.head(limit * 2).iterrows():
-                        title = row.get("公告标题", "") or row.get("证券简称", "")
-                        content = row.get("公告内容", "") or row.get("证券代码", "")
-                        if title:
-                            all_news.append({
-                                "title": str(title),
-                                "summary": str(content) if content else "",
-                                "source": "Shanghai Stock Exchange",
-                            })
-            except Exception:
-                pass
-
-        if not all_news:
-            return f"No global news found for {curr_date}"
-
-        # Build Markdown output
-        news_str = ""
-        shown = 0
-        for item in all_news:
-            if shown >= limit:
-                break
-            news_str += f"### {item['title']} (source: {item['source']})\n"
-            if item["summary"]:
-                news_str += f"{item['summary']}\n"
-            news_str += "\n"
-            shown += 1
-
-        if shown == 0:
-            return f"No global news found for period around {curr_date}"
-
-        start_str = start_dt.strftime("%Y-%m-%d")
-        header = f"## Global Market News, from {start_str} to {curr_date}:\n\n"
-
-        return header + news_str
-
-    except ImportError as e:
-        return f"Error: {e}"
+        from tradingagents.dataflows.a_stock_data import get_global_news_em
+        return get_global_news_em(limit)
     except Exception as e:
-        return f"Error fetching global news: {str(e)}"
+        return f"全球新闻查询失败: {str(e)}"
 
 
 # ============================================================================
@@ -1188,65 +1105,9 @@ def _format_notices_market_df(df, symbol: str, days_back: int,
 
 
 def get_research_reports(symbol: str, top_n: int = 5) -> str:
-    """Fetch latest analyst research reports for an A-share via akshare.
-
-    Uses East Money's ``stock_research_report_em``.
-
-    Args:
-        symbol: 6-digit A-share code (eg ``600519``).
-        top_n: Number of most recent reports to return (default 5).
-
-    Returns:
-        Markdown-formatted string with report list.
-    """
+    """查询A股研报（委托 a_stock_data）。"""
     try:
-        _ensure_akshare()
-        df = ak.stock_research_report_em(symbol=symbol)
-
-        if df is None or df.empty:
-            return f"未找到 **{symbol}** 的分析师研报。"
-
-        # Limit to top_n
-        df = df.head(top_n)
-        cols = list(df.columns)
-
-        # Common column names for research reports
-        title_col = next((c for c in cols if "标题" in c or "title" in c.lower()), cols[0])
-        date_col = next((c for c in cols if "日期" in c or "date" in c.lower()), cols[1] if len(cols) > 1 else cols[0])
-        org_col = next((c for c in cols if "机构" in c or "org" in c.lower() or "company" in c.lower()), None)
-        rating_col = next((c for c in cols if "评级" in c or "rating" in c.lower()), None)
-        target_col = next((c for c in cols if "目标" in c or "target" in c.lower()), None)
-
-        lines = [
-            f"# 分析师研报: {symbol}",
-            f"最近 {top_n} 篇研报",
-            "",
-        ]
-
-        for i, (_, row) in enumerate(df.iterrows(), 1):
-            title = row.get(title_col, f"研报 #{i}")
-            date_val = row.get(date_col, "")
-            org = row.get(org_col, "") if org_col else ""
-            rating = row.get(rating_col, "") if rating_col else ""
-            target = row.get(target_col, "") if target_col else ""
-
-            lines.append(f"### {i}. {title}")
-            parts = [f"**日期**: {date_val}"]
-            if org:
-                parts.append(f"**机构**: {org}")
-            if rating:
-                parts.append(f"**评级**: {rating}")
-            if target:
-                parts.append(f"**目标价**: {target}")
-            lines.append(" | ".join(parts))
-            lines.append("")
-
-        lines.append(f"---")
-        lines.append(f"数据来源: 东方财富 (akshare)")
-
-        return "\n".join(lines)
-
-    except ImportError as e:
-        return f"Error: {e}"
+        from tradingagents.dataflows.a_stock_data import get_research_reports as _rpt
+        return _rpt(symbol, max_pages=max(1, top_n // 10))
     except Exception as e:
-        return f"Error fetching research reports for {symbol}: {str(e)}"
+        return f"研报查询失败: {str(e)}"
