@@ -18,6 +18,7 @@ Last synced: 2026-05-29
 │ get_dividend_history()         │ Layer 4.4 分红送转历史         │
 │ get_cls_flash()                │ Layer 5.2 财联社快讯           │
 │ get_financial_statements()     │ Layer 6 新浪财报三表            │
+│ get_f10_data()                 │ Layer 6 mootdx F10               │
 │ get_cninfo_announcements()     │ Layer 7.1 巨潮公告             │
 └────────────────────────────────┴──────────────────────────────┘
 
@@ -297,6 +298,57 @@ def get_quarterly_snapshot(code: str) -> str:
         return _format_result(rows, f"季报快照 — {code}")
     except Exception as e:
         return f"季报查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
+# 0.6. F10 公司资料 — mootdx (Layer 6)
+# ============================================================================
+
+
+def get_f10_data(code: str, category: str = "gsjj") -> str:
+    """查询个股 F10 公司资料（通达信 F10 接口）。
+
+    基于 mootdx Quotes 的 finance 接口，获取上市公司基本面资料，
+    如公司简介、主营业务、十大股东等。
+
+    参数:
+        code: 股票代码，如 "600519"
+        category: F10 类别，常用值：
+                  - "gsjj"  → 公司简介
+                  - "zygc"  → 主营业务
+                  - "gsgk"  → 公司概况
+                  - "gdyg"  → 高管人员
+                  - "sdgd"  → 十大股东
+                  - "zcfzb" → 资产负债表
+                  - "lrb"   → 利润表
+                  - "xjllb" → 现金流量表
+
+    返回:
+        Markdown 格式字符串，包含 F10 公司资料数据
+        出错时返回错误描述字符串
+    """
+    _ensure_mootdx()
+    try:
+        client = Quotes.factory(market="std")
+        data = client.finance(code=code, name=category)
+
+        if data is None:
+            return _format_result([], f"公司资料({category}) — {code}")
+
+        if isinstance(data, pd.DataFrame):
+            if data.empty:
+                return _format_result([], f"公司资料({category}) — {code}")
+            rows = data.to_dict(orient="records")
+        elif isinstance(data, dict):
+            rows = [data]
+        elif isinstance(data, list):
+            rows = data
+        else:
+            rows = []
+
+        return _format_result(rows, f"公司资料({category}) — {code}")
+    except Exception as e:
+        return f"公司资料查询失败 ({code}): {str(e)}"
 
 
 # ============================================================================
@@ -1607,6 +1659,7 @@ def get_consensus_eps(code: str) -> str:
 
 __all__ = [
     "get_quarterly_snapshot",
+    "get_f10_data",
     "get_dragon_tiger_stock",
     "get_dragon_tiger_market",
     "get_margin_trading",
