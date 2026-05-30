@@ -49,6 +49,11 @@ try:
 except ImportError:
     Quotes = None
 
+try:
+    from mootdx.finance import Finance
+except ImportError:
+    Finance = None
+
 # ============================================================================
 # 常量与配置
 # ============================================================================
@@ -159,11 +164,16 @@ def _format_result(data: List[Dict[str, Any]], title: str) -> str:
 
 def _ensure_mootdx() -> None:
     """检查 mootdx 是否可用，不可用时抛出明确错误。"""
+    missing = []
     if Quotes is None:
+        missing.append("mootdx.quotes.Quotes（日线行情）")
+    if Finance is None:
+        missing.append("mootdx.finance.Finance（财务数据）")
+    if missing:
         raise ImportError(
-            "缺少 mootdx 库。请安装:\n"
+            f"缺少 mootdx 组件: {', '.join(missing)}。请安装:\n"
             "  pip install mootdx>=1.0.0\n\n"
-            "mootdx 是通达信行情数据接口，用于获取 A 股日线数据。"
+            "mootdx 是通达信行情数据接口，用于获取 A 股数据。"
         )
 
 
@@ -228,6 +238,65 @@ def _load_ohlcv_mootdx(symbol: str, curr_date: str) -> pd.DataFrame:
         raise
     except Exception as e:
         raise RuntimeError(f"mootdx OHLCV 数据获取失败 ({symbol}): {e}")
+
+
+# ============================================================================
+# 0.5. 季报快照 — mootdx finance
+# ============================================================================
+
+
+def get_quarterly_snapshot(code: str) -> str:
+    """查询季报快照（37 字段），使用 mootdx finance 接口。
+
+    基于通达信财务数据库，返回最近一期季报的 EPS、ROE、净利润、主营收入等
+    关键财务指标。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含季报关键财务数据
+        出错时返回错误描述字符串
+    """
+    _ensure_mootdx()
+    try:
+        from mootdx.finance import Finance
+
+        # 市场判断：00/30 开头 → 深市(0)，60 开头 → 沪市(1)
+        market = 0 if code[0] in "03" else 1
+
+        client = Finance.factory(market="std")
+        df = client.finance(symbol=code, market=market)
+
+        if df is None or df.empty:
+            return _format_result([], f"季报快照 — {code}")
+
+        # 选取关键字段
+        key_fields = [
+            "report_date",
+            "基本每股收益",
+            "净资产收益率",
+            "净利润",
+            "营业总收入(万元)",
+            "净利润增长率(%)",
+            "营业收入增长率(%)",
+            "每股净资产",
+            "每股经营现金流量",
+        ]
+
+        # 只保留实际存在的列
+        available = [f for f in key_fields if f in df.columns]
+
+        if not available:
+            # 没有匹配的关键字段则返回全部列
+            available = list(df.columns)
+
+        # 取最近一期（第一行）
+        rows = df[available].head(1).to_dict(orient="records")
+
+        return _format_result(rows, f"季报快照 — {code}")
+    except Exception as e:
+        return f"季报查询失败 ({code}): {str(e)}"
 
 
 # ============================================================================
@@ -1537,6 +1606,7 @@ def get_consensus_eps(code: str) -> str:
 # ============================================================================
 
 __all__ = [
+    "get_quarterly_snapshot",
     "get_dragon_tiger_stock",
     "get_dragon_tiger_market",
     "get_margin_trading",
