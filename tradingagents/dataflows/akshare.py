@@ -1109,77 +1109,24 @@ def get_individual_notices(
     days_back: int = 7,
     notice_type: str = "全部",
 ) -> str:
-    """Fetch recent stock announcements for an A-share via akshare.
+    """Fetch recent stock announcements for an A-share via cninfo (巨潮).
 
-    Dual-source with automatic fallback:
-      1. Primary: East Money individual notice report (stock_individual_notice_report)
-      2. Fallback: East Money market-wide notice report (stock_notice_report),
-         filtered by stock code.
-
-    Date filtering is done in Python rather than via API parameters because
-    begin_date/end_date cause a KeyError on some akshare versions where the
-    API returns a different column structure.
+    直连巨潮公告 API，返回 Markdown 格式的公告列表（标题、时间、PDF 链接）。
 
     Args:
         symbol: 6-digit A-share code (eg ``600519``).
         days_back: Number of days to look back (default 7).
-        notice_type: Filter type — choices include "全部", "重大事项",
-            "财务报告", "融资公告", "风险提示", "资产重组", "信息变更",
-            "持股变动".
+        notice_type: Filter type — retained for signature compatibility, not used
+            by cninfo API (all types are returned).
 
     Returns:
-        Markdown-formatted string with announcement list and content.
+        Markdown-formatted string with announcement list.
     """
-    _ensure_akshare()
-    end = datetime.now()
-    start = end - timedelta(days=days_back)
-
-    type_label = notice_type if notice_type != "全部" else "全部类型"
-
-    # Phase 1: individual endpoint (without date params — see docstring)
     try:
-        df = ak.stock_individual_notice_report(
-            security=symbol,
-            symbol=notice_type,
-        )
-        if df is not None and not df.empty:
-            df = _filter_notices_by_date(df, start, end)
-            return _format_notices_df(df, symbol, days_back, type_label, "东方财富")
-        # Empty result — try fallback
-    except Exception:
-        pass  # Individual endpoint failed — fallback below
-
-    # ------------------------------------------------------------------
-    # Phase 2: Fallback — market-wide notice report filtered by stock
-    # ------------------------------------------------------------------
-    try:
-        # Fetch all notices for the most recent trading day(s)
-        # stock_notice_report takes a single date; iterate backwards
-        all_dfs = []
-        current = end
-        while current >= start:
-            date_str = _ak_date(current.strftime("%Y-%m-%d"))
-            try:
-                day_df = ak.stock_notice_report(symbol=notice_type, date=date_str)
-                if day_df is not None and not day_df.empty:
-                    all_dfs.append(day_df)
-            except Exception:
-                pass
-            current -= timedelta(days=1)
-
-        if all_dfs:
-            import pandas as pd
-            combined = pd.concat(all_dfs, ignore_index=True)
-            # Filter by stock code (column name: "代码")
-            combined = combined[combined["代码"] == symbol]
-            if not combined.empty:
-                return _format_notices_market_df(combined, symbol, days_back, type_label)
-
-        return f"未找到 **{symbol}** 最近 {days_back} 天的公告。"
-    except ImportError as e:
-        return f"Error: {e}"
+        from tradingagents.dataflows.a_stock_data import get_cninfo_announcements
+        return get_cninfo_announcements(symbol, page_size=min(days_back * 3, 50))
     except Exception as e:
-        return f"Error fetching notices for {symbol}: {str(e)}"
+        return f"公告查询失败 ({symbol}): {str(e)}"
 
 
 def _filter_notices_by_date(df, start: datetime, end: datetime):
