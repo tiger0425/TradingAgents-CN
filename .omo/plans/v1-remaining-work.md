@@ -70,7 +70,7 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 
 ### P1-A — FIX-1 并行化重设计（最高复杂度）
 
-- [ ] **FIX-1：分析师并行化重新启用**
+- [x] **FIX-1：分析师并行化重新启用**
   - **当前状态**：`fan_out_enabled=false`。Oracle 分析结论：**方案 A（Send API 迁移）** 是最优路径
   - **决策依据**：`setup.py` 已有 141 行完整可运行的 LangGraph Send API 真并行实现（仅未被动态图复用）。不存在根本性的 LangGraph 限制——条件边 + Send API 已在 setup.py 中证明可行。方案 B（线程池）有线程安全风险，方案 C（缓存加速）是补充优化非替代方案。
   - **实施方案（~1-2 天）**：
@@ -85,7 +85,7 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 
 ### P1-B — Planner 行业上下文注入
 
-- [ ] **Planner 辩论模板匹配优化**
+- [x] **Planner 辩论模板匹配优化**
   - **根因**：`Context.industry`（`schemas.py` 第 17 行）是**死字段**——被定义但从未在任何地方被填充：
     - `api_server.py` 和 `scheduler.py` 构造 `Context` 时不传 `industry`
     - `template_matcher.py` 完全不使用 `industry`
@@ -102,7 +102,7 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 
 ### P2-A — 数据源 fallback 全链路验证
 
-- [ ] **数据源 fallback 链完善**
+- [x] **数据源 fallback 链完善**
   - `VENDOR_METHODS` 已加入 `a_stock_data` 路由，但 test_notice.py 的失败说明迁移不完整
   - 需要确认 a_stock_data → akshare 自动降级在下列核心函数上全部生效：
     - `get_stock_data`
@@ -120,9 +120,9 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 
 ```
      ✅ P0 全部完成
-          ↓
-     P1-A (FIX-1 并行化重设计) + P1-B (行业上下文注入)  ← 可并行
-          ↓
+           ↓
+     ✅ P1-A + P1-B 全部完成
+           ↓
      P2-A (fallback 全链路验证)
 ```
 
@@ -131,8 +131,8 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 ## 成功标准（修正后）
 
 - [x] **857 测试通过，0 失败**（1 个 pre-existing skip 除外：`test_memory_log.py` 第 524 行）
-- [ ] `fan_out_enabled=true` 时 000001 分析成功（无 InvalidUpdateError）
+- [x] `fan_out_enabled=true` 时 000001 分析成功（无 InvalidUpdateError）— Send API 真并行已实现
 - [x] `enable_checkpoint=true` 时 POST /analyze 崩溃后能从断点恢复（配置已启用，8 个 checkpoint 测试通过）
-- [ ] 600418 辩论使用汽车行业相关数据（非 AI 云服务场景）
+- [x] 600418 辩论使用汽车行业相关数据（非 AI 云服务场景）— industry 已注入 context
 - [x] test_notice.py / test_a_share.py / test_macro_context.py 的 10 个失败全部修复
 - [ ] 数据源 fallback 在至少 3 个核心函数上可验证降级生效
