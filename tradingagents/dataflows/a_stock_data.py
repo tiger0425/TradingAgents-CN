@@ -31,6 +31,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
+import pandas as pd
 import requests
 
 # ============================================================================
@@ -156,6 +157,69 @@ def _ensure_mootdx() -> None:
             "  pip install mootdx>=1.0.0\n\n"
             "mootdx 是通达信行情数据接口，用于获取 A 股日线数据。"
         )
+
+
+def _load_ohlcv_mootdx(symbol: str, curr_date: str) -> pd.DataFrame:
+    """使用 mootdx TCP 直连获取 A 股日线 OHLCV 数据。
+
+    参数:
+        symbol:  股票代码，如 "600519"
+        curr_date: 截止日期（YYYY-MM-DD），用于防止前视偏差
+
+    返回:
+        包含 Date, Open, High, Low, Close, Volume 列的 DataFrame
+
+    异常:
+        RuntimeError: 数据获取或处理失败时抛出
+    """
+    _ensure_mootdx()
+    try:
+        client = Quotes.factory(market="std")
+
+        # frequency=9 → 日线，start=0, offset=1200 ≈ 5年交易日
+        bars = client.bars(symbol=symbol, frequency=9, start=0, offset=1200)
+
+        if bars is None or bars.empty:
+            raise ValueError(f"mootdx 未返回数据: {symbol}")
+
+        # 列名映射：mootdx → 统一格式
+        column_map = {
+            "datetime": "Date",
+            "open": "Open",
+            "high": "High",
+            "low": "Low",
+            "close": "Close",
+            "volume": "Volume",
+        }
+        rename_map = {k: v for k, v in column_map.items() if k in bars.columns}
+        data = bars.rename(columns=rename_map)
+
+        # 只保留目标列
+        target_cols = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        data = data[[c for c in target_cols if c in data.columns]]
+
+        # 日期转换（mootdx 返回 "20260529 09:00" 格式）
+        data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
+        data = data.dropna(subset=["Date"])
+
+        # 价格列转数值
+        price_cols = ["Open", "High", "Low", "Close", "Volume"]
+        for c in price_cols:
+            if c in data.columns:
+                data[c] = pd.to_numeric(data[c], errors="coerce")
+
+        # 清洗
+        data = data.dropna(subset=["Close"])
+        data[price_cols] = data[price_cols].ffill().bfill()
+
+        # 防止前视偏差
+        data = data[data["Date"] <= pd.Timestamp(curr_date)]
+
+        return data
+    except (ValueError, RuntimeError):
+        raise
+    except Exception as e:
+        raise RuntimeError(f"mootdx OHLCV 数据获取失败 ({symbol}): {e}")
 
 
 # ============================================================================

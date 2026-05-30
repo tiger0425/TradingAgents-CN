@@ -87,11 +87,12 @@ def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
     Downloads ~5 years of daily data up to curr_date, caches per symbol,
     and filters out rows after curr_date to prevent look-ahead bias.
     Returns a DataFrame with columns: Date, Open, High, Low, Close, Volume.
+
+    Note: data source switched from akshare (Sina) to mootdx (TCP direct).
     """
-    _ensure_akshare()
+    from tradingagents.dataflows.a_stock_data import _load_ohlcv_mootdx
     config = get_config()
 
-    sina_symbol = _to_sina_symbol(symbol)
     curr_dt = _to_date(curr_date)
     today = datetime.now()
     start_dt = today - relativedelta(years=5)
@@ -102,36 +103,19 @@ def _load_ohlcv_akshare(symbol: str, curr_date: str) -> pd.DataFrame:
     os.makedirs(config["data_cache_dir"], exist_ok=True)
     cache_file = os.path.join(
         config["data_cache_dir"],
-        f"{symbol}-akshare-sina-{start_str}-{end_str}.csv",
+        f"{symbol}-mootdx-{start_str}-{end_str}.csv",
     )
 
     if os.path.exists(cache_file):
         data = pd.read_csv(cache_file, on_bad_lines="skip", encoding="utf-8")
     else:
-        raw = ak.stock_zh_a_daily(
-            symbol=sina_symbol,
-            start_date=start_str,
-            end_date=end_str,
-            adjust="qfq",
-        )
+        raw = _load_ohlcv_mootdx(symbol, curr_date)
         if raw is None or raw.empty:
             raise ValueError(f"No OHLCV data returned for {symbol}")
-
-        # Sina source returns English lowercase column names
-        raw = raw.rename(
-            columns={
-                "date": "Date",
-                "open": "Open",
-                "high": "High",
-                "low": "Low",
-                "close": "Close",
-                "volume": "Volume",
-            }
-        )
         raw.to_csv(cache_file, index=False, encoding="utf-8")
         data = raw
 
-    # Clean and normalise for stockstats
+    # Clean and normalise for stockstats (second pass)
     data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
     data = data.dropna(subset=["Date"])
 

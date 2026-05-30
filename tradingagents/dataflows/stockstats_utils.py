@@ -48,8 +48,8 @@ def _clean_dataframe(data: pd.DataFrame) -> pd.DataFrame:
 def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     """Fetch OHLCV data with caching, filtered to prevent look-ahead bias.
 
-    Uses akshare for A-share data. Caches per symbol. Rows after curr_date
-    are filtered out so backtests never see future prices.
+    Uses mootdx (通达信 TCP 直连) for A-share data. Caches per symbol.
+    Rows after curr_date are filtered out so backtests never see future prices.
     """
     # Reject ticker values that would escape the cache directory when
     # interpolated into the cache filename (e.g. ``../../tmp/x``).
@@ -67,37 +67,14 @@ def load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     os.makedirs(config["data_cache_dir"], exist_ok=True)
     data_file = os.path.join(
         config["data_cache_dir"],
-        f"{safe_symbol}-akshare-data-{start_str}-{end_str}.csv",
+        f"{safe_symbol}-mootdx-data-{start_str}-{end_str}.csv",
     )
 
     if os.path.exists(data_file):
         data = pd.read_csv(data_file, on_bad_lines="skip", encoding="utf-8")
     else:
-        import akshare as ak
-        # Convert A-share 6-digit code to Sina format (sh/sz prefix)
-        safe_symbol = safe_symbol.strip()
-        if safe_symbol[0] == "6":
-            sina_sym = f"sh{safe_symbol}"
-        elif safe_symbol[0] in ("0", "3"):
-            sina_sym = f"sz{safe_symbol}"
-        else:
-            sina_sym = safe_symbol
-
-        df = ak.stock_zh_a_daily(
-            symbol=sina_sym,
-            start_date=start_str,
-            end_date=end_str,
-            adjust="qfq",
-        )
-        data = df.rename(columns={
-            "date": "Date",
-            "open": "Open",
-            "high": "High",
-            "low": "Low",
-            "close": "Close",
-            "volume": "Volume",
-        })
-        data = data[["Date", "Open", "High", "Low", "Close", "Volume"]]
+        from tradingagents.dataflows.a_stock_data import _load_ohlcv_mootdx
+        data = _load_ohlcv_mootdx(symbol, curr_date)
         data.to_csv(data_file, index=False, encoding="utf-8")
 
     data = _clean_dataframe(data)
