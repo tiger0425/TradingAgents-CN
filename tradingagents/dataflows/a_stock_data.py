@@ -383,6 +383,159 @@ def get_indicators_a(
         return f"指标查询失败: {str(e)}"
 
 
+def get_current_price_a(symbol: str) -> str:
+    """获取 A 股实时行情（通过东财 push2 接口）。
+
+    secid 规则：1.{code}（沪市）/ 0.{code}（深市）。
+    返回名称、最新价、涨跌幅、最高/最低/今开/昨收等行情字段。
+
+    参数:
+        symbol: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含实时行情数据
+    """
+    try:
+        secid = f"1.{symbol}" if symbol.startswith("6") else f"0.{symbol}"
+        params: Dict[str, Any] = {
+            "secid": secid,
+            "fields": "f43,f44,f45,f46,f47,f48,f50,f51,f52,f57,f58,f60,f169,f170,f171",
+            "ut": "fa5fd1943c7b386f172d6893dbfd32bb",
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://quote.eastmoney.com/",
+        }
+        resp = requests.get(STOCK_INFO_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        body = resp.json()
+        data = body.get("data", {})
+        if not data:
+            return _format_result([], f"实时行情 — {symbol}")
+
+        field_map = {
+            "f57": "名称",
+            "f58": "代码",
+            "f43": "最新价",
+            "f60": "涨跌幅(%)",
+            "f48": "涨跌额",
+            "f44": "最高价",
+            "f45": "最低价",
+            "f46": "今开",
+            "f47": "昨收",
+            "f50": "量比",
+            "f51": "涨停价",
+            "f52": "跌停价",
+            "f169": "换手率(%)",
+            "f170": "PE(动态)",
+            "f171": "振幅(%)",
+        }
+        row: Dict[str, Any] = {}
+        for key, label in field_map.items():
+            row[label] = data.get(key, "")
+        return _format_result([row], f"实时行情 — {symbol}")
+    except Exception as e:
+        return f"实时行情查询失败 ({symbol}): {str(e)}"
+
+
+def get_balance_sheet_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """获取 A 股资产负债表。
+
+    委托给 get_financial_statements(ticker, "balance")。
+    freq 和 curr_date 参数忽略（新浪返回固定格式）。
+
+    参数:
+        ticker:    股票代码，如 "600519"
+        freq:      忽略（保留兼容性）
+        curr_date: 忽略（保留兼容性）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_financial_statements(ticker, "balance")
+    except Exception as e:
+        return f"资产负债表查询失败 ({ticker}): {str(e)}"
+
+
+def get_cashflow_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """获取 A 股现金流量表。
+
+    委托给 get_financial_statements(ticker, "cashflow")。
+    freq 和 curr_date 参数忽略（新浪返回固定格式）。
+
+    参数:
+        ticker:    股票代码，如 "600519"
+        freq:      忽略（保留兼容性）
+        curr_date: 忽略（保留兼容性）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_financial_statements(ticker, "cashflow")
+    except Exception as e:
+        return f"现金流量表查询失败 ({ticker}): {str(e)}"
+
+
+def get_income_statement_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """获取 A 股利润表。
+
+    委托给 get_financial_statements(ticker, "income")。
+    freq 和 curr_date 参数忽略（新浪返回固定格式）。
+
+    参数:
+        ticker:    股票代码，如 "600519"
+        freq:      忽略（保留兼容性）
+        curr_date: 忽略（保留兼容性）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_financial_statements(ticker, "income")
+    except Exception as e:
+        return f"利润表查询失败 ({ticker}): {str(e)}"
+
+
+def get_news_a(ticker: str, start_date: str = "", end_date: str = "") -> str:
+    """获取 A 股个股相关新闻。
+
+    委托给 get_stock_news(ticker, 10)。start_date 和 end_date 参数忽略。
+
+    参数:
+        ticker:     股票代码，如 "600519"
+        start_date: 忽略（保留兼容性）
+        end_date:   忽略（保留兼容性）
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_stock_news(ticker, 10)
+    except Exception as e:
+        return f"新闻查询失败 ({ticker}): {str(e)}"
+
+
+def get_global_news_a(curr_date: str = "", look_back_days: int = 7, limit: int = 5) -> str:
+    """获取全球财经资讯。
+
+    委托给 get_global_news_em(limit)。curr_date 和 look_back_days 参数忽略。
+
+    参数:
+        curr_date:      忽略（保留兼容性）
+        look_back_days: 忽略（保留兼容性）
+        limit:          返回条数，默认 5
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        return get_global_news_em(limit)
+    except Exception as e:
+        return f"全球资讯查询失败: {str(e)}"
+
+
 # ============================================================================
 # 0.5. 季报快照 — mootdx finance
 # ============================================================================
@@ -1823,4 +1976,10 @@ __all__ = [
     "get_stock_data_a",
     "get_fundamentals_a",
     "get_indicators_a",
+    "get_current_price_a",
+    "get_balance_sheet_a",
+    "get_cashflow_a",
+    "get_income_statement_a",
+    "get_news_a",
+    "get_global_news_a",
 ]

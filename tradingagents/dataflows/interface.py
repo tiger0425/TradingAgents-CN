@@ -63,6 +63,12 @@ from .a_stock_data import (
     get_stock_data_a,
     get_fundamentals_a,
     get_indicators_a,
+    get_current_price_a,
+    get_balance_sheet_a,
+    get_cashflow_a,
+    get_income_statement_a,
+    get_news_a,
+    get_global_news_a,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
 
@@ -129,6 +135,36 @@ def _a_stock_data_fundamentals(ticker: str, curr_date: Optional[str] = None) -> 
 def _a_stock_data_indicators(symbol: str, indicator: str, curr_date: str = "", look_back_days: int = 30) -> str:
     """Adapt a_stock_data get_indicators_a to standard (symbol, indicator, curr_date, look_back) signature."""
     return get_indicators_a(symbol, indicator, curr_date, look_back_days)
+
+
+def _a_stock_data_price(symbol: str) -> str:
+    """Adapt a_stock_data get_current_price_a to standard current_price signature."""
+    return get_current_price_a(symbol)
+
+
+def _a_stock_data_bs(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """Adapt a_stock_data get_balance_sheet_a to standard (ticker, freq, curr_date) signature."""
+    return get_balance_sheet_a(ticker, freq, curr_date)
+
+
+def _a_stock_data_cf(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """Adapt a_stock_data get_cashflow_a to standard (ticker, freq, curr_date) signature."""
+    return get_cashflow_a(ticker, freq, curr_date)
+
+
+def _a_stock_data_is_(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
+    """Adapt a_stock_data get_income_statement_a to standard (ticker, freq, curr_date) signature."""
+    return get_income_statement_a(ticker, freq, curr_date)
+
+
+def _a_stock_data_news(ticker: str, start_date: str = "", end_date: str = "") -> str:
+    """Adapt a_stock_data get_news_a to standard (ticker, start_date, end_date) signature."""
+    return get_news_a(ticker, start_date, end_date)
+
+
+def _a_stock_data_global_news(curr_date: str = "", look_back_days: int = 7, limit: int = 5) -> str:
+    """Adapt a_stock_data get_global_news_a to standard (curr_date, look_back_days, limit) signature."""
+    return get_global_news_a(curr_date, look_back_days, limit)
 
 
 # ---- Tool categories (extended with guosen-unique capabilities) ----
@@ -215,6 +251,7 @@ VENDOR_METHODS = {
         "akshare": get_akshare_current_price,
         "yfinance": get_YFin_data_online,
         "guosen": _guosen_current_price,
+        "a_stock_data": _a_stock_data_price,
     },
     # technical_indicators
     "get_indicators": {
@@ -235,29 +272,34 @@ VENDOR_METHODS = {
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
         "guosen": _guosen_bs,
+        "a_stock_data": _a_stock_data_bs,
     },
     "get_cashflow": {
         "akshare": get_akshare_cashflow,
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
         "guosen": _guosen_cf,
+        "a_stock_data": _a_stock_data_cf,
     },
     "get_income_statement": {
         "akshare": get_akshare_income_statement,
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
         "guosen": _guosen_is_,
+        "a_stock_data": _a_stock_data_is_,
     },
     # news_data
     "get_news": {
         "akshare": get_akshare_news,
         "alpha_vantage": get_alpha_vantage_news,
         "yfinance": get_news_yfinance,
+        "a_stock_data": _a_stock_data_news,
     },
     "get_global_news": {
         "akshare": get_akshare_global_news,
         "yfinance": get_global_news_yfinance,
         "alpha_vantage": get_alpha_vantage_global_news,
+        "a_stock_data": _a_stock_data_global_news,
     },
     "get_insider_transactions": {
         "akshare": get_akshare_insider_transactions,

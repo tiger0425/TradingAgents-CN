@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
         "core_stock_apis": "a_stock_data",       # Options: akshare, guosen, alpha_vantage, yfinance, a_stock_data
         "technical_indicators": "a_stock_data",  # Options: akshare, alpha_vantage, yfinance, a_stock_data (guosen 不支持)
         "fundamental_data": "a_stock_data",      # Options: akshare, guosen, alpha_vantage, yfinance, a_stock_data
-        "news_data": "akshare",                  # Options: akshare, alpha_vantage, yfinance (guosen 不支持)
+        "news_data": "a_stock_data",             # Options: akshare, alpha_vantage, yfinance, a_stock_data (guosen 不支持)
         "macro_economic": "guosen",              # 宏观经济数据 (仅 guosen)
         "stock_screening": "guosen",             # 选股/ETF筛选/基金对比/排行 (仅 guosen)
         "specialty_data": "a_stock_data",       # 龙虎榜/融资融券/大宗交易/解禁/股东户数/分红/快讯/公告
