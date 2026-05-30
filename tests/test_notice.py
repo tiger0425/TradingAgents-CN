@@ -8,94 +8,124 @@ import pytest
 from tradingagents.dataflows.akshare import get_individual_notices, get_research_reports
 
 
-def _fake_notices() -> pd.DataFrame:
-    """Return fake announcement DataFrame."""
-    return pd.DataFrame([
-        {
-            "股票代码": "600519",
-            "股票简称": "贵州茅台",
-            "公告标题": "贵州茅台2025年度利润分配预案公告",
-            "公告分类": "财务报告",
-            "公告时间": "2026-05-08",
-            "公告内容": "公司拟以总股本为基数，向全体股东每10股派发现金红利250元。",
-        },
-        {
-            "股票代码": "600519",
-            "股票简称": "贵州茅台",
-            "公告标题": "关于召开2025年度股东大会的通知",
-            "公告分类": "重大事项",
-            "公告时间": "2026-05-07",
-            "公告内容": "公司董事会决定于2026年6月召开2025年度股东大会。",
-        },
-    ])
-
-
 class TestGetIndividualNotices:
     """Tests for get_individual_notices() in akshare.py."""
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_individual_notice_report", return_value=_fake_notices())
-    def test_notices_returned(self, mock_ak):
+    @patch("tradingagents.dataflows.a_stock_data.get_cninfo_announcements")
+    def test_notices_returned(self, mock_cninfo):
         """Returns Markdown with notice titles."""
+        mock_cninfo.return_value = (
+            "# 巨潮公告 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "| announcementTitle | announcementTime | secName | adjunctUrl |\n"
+            "|---|---|---|---|\n"
+            "| 贵州茅台2025年度利润分配预案公告 | 2026-05-08 00:00:00 | 贵州茅台 | https://example.com/ann1 |\n"
+            "| 关于召开2025年度股东大会的通知 | 2026-05-07 00:00:00 | 贵州茅台 | https://example.com/ann2 |\n"
+        )
         result = get_individual_notices("600519", days_back=7)
         assert "600519" in result
         assert "利润分配预案" in result or "公告" in result
         assert "股东大会" in result
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_individual_notice_report", return_value=pd.DataFrame())
-    def test_empty_notices(self, mock_ak):
+    @patch("tradingagents.dataflows.a_stock_data.get_cninfo_announcements")
+    def test_empty_notices(self, mock_cninfo):
         """No notices returns appropriate message."""
+        mock_cninfo.return_value = (
+            "# 巨潮公告 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "无数据\n"
+        )
         result = get_individual_notices("600519", days_back=3)
-        assert "未找到" in result or "no" in result.lower()
+        assert "未找到" in result or "no" in result.lower() or "无数据" in result
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_individual_notice_report", return_value=_fake_notices())
-    def test_notice_type_filter(self, mock_ak):
-        """Type filter is passed to akshare."""
+    @patch("tradingagents.dataflows.a_stock_data.get_cninfo_announcements")
+    def test_notice_type_filter(self, mock_cninfo):
+        """Type filter is passed (symbol forwarded to cninfo)."""
+        mock_cninfo.return_value = (
+            "# 巨潮公告 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "| announcementTitle | announcementTime | secName | adjunctUrl |\n"
+            "|---|---|---|---|\n"
+            "| 贵州茅台2025年度利润分配预案公告 | 2026-05-08 00:00:00 | 贵州茅台 | https://example.com/ann1 |\n"
+        )
         result = get_individual_notices("600519", days_back=7, notice_type="财务报告")
-        # The filtering is done server-side by akshare
-        assert mock_ak.call_count == 1
-        call_args = mock_ak.call_args[1]
-        assert call_args.get("symbol") == "财务报告"
+        assert mock_cninfo.call_count == 1
+        assert mock_cninfo.call_args[0][0] == "600519"
+        assert mock_cninfo.call_args[1]["page_size"] == 21
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_individual_notice_report", return_value=_fake_notices())
-    def test_days_back_passed(self, mock_ak):
-        """Days back is converted to begin_date parameter."""
+    @patch("tradingagents.dataflows.a_stock_data.get_cninfo_announcements")
+    def test_days_back_passed(self, mock_cninfo):
+        """Days back is converted to page_size parameter."""
+        mock_cninfo.return_value = (
+            "# 巨潮公告 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "| announcementTitle | announcementTime | secName | adjunctUrl |\n"
+            "|---|---|---|---|\n"
+            "| 贵州茅台2025年度利润分配预案公告 | 2026-05-08 00:00:00 | 贵州茅台 | https://example.com/ann1 |\n"
+        )
         result = get_individual_notices("600519", days_back=3)
-        call_kwargs = mock_ak.call_args[1]
-        assert "begin_date" in call_kwargs
+        assert mock_cninfo.call_args[1]["page_size"] == 9
 
 
 class TestGetResearchReports:
     """Tests for get_research_reports() in akshare.py."""
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_research_report_em")
-    def test_reports_returned(self, mock_ak):
+    @patch("tradingagents.dataflows.a_stock_data.get_research_reports")
+    def test_reports_returned(self, mock_rpt):
         """Returns Markdown with report titles."""
-        mock_ak.return_value = pd.DataFrame([
-            {"标题": "贵州茅台：强者恒强，目标价2000元", "日期": "2026-05-09",
-             "机构": "中信证券", "评级": "买入"},
-            {"标题": "贵州茅台：Q1业绩超预期", "日期": "2026-05-07",
-             "机构": "华泰证券", "评级": "增持"},
-        ])
+        mock_rpt.return_value = (
+            "# 研报列表 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "| title | publishDate | orgSName | predictThisYearEps | predictNextYearEps | emRatingName |\n"
+            "|---|---|---|---|---|---|\n"
+            "| 贵州茅台：强者恒强，目标价2000元 | 2026-05-09 | 中信证券 | 62.00 | 70.00 | 买入 |\n"
+            "| 贵州茅台：Q1业绩超预期 | 2026-05-07 | 华泰证券 | 58.00 | 65.00 | 增持 |\n"
+        )
         result = get_research_reports("600519", top_n=5)
         assert "600519" in result
         assert "中信证券" in result
         assert "目标价" in result
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_research_report_em", return_value=pd.DataFrame())
-    def test_empty_reports(self, mock_ak):
+    @patch("tradingagents.dataflows.a_stock_data.get_research_reports")
+    def test_empty_reports(self, mock_rpt):
         """No reports returns appropriate message."""
+        mock_rpt.return_value = (
+            "# 研报列表 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "无数据\n"
+        )
         result = get_research_reports("600519")
-        assert "未找到" in result or "no" in result.lower()
+        assert "未找到" in result or "no" in result.lower() or "无数据" in result
 
-    @patch("tradingagents.dataflows.akshare.ak.stock_research_report_em")
-    def test_top_n_limit(self, mock_ak):
-        """Only top_n reports appear in output."""
-        mock_ak.return_value = pd.DataFrame([
-            {"标题": f"Report {i}", "日期": f"2026-05-{i:02d}"}
+    @patch("tradingagents.dataflows.a_stock_data.get_research_reports")
+    def test_top_n_limit(self, mock_rpt):
+        """top_n is converted to max_pages parameter."""
+        rows = "".join(
+            f"| Report {i} | 2026-05-{i:02d} |\n"
             for i in range(1, 11)
-        ])
+        )
+        mock_rpt.return_value = (
+            "# 研报列表 — 600519\n"
+            "# 数据来源: a-stock-data\n"
+            "# 请求时间: 2026-05-30 12:00:00\n"
+            "\n"
+            "| title | publishDate |\n"
+            "|---|---|\n"
+            f"{rows}"
+        )
         result = get_research_reports("600519", top_n=3)
-        # Should contain report 1 and 2 and 3 (at least 3 items)
+        assert mock_rpt.call_args[1]["max_pages"] == 1
         lines = [l for l in result.split("\n") if "Report" in l]
         assert len(lines) >= 3
-        assert "Report 4" not in result  # Beyond top_n

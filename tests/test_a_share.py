@@ -12,7 +12,7 @@ import pytest
 # Test A: Data source routing
 # ===========================================================================
 class TestDataRouting:
-    """Verify akshare is correctly registered as the primary vendor."""
+    """Verify a_stock_data is correctly registered as the primary vendor."""
 
     def test_vendor_list(self):
         """VENDOR_LIST should have akshare first."""
@@ -32,11 +32,11 @@ class TestDataRouting:
             assert "akshare" in VENDOR_METHODS[m], f"{m} missing akshare"
 
     def test_default_config(self):
-        """data_vendors should default to akshare."""
+        """data_vendors should default to a_stock_data."""
         from tradingagents.default_config import DEFAULT_CONFIG
         for cat in ["core_stock_apis", "technical_indicators",
                      "fundamental_data", "news_data"]:
-            assert DEFAULT_CONFIG["data_vendors"][cat] == "akshare"
+            assert DEFAULT_CONFIG["data_vendors"][cat] == "a_stock_data"
 
 
 # ===========================================================================
@@ -65,7 +65,7 @@ class TestStockData:
         from tradingagents.dataflows.akshare import get_fundamentals
         result = get_fundamentals("600519", "2026-01-15")
         assert isinstance(result, str)
-        assert ("ROE" in result or "Revenue" in result
+        assert ("市盈率" in result or "PE" in result or "PB" in result or "市净率" in result
                 or result.startswith("Error") or result.startswith("No"))
 
     def test_get_balance_sheet(self):

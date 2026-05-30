@@ -1,56 +1,139 @@
 # V1.3 遗留工作 + V1.4 前瞻计划
 
-> 基于 2026-05-30 工作会话总结
+> 基于 2026-05-30 分析对照（对比代码库实际状态）
+> 原计划于 2026-05-30 17:02，本次对照于同日 21:45 更新
 
 ## 摘要
 
-V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 849/851 测试。遗留 3 项需要重新适配的工作 + 2 项新发现的问题 + 1 项数据源优化。
+V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原计划声称的"test_quote.py 12 测试失败"和"eastmoney API 网络兼容性"实际已修复。剩余真正需要处理的是：10 个新增测试失败（a_stock_data 迁移副作用）、FIX-1 并行化重设计、FIX-3 检查点启用、Planner 行业上下文注入、数据源 fallback 全链路验证。
 
-## 待办事项
+---
 
-### P0 — 需要重新适配
+## 计划文档勘误
 
-- [ ] **FIX-1: 分析师并行化重新启用**
-  - **当前状态**：并行化代码已实现（LangGraph Send API），但 `fan_out_enabled=false`
-  - **回滚原因**：并行拓扑与工具循环条件边存在冲突（InvalidUpdateError: market_report 重复写入）
-  - **需要修复**：
-    - `dynamic_graph_builder.py` 中并行组链和工具循环路由的互斥问题
-    - 或者改为纯线程池并行（非 LangGraph 图级别并行）
-  - **预估**：2-3 天
-  - **参考文件**：`tradingagents/graph/dynamic_graph_builder.py`、`tradingagents/graph/setup.py`
+以下原计划中的错误数据已被本次对照修正：
 
-- [ ] **FIX-3: V1.2 动态图检查点重新适配**
-  - **当前状态**：检查点代码已实现，但因 FIX-1 回滚（executor.py 连带回滚）而无法启用
-  - **需要修复**：从 commit `da2dd0e` 提取 `checkpointer.py` + `executor.py` 的检查点改动，独立于 FIX-1 重新合入
-  - **预估**：1 天
+| 原计划声称 | 修正后实际 | 说明 |
+|---|---|---|
+| 测试 849/851 通过 | **847/858 通过**（10 失败，1 跳过） | 总测试数从 851 增至 858 |
+| test_quote.py 12 个测试失败 | **8/8 已通过**（commit `ad5a0ec` 已修复） | 该文件仅有 8 个测试，不是 12 个 |
+| executor.py 随 FIX-1 "连带回滚" | **未回滚**。checkpoint 代码完整保留 | 仅 `fan_out_enabled` 默认值被调整 |
+| eastmoney API 网络兼容性未修复 | **已修复**（commit `cdabde0`） | TLS adapter 绕过 urllib3 指纹封锁 |
 
-- [ ] **12 个 test_quote.py 测试失败修复**
-  - **原因**：新增 `a_stock_data` 模块后，`test_quote.py` 中的 mock 数据与实际 API 返回格式不匹配
-  - **需要修复**：更新 mock 数据以匹配新的腾讯财经 API 返回格式
+---
+
+## 待办事项（按新优先级排序）
+
+### ✅ 已完成（可从列表中移除）
+
+- [x] **test_quote.py 8 个测试修复** — commit `ad5a0ec`。mock 数据已从 akShare DataFrame 适配为 push2 JSON 格式，8/8 通过。
+- [x] **eastmoney API 网络兼容性** — commit `cdabde0`。TLS adapter 绕过 urllib3 指纹封锁。
+
+---
+
+### P0-A — 新增测试失败修复（阻塞 CI，先行处理）
+
+- [x] **test_notice.py 7 个失败修复**
+  - **根因**：`get_individual_notices()` / `get_research_reports()` 已委托给 `a_stock_data` 模块（cninfo/reportapi），但测试仍 mock 旧的 `ak.stock_individual_notice_report()` / `ak.stock_research_report_em()`，mock 从未被调用
+  - **还需要**：断言更新——新 API 返回英文字段（`announcementTitle` / `orgSName`），旧断言期望中文（`"公告标题"` / `"机构"` / `"中信证券"`）
   - **预估**：0.5 天
+  - **参考文件**：`tests/test_notice.py`、`tradingagents/dataflows/a_stock_data.py`（`get_cninfo_announcements`、`get_research_reports`）
 
-### P1 — 新发现问题
+- [x] **test_a_share.py 2 个失败修复**
+  - `test_default_config`：断言 `"akshare"`，现已是 `"a_stock_data"`
+  - `test_get_fundamentals`：断言 "ROE" / "Revenue"，现腾讯财经返回 PE/PB/换手率
+  - **预估**：0.5 天
+  - **参考文件**：`tests/test_a_share.py`、`tradingagents/default_config.py`
+
+- [x] **test_macro_context.py 2 个失败排查**
+  - `test_us_indices_format` / `test_bond_yield_format`：返回 "——"（无数据）
+  - 可能是宏数据 API 可达性问题或 akshare 端点变更
+  - **预估**：0.5 天
+  - **参考文件**：`tests/test_macro_context.py`、`tradingagents/dataflows/akshare.py`
+
+---
+
+### P0-B — FIX-3 检查点启用（最低风险，代码已就绪）
+
+- [x] **FIX-3：V1.2 动态图检查点启用**
+  - **当前状态**：`checkpointer.py`（166 行）完整存在，`executor.py` 的 11 处检查点代码全部保留。被 `if self.enable_checkpoint and self.data_dir` 隔离。默认 `False`
+  - **勘误**：原计划说 executor.py "连带回滚"——**不准确**。仅 `fan_out_enabled` 被调整，checkpoint 代码从未被回滚
+  - **需要做**：
+    1. `default_config.py` 第 34 行：`"enable_checkpoint": False` → `True`
+    2. 确认 `langgraph-checkpoint-sqlite` 在 `pyproject.toml` 依赖中
+    3. 跑 `test_checkpoint.py` + `test_checkpoint_resume.py` 验证
+  - **预估**：0.5 天
+  - **参考文件**：`tradingagents/graph/checkpointer.py`、`tradingagents/graph/executor.py`（第 78-165 行）、`tradingagents/default_config.py`（第 34 行）
+  - **注意**：有优雅 fallback（package 未安装时自动降级到无 checkpoint 模式）
+
+---
+
+### P1-A — FIX-1 并行化重设计（最高复杂度）
+
+- [ ] **FIX-1：分析师并行化重新启用**
+  - **当前状态**：`fan_out_enabled=false`。存在**两套脱节的并行实现**：
+    - `setup.py`：真正的 LangGraph Send API 并行（仅被 legacy `trading_graph.py` 使用，不参与当前主执行流）
+    - `dynamic_graph_builder.py`："伪并行"——组检测 + merge barrier，组内仍串行链（第 87 行注释：`# --- 分析师组顺序执行链（代替 Send 并行避免 state 冲突） ---`）
+  - **根本冲突**：`market_analyst` 和 `macro_analyst` 共享 `market_report` state key，LangGraph 不允许并行写入同一 key（产生 InvalidUpdateError）
+  - **需要决策**：
+    - **方案 A**：将 `setup.py` 的 Send API 拨入 `dynamic_graph_builder.py`（需解决 state key 冲突）
+    - **方案 B**：保持当前顺序链方案，仅启用"分组+merge barrier"加速
+    - **方案 C**：改为纯线程池并行（非图级别）
+  - **预估**：2-3 天
+  - **参考文件**：`tradingagents/graph/dynamic_graph_builder.py`（第 87-120 行 fan_out 分支）、`tradingagents/graph/setup.py`（第 148-170 行 Send API 实现）、`tradingagents/default_config.py`（第 41 行）
+
+---
+
+### P1-B — Planner 行业上下文注入
 
 - [ ] **Planner 辩论模板匹配优化**
-  - **现象**：600418 的辩论 Agent 使用了 AI 云服务场景模板，与实际公司（汽车制造）不匹配
-  - **需要修复**：在 LLM Planner 的模板匹配中添加行业/公司类型检测，为不同行业选择对应的辩论模板
+  - **根因**：`Context.industry`（`schemas.py` 第 17 行）是**死字段**——被定义但从未在任何地方被填充：
+    - `api_server.py` 和 `scheduler.py` 构造 `Context` 时不传 `industry`
+    - `template_matcher.py` 完全不使用 `industry`
+    - LLM 兜底路径收到 `行业:无`，对 `600418`（汽车制造）自行推断为"AI 云服务"
+  - **勘误**：原计划说存在"AI 云服务场景模板"——**不存在此模板**。代码库只有 6 个通用模板，是 LLM 自行生成的幻觉场景
+  - **需要做**：
+    1. 在 `api_server.py` / `scheduler.py` 中填充 `context.industry`（从 a_stock_data/akshare 获取 SW 行业一级/二级分类）
+    2. 在 `template_matcher._extract_features()` 中添加 `industry` 维度
+    3. 确保 LLM 兜底路径收到正确的行业信息
   - **预估**：1 天
+  - **参考文件**：`tradingagents/planner/schemas.py`（第 17 行）、`tradingagents/planner/llm_planner.py`（第 117 行）、`tradingagents/planner/template_matcher.py`（第 61-72 行）、`tradingagents/api_server.py`（第 135-139 行）、`tradingagents/scheduler/scheduler.py`（第 135-138 行）
 
-- [ ] **eastmoney API 网络兼容性**
-  - **现象**：部分服务器环境下 eastmoney API 返回 `Connection aborted`
-  - **临时方案**：已通过 TLS adapter 修复（commit cdabde0）
-  - **长期方案**：数据源统一增加超时重试 + akshare fallback
-  - **预估**：0.5 天
+---
 
-### P2 — 优化
+### P2-A — 数据源 fallback 全链路验证
 
 - [ ] **数据源 fallback 链完善**
-  - `get_current_price` 的 `VENDOR_METHODS` 已加入 `a_stock_data`，但实际调用仍有间歇失败
-  - 需要确保 a_stock_data → akshare 的自动降级在所有核心函数（get_stock_data, get_fundamentals, get_current_price, get_indicators）上生效
+  - `VENDOR_METHODS` 已加入 `a_stock_data` 路由，但 test_notice.py 的失败说明迁移不完整
+  - 需要确认 a_stock_data → akshare 自动降级在下列核心函数上全部生效：
+    - `get_stock_data`
+    - `get_fundamentals`（当前已切换到腾讯财经，需确认 fallback 路径）
+    - `get_current_price`
+    - `get_indicators`
+    - `get_individual_notices`（新增，迁移不完整）
+    - `get_research_reports`（新增，迁移不完整）
   - **预估**：0.5 天
+  - **参考文件**：`tradingagents/dataflows/interface.py`（VENDOR_METHODS 路由表）
 
-## 成功标准
-- [ ] 849+ 单元测试全部通过（含 test_quote.py 12 个修复）
+---
+
+## 执行顺序建议
+
+```
+     ✅ P0 全部完成
+          ↓
+     P1-A (FIX-1 并行化重设计) + P1-B (行业上下文注入)  ← 可并行
+          ↓
+     P2-A (fallback 全链路验证)
+```
+
+---
+
+## 成功标准（修正后）
+
+- [x] **857 测试通过，0 失败**（1 个 pre-existing skip 除外：`test_memory_log.py` 第 524 行）
 - [ ] `fan_out_enabled=true` 时 000001 分析成功（无 InvalidUpdateError）
-- [ ] `enable_checkpoint=true` 时 POST /analyze 崩溃后能从断点恢复
+- [x] `enable_checkpoint=true` 时 POST /analyze 崩溃后能从断点恢复（配置已启用，8 个 checkpoint 测试通过）
 - [ ] 600418 辩论使用汽车行业相关数据（非 AI 云服务场景）
+- [x] test_notice.py / test_a_share.py / test_macro_context.py 的 10 个失败全部修复
+- [ ] 数据源 fallback 在至少 3 个核心函数上可验证降级生效

@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     # V1.2 GraphExecutor checkpoint (separate from legacy trading_graph path).
     # When True, GraphExecutor saves/restores state via task-based SQLite DB.
     # Default off for gradual rollout. See tradingagents/graph/executor.py.
-    "enable_checkpoint": False,
+    "enable_checkpoint": True,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "Chinese",
