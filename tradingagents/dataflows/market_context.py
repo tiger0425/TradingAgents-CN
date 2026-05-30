@@ -65,6 +65,7 @@ def _fetch_index_status() -> str:
 
 def _fetch_sector_rotation() -> str:
     try:
+        from tradingagents.dataflows.a_stock_data import _get_session
         url = "https://push2.eastmoney.com/api/qt/clist/get"
         params = {
             "pn": 1,
@@ -74,9 +75,9 @@ def _fetch_sector_rotation() -> str:
             "fltt": 2,
             "invt": 2,
             "fs": "m:90+t:2",
-            "fields": "f2,f3,f4,f12,f13,f14,f104,f105,f128,f136,f140,f141",
+            "fields": "f2,f3,f4,f12,f13,f14,f104,f105,f128,f136,f140,f141,f207",
         }
-        resp = requests.get(url, params=params, timeout=10)
+        resp = _get_session().get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         diff = data.get("data", {}).get("diff", [])
