@@ -28,9 +28,11 @@ PLANNER_PROMPT = """
 
 ## 规划原则
 1. 定时任务不超过4个Agent，不包含辩论
-2. 个股深度分析需要bull+bear辩论
+2. 个股深度分析需要bull_researcher+bear_researcher辩论（两个必须同时出现，缺一不可）
 3. 解套方案需要trader做四方案模拟
-4. 风控辩论仅用于标准买卖分析
+4. 风控辩论必须同时安排 risk_aggressive + risk_conservative + risk_neutral 三方（三个必须同时出现，缺一不可）
+5. 如果不安排风控辩论，则不要单独出现任何一个 risk_* agent
+6. research_manager 必须与 bull_researcher+bear_researcher 同时出现，辩论结束后调用
 
 ## 输出格式
 严格JSON: {"intent":"...", "workflow":[{"step":1, "agent":"...", "task":"...", "depends_on":[], "expected_output":"..."}]}
