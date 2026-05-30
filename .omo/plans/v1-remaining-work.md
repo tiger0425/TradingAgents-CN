@@ -135,4 +135,4 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 - [x] `enable_checkpoint=true` 时 POST /analyze 崩溃后能从断点恢复（配置已启用，8 个 checkpoint 测试通过）
 - [x] 600418 辩论使用汽车行业相关数据（非 AI 云服务场景）— industry 已注入 context
 - [x] test_notice.py / test_a_share.py / test_macro_context.py 的 10 个失败全部修复
-- [ ] 数据源 fallback 在至少 3 个核心函数上可验证降级生效
+- [x] 数据源 fallback 在至少 3 个核心函数上可验证降级生效
