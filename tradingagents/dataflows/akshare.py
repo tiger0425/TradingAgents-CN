@@ -990,10 +990,10 @@ _spot_em_cache: tuple = (0, None)
 
 
 def get_real_time_quotes(symbol: str) -> str:
-    """Retrieve real-time stock quotes from East Money via akshare.
+    """Retrieve real-time stock quotes from East Money via push2 HTTP API.
 
-    Uses ``ak.stock_zh_a_spot_em()`` which returns live data for all A-shares
-    with more complete fields than the Sina source (PE, PB, turnover rate, etc.).
+    Direct HTTP call to East Money push2 endpoint, replacing the previous
+    akshare ``ak.stock_zh_a_spot_em()`` full-market scan for better performance.
 
     Args:
         symbol: Single A-share code (eg ``600519``) or comma-separated multiple codes.
@@ -1002,49 +1002,53 @@ def get_real_time_quotes(symbol: str) -> str:
         Markdown-formatted string with real-time quotes for the requested symbol(s).
     """
     try:
-        _ensure_akshare()
-
-        global _spot_em_cache
-        cache_ts, cache_df = _spot_em_cache
-        now = time.time()
-
-        if cache_df is not None and (now - cache_ts) < _SPOT_EM_CACHE_TTL:
-            df = cache_df
-        else:
-            df = ak.stock_zh_a_spot_em()
-            _spot_em_cache = (now, df)
-
-        if df is None or df.empty:
-            return "No real-time data available"
-
         # Normalise: accept comma-separated or single code
         symbols = [s.strip() for s in symbol.replace("，", ",").split(",")]
-        mask = df["代码"].isin(symbols)
-        matches = df[mask]
 
-        if matches.empty:
-            joined = ", ".join(symbols)
-            return f"No real-time quote found for symbol(s): '{joined}'"
+        # Build secid list: 沪市(6/5/9开头) → 1.{code}, 深市(其他) → 0.{code}
+        secids = []
+        for s in symbols:
+            if s.startswith(("6", "5", "9")):
+                secids.append(f"1.{s}")
+            else:
+                secids.append(f"0.{s}")
+
+        fields = "f57,f58,f43,f44,f45,f46,f47,f48,f60,f116,f117,f162,f167,f168,f169"
+        url = "https://push2.eastmoney.com/api/qt/ustock/ustock/get"
+        params = {"fields": fields, "secids": ",".join(secids)}
+
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get("data") is None or data["data"] is None:
+            return "No real-time data available"
 
         rows = []
-        for _, r in matches.iterrows():
+        for item in data["data"]:
+            if item is None:
+                continue
             rows.append({
-                "code": r.get("代码", ""),
-                "name": r.get("名称", ""),
-                "price": r.get("最新价", "N/A"),
-                "change": r.get("涨跌额", "N/A"),
-                "change_pct": r.get("涨跌幅", "N/A"),
-                "open": r.get("今开", "N/A"),
-                "high": r.get("最高", "N/A"),
-                "low": r.get("最低", "N/A"),
-                "prev_close": r.get("昨收", "N/A"),
-                "volume": r.get("成交量", "N/A"),
-                "amount": r.get("成交额", "N/A"),
-                "amplitude": r.get("振幅", "N/A"),
-                "turnover_rate": r.get("换手率", "N/A"),
-                "pe": r.get("市盈率-动态", "N/A"),
-                "pb": r.get("市净率", "N/A"),
+                "code": item.get("f57", ""),
+                "name": item.get("f58", ""),
+                "price": item.get("f43", "N/A"),
+                "change": item.get("f117", "N/A"),
+                "change_pct": item.get("f116", "N/A"),
+                "open": item.get("f46", "N/A"),
+                "high": item.get("f44", "N/A"),
+                "low": item.get("f45", "N/A"),
+                "prev_close": item.get("f60", "N/A"),
+                "volume": item.get("f47", "N/A"),
+                "amount": item.get("f48", "N/A"),
+                "amplitude": item.get("f162", "N/A"),
+                "turnover_rate": item.get("f167", "N/A"),
+                "pe": item.get("f168", "N/A"),
+                "pb": item.get("f169", "N/A"),
             })
+
+        if not rows:
+            joined = ", ".join(symbols)
+            return f"No real-time quote found for symbol(s): '{joined}'"
 
         if len(rows) == 1:
             r = rows[0]
@@ -1067,7 +1071,7 @@ def get_real_time_quotes(symbol: str) -> str:
                 f"| **市盈率(动态)** | {r['pe']} |",
                 f"| **市净率** | {r['pb']} |",
                 "",
-                f"*数据来源: 东方财富 (akshare, 实时)*",
+                f"*数据来源: 东方财富 (push2, 实时)*",
                 f"*获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
             ]
         else:
@@ -1085,16 +1089,14 @@ def get_real_time_quotes(symbol: str) -> str:
                 )
             lines += [
                 "",
-                f"*数据来源: 东方财富 (akshare, 实时)*",
+                f"*数据来源: 东方财富 (push2, 实时)*",
                 f"*获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
             ]
 
         return "\n".join(lines)
 
-    except ImportError as e:
-        return f"Error: {e}"
     except Exception as e:
-        return f"Error fetching real-time quotes: {str(e)}"
+        return f"实时行情查询失败 ({symbol}): {str(e)}"
 
 
 # ============================================================================
