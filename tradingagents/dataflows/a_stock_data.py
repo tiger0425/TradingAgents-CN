@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -51,6 +52,8 @@ except ImportError:
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 PUSH2_URL = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get"
+PUSH2HIS_URL = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+STOCK_INFO_URL = "https://push2.eastmoney.com/api/qt/stock/get"
 
 TIMEOUT = 30
 
@@ -1000,6 +1003,62 @@ def get_fund_flow_minute(code: str) -> str:
         return f"资金流向查询失败 ({code}): {str(e)}"
 
 
+def get_fund_flow_120d(code: str) -> str:
+    """查询个股 120 日资金流向。
+
+    直连东财 push2his 接口，返回每日主力净流入/出、小单、中单、大单、超大单资金流向。
+    金额单位为 **元**。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含每日资金流向数据
+    """
+    try:
+        # 上证 1.{code}，深证 0.{code}
+        secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+
+        params: Dict[str, Any] = {
+            "secid": secid,
+            "fields1": "f1,f2,f3,f7",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57",
+            "klt": 101,
+            "lmt": 120,
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://quote.eastmoney.com/",
+        }
+
+        resp = requests.get(PUSH2HIS_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        body = resp.json()
+
+        data = body.get("data", {})
+        kline = data.get("klines", [])
+
+        if not kline:
+            return _format_result([], f"120日资金流向 — {code}")
+
+        rows: List[Dict[str, Any]] = []
+        for line in kline:
+            parts = line.split(",")
+            if len(parts) >= 6:
+                rows.append({
+                    "时间": parts[0],               # f51
+                    "主力净流入": parts[1],          # f52
+                    "小单净流入": parts[2],          # f53
+                    "中单净流入": parts[3],          # f54
+                    "大单净流入": parts[4],          # f55
+                    "超大单净流入": parts[5],        # f56
+                })
+
+        return _format_result(rows, f"120日资金流向 — {code}")
+    except Exception as e:
+        return f"120日资金流向查询失败 ({code}): {str(e)}"
+
+
 # ============================================================================
 # 11. 个股新闻 — 东财搜索
 # ============================================================================
@@ -1069,7 +1128,59 @@ def get_stock_news(code: str, page_size: int = 10) -> str:
 
 
 # ============================================================================
-# 11. 百度K线 — MA5/MA10/MA20 (Layer 1.3)
+# 12. 全球财经资讯 — 东财全球资讯
+# ============================================================================
+
+
+def get_global_news_em(count: int = 10) -> str:
+    """查询东财全球财经资讯。
+
+    直连东财 np-weblist 快讯接口，获取全球财经资讯列表。
+    需要 req_trace UUID 参数（V3.1 新增必填项）。
+
+    参数:
+        count: 返回条数，默认 10
+
+    返回:
+        Markdown 格式字符串，包含资讯标题、时间、内容摘要。
+        出错时返回错误描述字符串。
+    """
+    url = "https://np-weblist.eastmoney.com/comm/web/getFastNewsList"
+    params = {
+        "client": "web",
+        "bizCode": "000",
+        "fastColumn": "102",
+        "sortEnd": "",
+        "pageIndex": "1",
+        "pageSize": str(count),
+        "req_trace": uuid.uuid4().hex,
+    }
+    headers = {
+        "User-Agent": UA,
+        "Referer": "https://np-weblist.eastmoney.com/",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        d = resp.json()
+        data = d.get("data", {}).get("fastNewsList", [])[:count]
+        rows: List[Dict[str, Any]] = []
+        for item in data:
+            title = item.get("title", "").strip()
+            show_time = item.get("showTime", "")
+            content = (item.get("content", "") or "")[:80]
+            rows.append({
+                "标题": title,
+                "时间": show_time,
+                "摘要": content,
+            })
+        return _format_result(rows, "全球财经资讯")
+    except Exception as e:
+        return f"全球资讯查询失败: {str(e)}"
+
+
+# ============================================================================
+# 13. 百度K线 — MA5/MA10/MA20 (Layer 1.3)
 # ============================================================================
 
 
@@ -1136,6 +1247,69 @@ def get_baidu_kline_ma(code: str, count: int = 20) -> str:
 
 
 # ============================================================================
+# 12. 个股基础信息 — 东财 push2
+# ============================================================================
+
+
+def get_stock_info(code: str) -> str:
+    """查询个股基础信息。
+
+    直连东财 push2 接口，获取个股名称、代码、行业、总股本、流通股、
+    板块、PE、总市值、流通市值、股东人数、户均持股、人均市值等信息。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含个股基础信息，出错时返回错误描述
+    """
+    try:
+        # 上证 1.{code}，深证 0.{code}
+        secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+
+        params: Dict[str, Any] = {
+            "secid": secid,
+            "fields": "f57,f58,f84,f85,f86,f100,f115,f116,f117,f162,f167,f168",
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://quote.eastmoney.com/",
+        }
+
+        resp = requests.get(STOCK_INFO_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        body = resp.json()
+
+        data = body.get("data", {})
+        if not data:
+            return _format_result([], f"个股信息 — {code}")
+
+        # 字段映射：东财原始 key → 中文标签
+        field_map = {
+            "f57": "名称",
+            "f58": "代码",
+            "f84": "行业",
+            "f85": "总股本(万股)",
+            "f86": "流通股(万股)",
+            "f100": "板块",
+            "f115": "PE(市盈率)",
+            "f116": "总市值(元)",
+            "f117": "流通市值(元)",
+            "f162": "股东人数",
+            "f167": "户均持股(股)",
+            "f168": "人均市值(元)",
+        }
+
+        row: Dict[str, Any] = {}
+        for key, label in field_map.items():
+            row[label] = data.get(key, "")
+
+        return _format_result([row], f"个股信息 — {code}")
+    except Exception as e:
+        return f"个股信息查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
 # 模块导出
 # ============================================================================
 
@@ -1151,6 +1325,9 @@ __all__ = [
     "get_hot_stock_reasons",
     "get_cls_flash",
     "get_cninfo_announcements",
+    "get_stock_info",
     "get_stock_news",
+    "get_global_news_em",
     "get_baidu_kline_ma",
+    "get_fund_flow_120d",
 ]
