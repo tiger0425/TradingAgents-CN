@@ -40,7 +40,8 @@ Breaking changes within the 0.x line are called out explicitly.
   资金流向(分钟)、120日资金流、个股新闻、东财全球资讯、个股基础信息、
   百度K线 MA5/10/20、新浪财报三表、东财研报列表、同花顺一致预期 EPS、
   mootdx 季报快照(37字段)、mootdx F10 公司资料(9大类)。
-  仅剩 iwencai NL 语义搜索未整合（需 API Key）。
+     仅剩 iwencai NL 语义搜索未整合（需 API Key）。
+- **默认数据商切换 akshare → a_stock_data** — `default_config.py` 中 `core_stock_apis`、`technical_indicators`、`fundamental_data` 三个核心类别默认指向 `a_stock_data`（mootdx TCP 直连 + 腾讯财经 + stockstats）。不在 `a_stock_data` 覆盖范围内的方法（如 `get_current_price`、`get_balance_sheet` 三表、`news_data` 类）自动通过 fallback 链回退到 akshare，确保零中断。
 
 ## [0.2.8-cn] — 2026-05-11
 

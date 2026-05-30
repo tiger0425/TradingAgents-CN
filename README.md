@@ -226,7 +226,7 @@ DEFAULT_CONFIG = {
     "output_language": "Chinese",
     "max_debate_rounds": 1,
     "data_vendors": {
-        "core_stock_apis": "akshare",
+        "core_stock_apis": "a_stock_data",
         "macro_economic": "guosen",
         "stock_screening": "guosen",
         "specialty_data": "a_stock_data",
