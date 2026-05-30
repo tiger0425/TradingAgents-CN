@@ -26,11 +26,11 @@
 
 # TradingAgents：双层智能金融分析系统
 
-> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（akshare + 国信证券）、V1.3 双层调度架构（后台采集 + 事件驱动）、LLM Planner 智能编排、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
+> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（mootdx/a-stock-data + 国信证券）、V1.3 双层调度架构（后台采集 + 事件驱动）、LLM Planner 智能编排、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
 
 ## News
 
-- [2026-05] **V1.3 架构质量升级**：11 项架构缺陷修复，涵盖分析师并行化（-67% 延迟）、辩论路由枚举化、deep_llm fallback 机制、检查点恢复、上下文智能压缩、工具循环检测、并发安全锁、因果链追踪等。
+- [2026-05] **V1.3 架构质量升级**：11 项架构缺陷修复（FIX-0~FIX-10），涵盖辩论路由枚举化、deep_llm fallback 机制、KB 时效加权、上下文智能压缩、工具循环检测、并发安全锁、因果链追踪等。DeepSeek v4-flash 全链路端到端通过，850+ 测试通过。分析师并行化已实现但暂禁用（待后续独立 PR 修复拓扑冲突）。
 - [2026-05] **V1.2 冒烟验证全部通过**：4 Collector（AkShare 真实数据）+ KB 时效管理 + Planner 覆盖率计算 + OHLCV 预取 + 对话录入持仓全部验证通过。
 - [2026-05] **V1.2 双层智能架构上线**：后台采集层不间断研究并写入知识库；LLM Planner 收到消息后优先查 KB，只对缺失部分启动 Agent。
 - [2026-05] **国信证券数据源接入**：`dataflows/guosen.py` 提供实时行情、财务三表、宏观经济、智能选股、基金对比、ETF 筛选等 13 个数据函数。
@@ -219,18 +219,19 @@ OPENCLAW_HOOK_TOKEN=...        # OpenClaw 推送令牌
 ```python
 DEFAULT_CONFIG = {
     "llm_provider": "openai",
-    "deep_think_llm": "gpt-5.4",
-    "quick_think_llm": "gpt-5.4-mini",
+    "llm_provider": "deepseek",
+    "deep_think_llm": "deepseek-v4-pro",
+    "quick_think_llm": "deepseek-v4-flash",
     "market_type": "A_SHARE",
     "benchmark_ticker": "000300",
     "output_language": "Chinese",
-    "max_debate_rounds": 1,
+    "max_debate_rounds": 2,
+    "fan_out_enabled": false,
     "data_vendors": {
         "core_stock_apis": "a_stock_data",
-        "macro_economic": "guosen",
-        "stock_screening": "guosen",
+        "technical_indicators": "a_stock_data",
+        "fundamental_data": "a_stock_data",
         "specialty_data": "a_stock_data",
-        "fundamental_data": "a_stock_data",  # 新增：腾讯财经PE/PB/市值
     },
 }
 ```

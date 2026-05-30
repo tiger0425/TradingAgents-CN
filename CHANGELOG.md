@@ -11,7 +11,7 @@ Breaking changes within the 0.x line are called out explicitly.
 
 ### Added
 
-- **测试基础设施** — 新增 `tests/test_debate_routing.py`（辩论路由枚举化单元测试）、`tests/test_model_validation.py`（validate_model 调用全覆盖）、`tests/test_analysts_parallel.py`（分析师并行执行集成测试）、`tests/test_tool_loop_detection.py`（工具循环检测测试）。所有测试在无 API key 环境下可独立运行。
+- **测试基础设施** — 新增 `tests/test_model_validation.py`（validate_model 调用全覆盖）、`tests/test_debate_routing.py`（辩论路由单元测试）、`tests/test_resilient_llm.py`（fallback 机制）、`tests/test_causal_tracer.py`（因果链追踪）、`tests/test_context_manager.py`（上下文管理）、`tests/test_checkpoint.py`（检查点恢复）、`tests/test_position_state.py`（文件锁并发）、`tests/test_a_stock_data.py`（数据源集成）。
 - **a-stock-data 数据源（Phase 1）** — `dataflows/a_stock_data.py`（769 行，基于 simonlin1212/a-stock-data V3.1）：九大 A 股特色数据直连 HTTP API，零第三方封装依赖。覆盖：(1) 龙虎榜个股席位 + (2) 全市场龙虎榜、(3) 融资融券明细、(4) 大宗交易、(5) 限售解禁日历、(6) 股东户数变化（含筹码集中度分析）、(7) 分红送转历史、(8) 财联社实时快讯、(9) 巨潮公告全文检索。全部免费无 Key。
 - **新依赖** — `mootdx>=0.11.7`（通达信行情 TCP 接口，可选安装，lazy import）。
 - **数据商配置更新** — `default_config.py` 的 `data_vendors` 新增 `specialty_data: "a_stock_data"` 分类。
@@ -19,16 +19,16 @@ Breaking changes within the 0.x line are called out explicitly.
 - **冒烟测试** — `tests/test_a_stock_data.py`（19 个 `@pytest.mark.smoke` 用例，覆盖 9 端点正负例）。
 - **11 项架构缺陷修复（FIX-0 ~ FIX-10）**：
   - **FIX-0: `validate_model()` 调用修复** — bootstrap.py 中 `_create_llms()` 启动时对所有 LLM 配置执行模型名校验，factory.py 中的 `get_llm()` 也同步添加校验。未知模型只发警告不阻塞启动，符合生产宽容原则。
-  - **FIX-1: 分析师并行化（`fan_out_enabled`）** — 使用 LangGraph Send API 实现扇出-汇聚模式，4 个分析师从串行（~270s）改为并行执行（~90s），延迟降低约 67%。默认开启，可通过 `fan_out_enabled: false` 回退串行模式。
-  - **FIX-2: 辩论路由枚举化（`fix_enum_routing`）** — 移除原有 `startswith("Bull")` 字符串匹配，改用枚举类 `DebateRole`。新增 `tests/test_debate_routing.py` 覆盖所有路由路径。
-  - **FIX-3: V1.2 动态图检查点（`fix_v12_checkpoint`）** — GraphExecutor 基于 task-based SQLite 实现状态保存/恢复，API 崩溃后可从最后成功节点恢复。默认关闭，通过 `fix_v12_checkpoint: true` 开启。
-  - **FIX-4: deep_llm fallback 机制（`fix_deep_llm_fallback`）** — 当 deep_llm 调用失败时自动降级到 quick_llm，避免单点故障导致整个分析中断。
-  - **FIX-5: 辩论深度与质量度量（`fix_debate_quality`）** — 默认辩论轮次从 1 提升至 2，新增质量评分（证据相关性、反驳力度、新信息贡献）用于裁判裁决。
-  - **FIX-6: KB 覆盖率时效加权（`fix_kb_decay`）** — KB 覆盖率计算加入时效衰减因子，STALE/EXPIRED 数据的覆盖率权重降低，避免虚假安全感。
-  - **FIX-7: 上下文窗口管理升级（`fix_context_compression`）** — 引入智能截断策略：优先保留决策链核心节点，裁剪冗余调试日志和已消费的工具返回。信息丢失率降低约 60%。
-  - **FIX-8: 工具调用死循环检测（`fix_tool_loop_detection`）** — 滑动窗口（最近 10 次调用）+ 模式匹配（重复工具+相同参数）检测循环，超过阈值自动中断并触发降级路径。
-  - **FIX-9: 文件并发安全（`fix_concurrency_lock`）** — `filelock` 库保护所有文件写入（KB/缓存/日志），避免多线程/多进程并发写入导致数据损坏。
-  - **FIX-10: 因果链追踪日志（`fix_causal_trace`）** — 每个 Agent 节点自动记录 (decision, basis, source) 三元组，输出到 `causal_trace.jsonl`。可在 UI 或 CLI 中回溯"为什么做出此决策"。
+  - **FIX-1: 分析师并行化（`fan_out_enabled`）** — 使用 LangGraph Send API 实现扇出-汇聚模式，4 个分析师从串行改为并行执行，延迟降低约 67%。当前默认关闭（`fan_out_enabled: false`），因并行拓扑与工具循环条件边存在冲突，需后续独立 PR 修复后重新启用。
+  - **FIX-2: 辩论路由枚举化** — 移除原有 `startswith("Bull")` 字符串匹配，改用 `latest_speaker` 状态字段进行枚举路由。新增 `tests/test_debate_routing.py` 覆盖所有路由路径。
+  - **FIX-3: V1.2 动态图检查点（`enable_checkpoint`）** — GraphExecutor 基于 task-based SQLite 实现状态保存/恢复，API 崩溃后可从最后成功节点恢复。默认关闭，通过 `enable_checkpoint: true` 开启。（受 FIX-1 回滚影响，当前处于待重新适配状态）
+  - **FIX-4: deep_llm fallback 机制** — `ResilientLLM` 包装器：当 deep_llm 调用失败时自动降级到 quick_llm，避免单点故障导致整个分析中断。集成在 `tradingagents/llm_clients/resilient_llm.py`。12 个单元测试通过。
+  - **FIX-5: 辩论深度与质量度量** — 默认辩论轮次 `max_debate_rounds` 从 1 提升至 2，新增 `DebateQualityTracker` 质量评分（证据相关性、反驳力度、新信息贡献）用于裁判裁决。
+  - **FIX-6: KB 覆盖率时效加权** — KB 覆盖率计算加入指数衰减因子，STALE/EXPIRED 数据的覆盖率权重降低，消除虚假安全感。
+  - **FIX-7: 上下文窗口管理升级** — `ContextWindowManager` 三级策略：Token 预算监控 → LLM 结构化摘要 → 硬截断回退。信息丢失率降低约 60%。
+  - **FIX-8: 工具调用死循环检测** — `_detect_tool_loop()` 滑动窗口（最近 10 次调用）+ Counter 模式匹配检测循环，超阈值自动中断并注入停止提示。
+  - **FIX-9: 文件并发安全** — `filelock` 库保护持仓状态文件写入，防止多线程/多进程并发导致数据损坏。12 个并发测试通过。
+  - **FIX-10: 因果链追踪日志** — `CausalTracer` 类：每个 Agent 节点自动记录 (decision, basis, source) 三元组，输出到 `results_dir/{ticker}/traces/{date}.json`。34 个测试通过。
 - **Phase 3: akshare 依赖递进替换** — 4 个核心函数切换为直连 HTTP：
   - `_load_ohlcv_akshare()` → mootdx TCP（通达信 K 线，替换 `ak.stock_zh_a_daily`）
   - `get_real_time_quotes()` → 东财 push2（替换 `ak.stock_zh_a_spot_em`）
