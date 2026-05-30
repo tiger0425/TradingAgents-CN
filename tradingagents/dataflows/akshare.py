@@ -885,6 +885,14 @@ def get_real_time_quotes(symbol: str) -> str:
         # Normalise: accept comma-separated or single code
         symbols = [s.strip() for s in symbol.replace("，", ",").split(",")]
 
+        # Cache hit check — return cached result if same symbols and within TTL
+        global _spot_em_cache
+        cache_ts, cache_val = _spot_em_cache
+        if cache_val is not None and time.time() - cache_ts < _SPOT_EM_CACHE_TTL:
+            cached_symbols, cached_result = cache_val
+            if cached_symbols == symbols:
+                return cached_result
+
         # Build secid list: 沪市(6/5/9开头) → 1.{code}, 深市(其他) → 0.{code}
         secids = []
         for s in symbols:
@@ -973,7 +981,9 @@ def get_real_time_quotes(symbol: str) -> str:
                 f"*获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*",
             ]
 
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        _spot_em_cache = (time.time(), (symbols, result))
+        return result
 
     except Exception as e:
         return f"实时行情查询失败 ({symbol}): {str(e)}"
