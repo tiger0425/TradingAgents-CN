@@ -36,7 +36,10 @@ from datetime import datetime, timedelta
 from io import StringIO
 from typing import Any, Dict, List, Optional
 
+import ssl
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.poolmanager import PoolManager
 
 import pandas as pd
 import requests
@@ -49,6 +52,33 @@ try:
     from mootdx.quotes import Quotes
 except ImportError:
     Quotes = None
+
+# ============================================================================
+# TLS 适配器 — 绕过东财 WAF TLS 指纹检测
+# ============================================================================
+
+
+class _EastmoneyTLSAdapter(HTTPAdapter):
+    """绕过东财 push2/push2his 的 TLS 指纹检测。"""
+
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.set_ciphers('DEFAULT')
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+
+_session: Optional[requests.Session] = None
+
+
+def _get_session() -> requests.Session:
+    """返回挂载了东财 TLS 适配器的 requests Session。"""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        _session.mount("https://", _EastmoneyTLSAdapter())
+    return _session
+
 
 # ============================================================================
 # 常量与配置
@@ -99,7 +129,7 @@ def _eastmoney_datacenter(
         "client": "WEB",
     }
     try:
-        resp = requests.get(
+        resp = _get_session().get(
             DATACENTER_URL,
             params=params,
             headers={"User-Agent": UA},
@@ -393,7 +423,7 @@ def get_current_price_a(symbol: str) -> str:
     try:
         prefix = "sh" if symbol[0] in "69" else "sz"
         url = f"https://qt.gtimg.cn/q={prefix}{symbol}"
-        resp = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+        resp = _get_session().get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
         resp.encoding = "gbk"
         text = resp.text
         for line in text.split(";"):
@@ -1142,7 +1172,7 @@ def get_financial_statements(code: str, report_type: str = "balance") -> str:
     }
 
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
 
         # ── 解析 JSONP 响应 ──────────────────────────────────────
@@ -1228,7 +1258,7 @@ def get_cls_flash(count: int = 20) -> str:
         params["sign"] = _cls_sign(params)
         url = "https://www.cls.cn/v1/roll/get_roll_list"
 
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
         data = body.get("data", {}).get("roll_data", [])[:count]
@@ -1289,7 +1319,7 @@ def get_cninfo_announcements(code: str, page_size: int = 20) -> str:
             "tabName": "fulltext",
             "stock": f"{code},{org_id}",
         }
-        resp = requests.post(url, headers=headers, data=payload, timeout=TIMEOUT)
+        resp = _get_session().post(url, headers=headers, data=payload, timeout=TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
 
@@ -1356,7 +1386,7 @@ def get_concept_blocks(code: str) -> str:
         "Referer": "https://gushitong.baidu.com/",
     }
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         d = resp.json()
 
@@ -1421,7 +1451,7 @@ def get_hot_stock_reasons(date: str = "") -> str:
             ),
         }
 
-        resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
 
@@ -1478,7 +1508,7 @@ def get_fund_flow_minute(code: str) -> str:
             "Referer": "https://quote.eastmoney.com/",
         }
 
-        resp = requests.get(PUSH2_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(PUSH2_URL, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
 
@@ -1534,7 +1564,7 @@ def get_fund_flow_120d(code: str) -> str:
             "Referer": "https://quote.eastmoney.com/",
         }
 
-        resp = requests.get(PUSH2HIS_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(PUSH2HIS_URL, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         body = resp.json()
 
@@ -1601,7 +1631,7 @@ def get_stock_news(code: str, page_size: int = 10) -> str:
             "User-Agent": UA,
             "Referer": "https://quote.eastmoney.com/",
         }
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
 
         # 解析 JSONP 响应：jQuery(...)
@@ -1663,7 +1693,7 @@ def get_global_news_em(count: int = 10) -> str:
         "Referer": "https://np-weblist.eastmoney.com/",
     }
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         d = resp.json()
         data = d.get("data", {}).get("fastNewsList", [])[:count]
@@ -1719,7 +1749,7 @@ def get_baidu_kline_ma(code: str, count: int = 20) -> str:
         "Referer": "https://gushitong.baidu.com/",
     }
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         d = resp.json()
 
@@ -1806,7 +1836,7 @@ def get_research_reports(code: str, max_pages: int = 3) -> str:
                 "code": code,
             }
 
-            resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+            resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
             resp.raise_for_status()
             body = resp.json()
 
@@ -1855,7 +1885,7 @@ def get_consensus_eps(code: str) -> str:
         "Referer": "https://basic.10jqka.com.cn/",
     }
     try:
-        resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+        resp = _get_session().get(url, headers=headers, timeout=TIMEOUT)
         resp.encoding = "gbk"
         tables = pd.read_html(StringIO(resp.text))
 
