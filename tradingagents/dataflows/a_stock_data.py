@@ -28,6 +28,7 @@ Last synced: 2026-05-29
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -940,6 +941,201 @@ def get_hot_stock_reasons(date: str = "") -> str:
 
 
 # ============================================================================
+# 11. 个股资金流向（分钟级）— 东财 push2
+# ============================================================================
+
+
+def get_fund_flow_minute(code: str) -> str:
+    """查询个股资金流向（分钟级）。
+
+    直连东财 push2 接口，返回每分钟的主力净流入/出、小单、中单、大单、超大单资金流向。
+    金额单位为 **元**。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含每分钟资金流向数据
+    """
+    try:
+        # 上证 1.{code}，深证 0.{code}
+        secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+
+        params: Dict[str, Any] = {
+            "secid": secid,
+            "klt": 1,
+            "fields1": "f1,f2,f3,f7",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57",
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://quote.eastmoney.com/",
+        }
+
+        resp = requests.get(PUSH2_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        body = resp.json()
+
+        data = body.get("data", {})
+        kline = data.get("klines", [])
+
+        if not kline:
+            return _format_result([], f"个股资金流向 — {code}")
+
+        rows: List[Dict[str, Any]] = []
+        for line in kline:
+            parts = line.split(",")
+            if len(parts) >= 6:
+                rows.append({
+                    "时间": parts[0],               # f51
+                    "主力净流入": parts[1],          # f52
+                    "小单净流入": parts[2],          # f53
+                    "中单净流入": parts[3],          # f54
+                    "大单净流入": parts[4],          # f55
+                    "超大单净流入": parts[5],        # f56
+                })
+
+        return _format_result(rows, f"个股资金流向 — {code}")
+    except Exception as e:
+        return f"资金流向查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
+# 11. 个股新闻 — 东财搜索
+# ============================================================================
+
+
+def get_stock_news(code: str, page_size: int = 10) -> str:
+    """查询个股相关新闻。
+
+    直连东财搜索 API，获取个股相关新闻列表。
+
+    参数:
+        code: 股票代码，如 "600519"
+        page_size: 返回条数，默认 10
+
+    返回:
+        Markdown 格式字符串，包含新闻标题、日期、摘要。
+        出错时返回错误描述字符串。
+    """
+    try:
+        url = "https://search-api-web.eastmoney.com/search/jsonp"
+        params = {
+            "cb": "jQuery",
+            "param": json.dumps(
+                {
+                    "uid": "",
+                    "keyword": code,
+                    "type": ["8192"],
+                    "client": "web",
+                    "clientType": "web",
+                    "pageSize": page_size,
+                    "pageNo": 1,
+                },
+                ensure_ascii=False,
+            ),
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://quote.eastmoney.com/",
+        }
+        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+
+        # 解析 JSONP 响应：jQuery(...)
+        text = resp.text.strip()
+        start = text.find("(")
+        if start >= 0 and text.endswith(")"):
+            json_str = text[start + 1 : -1]
+        else:
+            json_str = text
+        d = json.loads(json_str)
+
+        data = d.get("result", {}).get("data", [])
+        rows: List[Dict[str, Any]] = []
+        for item in data:
+            title = item.get("title", "").strip()
+            date = item.get("date", item.get("showDate", ""))
+            content = (item.get("content", "") or "")[:80]
+            rows.append({
+                "标题": title,
+                "日期": date,
+                "摘要": content,
+            })
+
+        return _format_result(rows, f"个股新闻 — {code}")
+    except Exception as e:
+        return f"新闻查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
+# 11. 百度K线 — MA5/MA10/MA20 (Layer 1.3)
+# ============================================================================
+
+
+def get_baidu_kline_ma(code: str, count: int = 20) -> str:
+    """查询百度股市通 K 线数据（自带 MA5/MA10/MA20）。
+
+    直连百度股市通 selfselect/getstockquotation API，返回 K 线及均线指标。
+    数据含 MA5/MA10/MA20 均价字段。
+
+    参数:
+        code: 股票代码，如 "600519"
+        count: 返回 K 线条数，默认 20
+
+    返回:
+        Markdown 格式字符串，包含 K 线时间、价格及均线数据
+    """
+    url = "https://finance.pae.baidu.com/selfselect/getstockquotation"
+    params: Dict[str, Any] = {
+        "all": "1",
+        "isIndex": "false",
+        "isStock": "true",
+        "newFormat": "1",
+        "group": "quotation_kline_ab",
+        "finClientType": "pc",
+        "code": code,
+        "ktype": "1",
+    }
+    headers = {
+        "User-Agent": UA,
+        "Host": "finance.pae.baidu.com",
+        "Accept": "application/vnd.finance-web.v1+json",
+        "Origin": "https://gushitong.baidu.com",
+        "Referer": "https://gushitong.baidu.com/",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        d = resp.json()
+
+        market_data = d.get("Result", {}).get("newMarketData", {})
+        keys = market_data.get("keys", [])
+        raw_data = market_data.get("marketData", "")
+
+        if not keys or not raw_data:
+            return _format_result([], f"百度K线 — {code}")
+
+        rows: List[Dict[str, Any]] = []
+        lines = raw_data.strip().split(";")
+
+        for line in lines[-count:]:
+            if not line.strip():
+                continue
+            parts = line.strip().split(",")
+            if len(parts) != len(keys):
+                continue
+            row: Dict[str, Any] = {}
+            for i, key in enumerate(keys):
+                row[key] = parts[i]
+            rows.append(row)
+
+        return _format_result(rows, f"百度K线 — {code}")
+    except Exception as e:
+        return f"K线查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
 # 模块导出
 # ============================================================================
 
@@ -955,4 +1151,6 @@ __all__ = [
     "get_hot_stock_reasons",
     "get_cls_flash",
     "get_cninfo_announcements",
+    "get_stock_news",
+    "get_baidu_kline_ma",
 ]
