@@ -50,11 +50,6 @@ try:
 except ImportError:
     Quotes = None
 
-try:
-    from mootdx.finance import Finance
-except ImportError:
-    Finance = None
-
 # ============================================================================
 # 常量与配置
 # ============================================================================
@@ -168,8 +163,6 @@ def _ensure_mootdx() -> None:
     missing = []
     if Quotes is None:
         missing.append("mootdx.quotes.Quotes（日线行情）")
-    if Finance is None:
-        missing.append("mootdx.finance.Finance（财务数据）")
     if missing:
         raise ImportError(
             f"缺少 mootdx 组件: {', '.join(missing)}。请安装:\n"
@@ -556,13 +549,8 @@ def get_quarterly_snapshot(code: str) -> str:
     """
     _ensure_mootdx()
     try:
-        from mootdx.finance import Finance
-
-        # 市场判断：00/30 开头 → 深市(0)，60 开头 → 沪市(1)
-        market = 0 if code[0] in "03" else 1
-
-        client = Finance.factory(market="std")
-        df = client.finance(symbol=code, market=market)
+        client = Quotes.factory(market="std")
+        df = client.finance(symbol=code)
 
         if df is None or df.empty:
             return _format_result([], f"季报快照 — {code}")
