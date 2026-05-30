@@ -383,101 +383,64 @@ def get_fundamentals(
     ticker: Annotated[str, "ticker symbol of the company (6-digit A-share code)"],
     curr_date: Annotated[str, "current date you are trading at, yyyy-mm-dd"] = None,
 ) -> str:
-    """Retrieve comprehensive fundamental data for an A-share stock.
+    """Retrieve fundamental data (PE, PB, Market Cap, Turnover) for an A-share stock.
 
-    Uses akshare's stock_financial_analysis_indicator (Sina source) which
-    provides 100+ financial metrics. Returns a text report.
+    直连腾讯财经 HTTP API (qt.gtimg.cn)，获取实时核心估值指标。
+    返回文本报告，包含：PE(TTM)、PB、总市值、换手率、涨跌幅等。
     """
     try:
-        _ensure_akshare()
+        # 交易所前缀：6/9开头→沪市(sh)，0/2/3开头→深市(sz)
+        prefix = "sh" if ticker[0] in ("6", "9") else "sz"
+        url = f"https://qt.gtimg.cn/q={prefix}{ticker}"
 
-        # Derive year from curr_date, default to previous year
-        if curr_date:
-            year = _to_date(curr_date).year
-        else:
-            year = datetime.now().year - 1
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        text = resp.content.decode("gbk", errors="replace").strip()
 
-        # akshare Sina financial analysis indicator
-        df = ak.stock_financial_analysis_indicator(symbol=ticker, start_year=str(year))
+        if "=" not in text:
+            return f"基本面数据查询失败 ({ticker}): 响应格式错误（无 '=' 分隔符）"
 
-        if df is None or df.empty:
-            return f"No fundamentals data found for symbol '{ticker}'"
+        data_str = text.split("=", 1)[1].strip('"; \t\n\r')
+        if not data_str:
+            return f"基本面数据查询失败 ({ticker}): 空响应"
 
-        # The DataFrame has columns like: 日期, 摊薄每股收益, 加权每股收益, ...
-        # Try to use the most recent row
-        latest = df.iloc[-1] if len(df) > 0 else df.iloc[0]
+        fields = data_str.split("~")
+        if len(fields) < 47:
+            return (
+                f"基本面数据查询失败 ({ticker}): 字段不足"
+                f"（期望 ≥47，实际 {len(fields)}）"
+            )
 
-        # Select key fields (Chinese → English mapping for readability)
-        field_map = {
-            "日期": "Report Date",
-            "摊薄每股收益(元)": "EPS (Diluted)",
-            "加权每股收益(元)": "EPS (Weighted)",
-            "每股净资产(元)": "Book Value Per Share",
-            "净资产收益率(%)": "ROE (%)",
-            "总资产收益率(%)": "ROA (%)",
-            "毛利率(%)": "Gross Margin (%)",
-            "净利率(%)": "Net Margin (%)",
-            "资产负债率(%)": "Debt to Asset Ratio (%)",
-            "营业收入(元)": "Revenue",
-            "营业利润(元)": "Operating Profit",
-            "利润总额(元)": "Total Profit",
-            "净利润(元)": "Net Income",
-            "总资产(元)": "Total Assets",
-            "总负债(元)": "Total Liabilities",
-            "股东权益(元)": "Shareholder Equity",
-            "每股现金流(元)": "Cash Flow Per Share",
-            # A 股特有指标增强
-            "营业收入同比增长率(%)": "Revenue Growth YoY (%)",
-            "净利润同比增长率(%)": "Net Income Growth YoY (%)",
-            "扣非净利润(元)": "Recurring Net Income",
-            "每股未分配利润(元)": "Undistributed Profit Per Share",
-            "每股公积金(元)": "Capital Reserve Per Share",
-            "存货周转率(次)": "Inventory Turnover",
-            "应收账款周转率(次)": "Receivables Turnover",
-            "流动比率": "Current Ratio",
-            "速动比率": "Quick Ratio",
-            "总资产周转率(次)": "Asset Turnover",
-            "营业成本(元)": "Operating Cost",
-            "销售费用(元)": "Selling Expenses",
-            "管理费用(元)": "Admin Expenses",
-            "财务费用(元)": "Financial Expenses",
-        }
+        name = fields[1]
+        price = fields[3]
+        last_close = fields[4]
+        change_pct = fields[32]
+        turnover = fields[38]
+        pe = fields[39]
+        total_market_cap = fields[44]
+        pb = fields[46]
 
-        lines = []
-        mapped_keys = set()
-        for cn_name, en_name in field_map.items():
-            if cn_name in latest.index:
-                val = latest[cn_name]
-                if pd.notna(val):
-                    lines.append(f"{en_name}: {val}")
-                    mapped_keys.add(cn_name)
+        header = (
+            f"# 基本面数据: {ticker} ({name})\n"
+            f"# 数据来源: 腾讯财经 (qt.gtimg.cn)\n"
+            f"# 获取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        )
 
-        # 补充字段：自动追加未在 field_map 中的其他有效列作为额外参考信息
-        extra = []
-        for idx in latest.index:
-            if idx not in mapped_keys and pd.notna(latest[idx]):
-                extra.append(f"{idx}: {latest[idx]}")
-        if extra:
-            lines.append("")
-            lines.append("--- 补充字段 ---")
-            lines.extend(extra)
-
-        # If no mapped fields found, dump all available fields
-        if not lines:
-            for idx, val in latest.items():
-                if pd.notna(val):
-                    lines.append(f"{idx}: {val}")
-
-        header = f"# Company Fundamentals for {ticker}\n"
-        header += f"# Data source: akshare (Sina Financial Analysis)\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        lines = [
+            f"**股票名称**: {name}",
+            f"**最新价**: {price}",
+            f"**昨收**: {last_close}",
+            f"**涨跌幅**: {change_pct}%",
+            f"**换手率**: {turnover}%",
+            f"**市盈率(TTM)**: {pe}",
+            f"**市净率(PB)**: {pb}",
+            f"**总市值(亿)**: {total_market_cap}",
+        ]
 
         return header + "\n".join(lines)
 
-    except ImportError as e:
-        return f"Error: {e}"
     except Exception as e:
-        return f"Error retrieving fundamentals for {ticker}: {str(e)}"
+        return f"基本面数据查询失败 ({ticker}): {str(e)}"
 
 
 # ============================================================================
