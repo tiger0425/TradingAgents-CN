@@ -62,7 +62,10 @@ def bootstrap(env_file: str = ".env"):
     from .api_server import configure
     configure(planner, executor, portfolio_mgr, kb, cost_tracker)
 
-    _start_scheduler(kb, planner, portfolio_mgr, executor, config)
+    try:
+        _start_scheduler(kb, planner, portfolio_mgr, executor, config)
+    except RuntimeError as e:
+        logger.warning("Scheduler skipped (no event loop): %s", e)
     _start_dashboard(kb, config)
 
     logger.info("Bootstrap complete — API server ready")
