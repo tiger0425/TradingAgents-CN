@@ -71,16 +71,15 @@ V1.3 核心架构修复（FIX-0~FIX-10）已完成并通过 847/858 测试。原
 ### P1-A — FIX-1 并行化重设计（最高复杂度）
 
 - [ ] **FIX-1：分析师并行化重新启用**
-  - **当前状态**：`fan_out_enabled=false`。存在**两套脱节的并行实现**：
-    - `setup.py`：真正的 LangGraph Send API 并行（仅被 legacy `trading_graph.py` 使用，不参与当前主执行流）
-    - `dynamic_graph_builder.py`："伪并行"——组检测 + merge barrier，组内仍串行链（第 87 行注释：`# --- 分析师组顺序执行链（代替 Send 并行避免 state 冲突） ---`）
-  - **根本冲突**：`market_analyst` 和 `macro_analyst` 共享 `market_report` state key，LangGraph 不允许并行写入同一 key（产生 InvalidUpdateError）
-  - **需要决策**：
-    - **方案 A**：将 `setup.py` 的 Send API 拨入 `dynamic_graph_builder.py`（需解决 state key 冲突）
-    - **方案 B**：保持当前顺序链方案，仅启用"分组+merge barrier"加速
-    - **方案 C**：改为纯线程池并行（非图级别）
-  - **预估**：2-3 天
-  - **参考文件**：`tradingagents/graph/dynamic_graph_builder.py`（第 87-120 行 fan_out 分支）、`tradingagents/graph/setup.py`（第 148-170 行 Send API 实现）、`tradingagents/default_config.py`（第 41 行）
+  - **当前状态**：`fan_out_enabled=false`。Oracle 分析结论：**方案 A（Send API 迁移）** 是最优路径
+  - **决策依据**：`setup.py` 已有 141 行完整可运行的 LangGraph Send API 真并行实现（仅未被动态图复用）。不存在根本性的 LangGraph 限制——条件边 + Send API 已在 setup.py 中证明可行。方案 B（线程池）有线程安全风险，方案 C（缓存加速）是补充优化非替代方案。
+  - **实施方案（~1-2 天）**：
+    1. 解耦状态 Key：`AgentState` 新增 `macro_report` 字段，更新 `_ANALYST_STATE_KEY_MAP`
+    2. 实现 Send API 扇出：在 `dynamic_graph_builder.py` 新增 `_build_parallel_analyst_path()` 方法（参考 `setup.py` lines 148-170），包含 FanOut 节点 + MergeReports 屏障
+    3. 简化分组检测：将 `_detect_parallel_analyst_groups` 改为仅识别可并行的分析师列表
+    4. 集成测试 + 逐步启用（环境变量灰度 → `fan_out_enabled=true`）
+  - **预估**：1-2 天
+  - **参考文件**：`tradingagents/graph/dynamic_graph_builder.py`、`tradingagents/graph/setup.py`、`tradingagents/agents/utils/agent_states.py`
 
 ---
 

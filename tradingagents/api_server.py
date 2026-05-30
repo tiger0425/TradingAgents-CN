@@ -132,9 +132,18 @@ async def analyze(req: AnalyzeRequest):
                 for h in holdings
             )
 
+    industry = ""
+    if req.ticker:
+        try:
+            from tradingagents.dataflows.a_stock_data import get_industry
+            industry = get_industry(req.ticker)
+        except Exception:
+            industry = ""
+
     context = Context(
         user_id=req.user_id,
         ticker=req.ticker,
+        industry=industry,
         portfolio_summary=portfolio_summary,
     )
 

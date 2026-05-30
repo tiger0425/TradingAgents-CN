@@ -69,6 +69,7 @@ class TemplateMatcher:
             "is_scheduled_midday": trigger.task == "午评",
             "is_scheduled_closing": trigger.task == "收盘复盘",
             "is_scheduled_weekly": trigger.task == "周日选股",
+            "industry": context.industry or "",
         }
 
     def _score_template(self, template: Dict, features: Dict) -> float:

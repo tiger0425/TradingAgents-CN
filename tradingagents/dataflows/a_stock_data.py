@@ -1419,6 +1419,156 @@ def get_concept_blocks(code: str) -> str:
         return f"概念板块查询失败 ({code}): {str(e)}"
 
 
+def get_industry(code: str) -> str:
+    """获取股票所属行业分类（中文行业名称）。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        行业名称，如 "白酒Ⅱ"、"汽车制造"、"银行" 等；失败时返回 "未知"
+    """
+    import re
+
+    try:
+        _ensure_mootdx()
+        client = Quotes.factory(market="std")
+        f10 = client.F10(code)
+        if isinstance(f10, dict) and "行业分析" in f10:
+            section = f10["行业分析"]
+            match = re.search(r'【所属行业】\s*\n([^\n]+)', section)
+            if match:
+                raw = match.group(1).strip()
+                cleaned = re.sub(r'共\(\d+\)家.*$', '', raw).strip()
+                parts = [p.strip() for p in cleaned.split("--") if p.strip()]
+                if parts:
+                    return parts[-1]
+                return cleaned
+    except Exception:
+        pass
+
+    secid = f"1.{code}" if code.startswith("6") else f"0.{code}"
+    params = {
+        "secid": secid,
+        "fields": "f127",
+        "invt": "2",
+        "fltt": "2",
+    }
+    headers = {
+        "User-Agent": UA,
+        "Referer": "https://quote.eastmoney.com/",
+    }
+    try:
+        import requests as _requests
+        _s = _requests.Session()
+        _s.mount("https://", _EastmoneyTLSAdapter())
+        resp = _s.get(STOCK_INFO_URL, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+        d = resp.json()
+        f127 = (d.get("data") or {}).get("f127", "")
+        _s.close()
+        if isinstance(f127, str) and f127.strip() and f127 != "-":
+            return f127.strip()
+    except Exception:
+        pass
+
+    try:
+        result_md = get_concept_blocks(code)
+        if isinstance(result_md, str) and "失败" not in result_md:
+            lines = result_md.split("\n")
+            in_table = False
+            industry_col = -1
+            name_col = -1
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("|") and ("分类" in stripped or "名称" in stripped):
+                    cols = [c.strip() for c in stripped.split("|")[1:-1]]
+                    for idx, col in enumerate(cols):
+                        if col == "分类":
+                            industry_col = idx
+                        elif col == "名称":
+                            name_col = idx
+                    in_table = True
+                    continue
+                if in_table and stripped.startswith("|---"):
+                    continue
+                if in_table and industry_col >= 0 and name_col >= 0 and stripped.startswith("|"):
+                    cols = [c.strip() for c in stripped.split("|")[1:-1]]
+                    if len(cols) > max(industry_col, name_col):
+                        if cols[industry_col] == "行业" and cols[name_col]:
+                            return cols[name_col]
+                if in_table and not stripped.startswith("|"):
+                    break
+    except Exception:
+        pass
+
+    try:
+        f10 = get_f10_data(code, "gsjj")
+        if isinstance(f10, str) and f10:
+            for pat in [
+                r'(?:所属)?行业[：:]\s*([^\s\n|]+)',
+                r'主营\S*[：:]\s*([^\s\n|]+)',
+            ]:
+                match = re.search(pat, f10)
+                if match:
+                    result = match.group(1).strip()
+                    if result and len(result) >= 2 and result not in ("、", "—", "无", "None"):
+                        return result
+    except Exception:
+        pass
+
+    return "未知"
+
+    try:
+        result_md = get_concept_blocks(code)
+        if isinstance(result_md, str) and "失败" not in result_md:
+            import re
+            lines = result_md.split("\n")
+            in_table = False
+            industry_col = -1
+            name_col = -1
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith("|") and ("分类" in stripped or "名称" in stripped):
+                    cols = [c.strip() for c in stripped.split("|")[1:-1]]
+                    for idx, col in enumerate(cols):
+                        if col == "分类":
+                            industry_col = idx
+                        elif col == "名称":
+                            name_col = idx
+                    in_table = True
+                    continue
+                if in_table and stripped.startswith("|---"):
+                    continue
+                if in_table and industry_col >= 0 and name_col >= 0 and stripped.startswith("|"):
+                    cols = [c.strip() for c in stripped.split("|")[1:-1]]
+                    if len(cols) > max(industry_col, name_col):
+                        if cols[industry_col] == "行业" and cols[name_col]:
+                            return cols[name_col]
+                if in_table and not stripped.startswith("|"):
+                    break
+    except Exception:
+        pass
+
+    try:
+        f10 = get_f10_data(code, "gsjj")
+        if isinstance(f10, str) and f10:
+            import re
+            for pat in [
+                r'(?:所属)?行业[：:]\s*([^\s\n|]+)',
+                r'主营\S*[：:]\s*([^\s\n|]+)',
+            ]:
+                match = re.search(pat, f10)
+                if match:
+                    result = match.group(1).strip()
+                    if result and len(result) >= 2 and result not in ("、", "—", "无", "None"):
+                        return result
+    except Exception:
+        pass
+
+    return "未知"
+
+
 # ============================================================================
 # 10. 强势股题材归因 — 同花顺热点 (Layer 3.1)
 # ============================================================================
@@ -1928,6 +2078,7 @@ __all__ = [
     "get_shareholder_count",
     "get_dividend_history",
     "get_financial_statements",
+    "get_industry",
     "get_concept_blocks",
     "get_hot_stock_reasons",
     "get_cls_flash",

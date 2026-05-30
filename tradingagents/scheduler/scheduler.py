@@ -132,8 +132,19 @@ class TradingAgentsScheduler:
                 task=task,
                 timeout_minutes=timeout,
             )
+            industry = ""
+            ctx_ticker = portfolio.get("ticker", "")
+            if ctx_ticker:
+                try:
+                    from ..dataflows.a_stock_data import get_industry
+                    industry = get_industry(ctx_ticker)
+                except Exception:
+                    industry = ""
+
             context = Context(
                 user_id=user_id,
+                ticker=ctx_ticker,
+                industry=industry,
                 portfolio_summary=portfolio_summary,
             )
 

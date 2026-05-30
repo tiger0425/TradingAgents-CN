@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List, Optional, Set
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Send
 
 from ..agents import (
     create_market_analyst, create_fundamentals_analyst,
@@ -84,40 +85,47 @@ class DynamicGraphBuilder:
                 setattr(self, f"_clear_node_{agent_id}_{step['step']}", clear_node_name)
                 setattr(self, f"_analyst_node_{agent_id}_{step['step']}", node_name)
 
-        # --- 分析师组顺序执行链（代替 Send 并行避免 state 冲突） ---
+        # --- FIX-1: 分析师并行执行（Send API 真并行） ---
         parallel_steps: Set[int] = set()
         parallel_meta: Dict[int, str] = {}
         if fan_out_enabled:
             groups = self._detect_parallel_analyst_groups(workflow_steps)
-            prev_end_node: str = ""  # node that precedes the current group
             for gidx, group in enumerate(groups):
+                # Collect node names for this group
+                analyst_node_names = [f"step{s['step']}_{s['agent']}" for s in group]
+
+                # FanOut node: sends state to all analysts in parallel
+                fanout_name = f"fanout_analysts_g{gidx}"
+                graph.add_node(fanout_name, self._make_fan_out_node(analyst_node_names))
+
+                # MergeReports barrier node
                 merge_name = f"merge_analysts_g{gidx}"
                 graph.add_node(merge_name, self._make_merge_node())
 
-                # Chain analysts sequentially: prev → analyst1 → ... → analystN → merge
-                chain_prev: str = prev_end_node if gidx > 0 else START
-                for step in group:
-                    snum = step["step"]
-                    analyst_node_name = f"step{snum}_{step['agent']}"
-                    graph.add_edge(chain_prev, analyst_node_name)
-                    chain_prev = analyst_node_name
-                    parallel_steps.add(snum)
-                    parallel_meta[snum] = merge_name
-                graph.add_edge(chain_prev, merge_name)
-                prev_end_node = merge_name
+                # Wire: START (first group) or prev merge → FanOut
+                prev_node = START if gidx == 0 else f"merge_analysts_g{gidx - 1}"
+                graph.add_edge(prev_node, fanout_name)
 
-            # After the last parallel group, wire merge → next step
+                # Mark all steps in this group as parallel
+                for step in group:
+                    parallel_steps.add(step["step"])
+                    parallel_meta[step["step"]] = merge_name
+
+            # Wire last merge → next non-analyst step (if exists)
             if groups:
                 last_merge = f"merge_analysts_g{len(groups) - 1}"
-                last_group_step_nums = {s["step"] for s in groups[-1]}
-                max_parallel_step = max(last_group_step_nums) if last_group_step_nums else -1
-                next_steps = [s for s in workflow_steps if s["step"] > max_parallel_step
+                last_group_steps = groups[-1]
+                max_parallel_step = max(s["step"] for s in last_group_steps)
+                next_steps = [s for s in workflow_steps
+                              if s["step"] > max_parallel_step
                               and s.get("agent", "") != ""]
                 if next_steps:
                     next_snum = next_steps[0]["step"]
                     if next_snum in node_names:
                         graph.add_edge(last_merge, node_names[next_snum])
-                logger.info("Groups: %d sequential chains, %d analyst steps", len(groups), len(parallel_steps))
+
+            logger.info("Parallel groups: %s, steps: %s", len(groups),
+                        [g[0]["step"] for g in groups] if groups else [])
 
         # --- 辩论/风控辩论组检测 ---
         has_debate = self._detect_debate_group(workflow_steps)
@@ -362,7 +370,7 @@ class DynamicGraphBuilder:
     # Agents whose outputs write to the same state key (can't run in parallel)
     _ANALYST_STATE_KEY_MAP = {
         "market_analyst": "market_report",
-        "macro_analyst": "market_report",         # same factory → same key
+        "macro_analyst": "macro_report",
         "fundamentals_analyst": "fundamentals_report",
         "news_analyst": "news_report",
         "social_analyst": "sentiment_report",
@@ -400,6 +408,13 @@ class DynamicGraphBuilder:
         if len(current_group) >= 2:
             groups.append(current_group)
         return groups
+
+    @staticmethod
+    def _make_fan_out_node(analyst_node_names: List[str]):
+        """Create a FanOut node that sends state to all analysts in parallel."""
+        def fan_out(state):
+            return [Send(node_name, state) for node_name in analyst_node_names]
+        return fan_out
 
     @staticmethod
     def _make_merge_node():
