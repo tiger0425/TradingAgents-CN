@@ -17,6 +17,7 @@ Last synced: 2026-05-29
 │ get_shareholder_count()        │ Layer 4.3 股东户数变化          │
 │ get_dividend_history()         │ Layer 4.4 分红送转历史         │
 │ get_cls_flash()                │ Layer 5.2 财联社快讯           │
+│ get_financial_statements()     │ Layer 6 新浪财报三表            │
 │ get_cninfo_announcements()     │ Layer 7.1 巨潮公告             │
 └────────────────────────────────┴──────────────────────────────┘
 
@@ -31,7 +32,10 @@ import hashlib
 import json
 import uuid
 from datetime import datetime, timedelta
+from io import StringIO
 from typing import Any, Dict, List
+
+import time
 
 import pandas as pd
 import requests
@@ -682,6 +686,111 @@ def get_dividend_history(code: str, page_size: int = 30) -> str:
 
 
 # ============================================================================
+# 7.5. 新浪财报三表 (Layer 6)
+# ============================================================================
+
+
+def get_financial_statements(code: str, report_type: str = "balance") -> str:
+    """查询新浪财报三表（资产负债表/利润表/现金流量表）。
+
+    直连新浪财经 JSONP API，零第三方依赖。
+    自动识别沪市（sh）和深市（sz）前缀。
+    返回最近 5 期财务数据。
+
+    参数:
+        code: 股票代码，如 "600519"
+        report_type: 报表类型
+                     - "balance"   → 资产负债表 (BalanceSheet)
+                     - "income"    → 利润表 (ProfitStatement)
+                     - "cashflow"  → 现金流量表 (CashFlow)
+
+    返回:
+        Markdown 格式字符串，包含最近 5 期财务数据
+        出错时返回错误描述字符串
+    """
+    # ── Sina symbol 前缀 ────────────────────────────────────────────
+    sina_sym = f"sh{code}" if code.startswith("6") else f"sz{code}"
+
+    # ── report_type 映射 ────────────────────────────────────────────
+    endpoint_map: Dict[str, str] = {
+        "balance": "BalanceSheet",
+        "income": "ProfitStatement",
+        "cashflow": "CashFlow",
+    }
+    type_name_map: Dict[str, str] = {
+        "balance": "资产负债表",
+        "income": "利润表",
+        "cashflow": "现金流量表",
+    }
+
+    if report_type not in endpoint_map:
+        return (
+            f"财报查询失败: 不支持的报表类型 '{report_type}'"
+            f"，可选 balance(资产负债表)/income(利润表)/cashflow(现金流量表)"
+        )
+
+    endpoint = endpoint_map[report_type]
+    type_name = type_name_map[report_type]
+
+    url = (
+        f"https://quotes.sina.cn/cn/api/jsonp_v2.php/data"
+        f"/CN_{endpoint}Service.get{endpoint}Data"
+    )
+    params: Dict[str, Any] = {
+        "symbol": sina_sym,
+        "type": "0",
+        "page": "1",
+        "num": "5",
+    }
+    headers: Dict[str, str] = {
+        "User-Agent": UA,
+        "Referer": "https://finance.sina.com.cn/",
+    }
+
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+        resp.raise_for_status()
+
+        # ── 解析 JSONP 响应 ──────────────────────────────────────
+        # 格式: try{ jsonpCallback({...}); }catch(e){}
+        text = resp.text.strip()
+        start = text.find("(")
+        end = text.rfind(")")
+        if start >= 0 and end > start:
+            json_str = text[start + 1 : end]
+        else:
+            json_str = text
+
+        body = json.loads(json_str)
+
+        # ── 提取数据 ──────────────────────────────────────────────
+        # 新浪返回多种格式：直接数组、{result:{data:[...]}}、{data:[...]}
+        result_data: Any = body
+        if isinstance(body, dict):
+            for key in ("result", "data"):
+                candidate = body.get(key)
+                if candidate is not None:
+                    result_data = candidate
+                    if isinstance(candidate, dict):
+                        inner = candidate.get("data") or candidate.get("result")
+                        if inner is not None:
+                            result_data = inner
+                    break
+
+        if isinstance(result_data, dict):
+            result_data = [result_data]
+        elif not isinstance(result_data, list):
+            return _format_result([], f"财务报表({type_name}) — {code}")
+
+        # 取前 5 条
+        rows = result_data[:5]
+
+        return _format_result(rows, f"财务报表({type_name}) — {code}")
+    except Exception as e:
+        return f"财报查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
 # 8. 财联社快讯 (Layer 5.2)
 # ============================================================================
 
@@ -1310,6 +1419,120 @@ def get_stock_info(code: str) -> str:
 
 
 # ============================================================================
+# 13. 个股研报 — 东财 reportapi
+# ============================================================================
+
+
+def get_research_reports(code: str, max_pages: int = 3) -> str:
+    """查询个股研报。
+
+    直连东财 reportapi，获取个股研究报告列表，支持翻页。
+
+    参数:
+        code: 股票代码，如 "600519"
+        max_pages: 最大翻页数，默认 3
+
+    返回:
+        Markdown 格式字符串，包含研报标题、日期、机构、评级、盈利预测。
+        出错时返回错误描述字符串。
+    """
+    try:
+        url = "https://reportapi.eastmoney.com/report/list"
+        headers = {
+            "User-Agent": UA,
+            "Referer": "https://data.eastmoney.com/",
+        }
+        rows: List[Dict[str, Any]] = []
+
+        for page_no in range(1, max_pages + 1):
+            params: Dict[str, Any] = {
+                "industryCode": "*",
+                "pageSize": 50,
+                "beginTime": "2000-01-01",
+                "endTime": "2030-01-01",
+                "pageNo": page_no,
+                "qType": 0,
+                "code": code,
+            }
+
+            resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+            resp.raise_for_status()
+            body = resp.json()
+
+            data = body.get("data", [])
+            if not data:
+                break
+
+            for item in data:
+                rows.append({
+                    "title": item.get("title", ""),
+                    "publishDate": item.get("publishDate", ""),
+                    "orgSName": item.get("orgSName", ""),
+                    "predictThisYearEps": item.get("predictThisYearEps", ""),
+                    "predictNextYearEps": item.get("predictNextYearEps", ""),
+                    "emRatingName": item.get("emRatingName", ""),
+                })
+
+            if page_no < max_pages:
+                time.sleep(0.3)
+
+        return _format_result(rows, f"研报列表 — {code}")
+    except Exception as e:
+        return f"研报查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
+# 13. 机构一致预期 EPS — 同花顺 (Layer 2.2)
+# ============================================================================
+
+
+def get_consensus_eps(code: str) -> str:
+    """查询同花顺机构一致预期 EPS。
+
+    直连同花顺 worth 页面，爬取 HTML 表格提取机构预测 EPS（每股收益）均值数据。
+
+    参数:
+        code: 股票代码，如 "600519"
+
+    返回:
+        Markdown 格式字符串，包含一致预期 EPS 数据
+        出错时返回错误描述字符串
+    """
+    url = f"https://basic.10jqka.com.cn/new/{code}/worth.html"
+    headers = {
+        "User-Agent": UA,
+        "Referer": "https://basic.10jqka.com.cn/",
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=TIMEOUT)
+        resp.encoding = "gbk"
+        tables = pd.read_html(StringIO(resp.text))
+
+        # 寻找包含"每股收益"或"均值"的表格
+        target_df = None
+        for df in tables:
+            col_str = " ".join(str(c) for c in df.columns)
+            if "每股收益" in col_str or "均值" in col_str:
+                target_df = df
+                break
+
+        if target_df is None:
+            return _format_result([], f"机构一致预期EPS — {code}")
+
+        # 转为 dict 列表
+        rows: List[Dict[str, Any]] = []
+        for _, row in target_df.iterrows():
+            entry: Dict[str, Any] = {}
+            for col in target_df.columns:
+                entry[str(col)] = row[col]
+            rows.append(entry)
+
+        return _format_result(rows, f"机构一致预期EPS — {code}")
+    except Exception as e:
+        return f"一致预期查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
 # 模块导出
 # ============================================================================
 
@@ -1321,6 +1544,7 @@ __all__ = [
     "get_lockup_expiry",
     "get_shareholder_count",
     "get_dividend_history",
+    "get_financial_statements",
     "get_concept_blocks",
     "get_hot_stock_reasons",
     "get_cls_flash",
