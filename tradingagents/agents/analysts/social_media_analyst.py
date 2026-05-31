@@ -2,6 +2,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_news, get_degradation_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
+from tradingagents.agents.utils.a_stock_data_tools import get_cls_flash, get_hot_stock_reasons
 
 
 def create_social_media_analyst(llm):
@@ -12,6 +13,8 @@ def create_social_media_analyst(llm):
         tools = [
             get_social_sentiment_tool,
             get_news,
+            get_cls_flash,
+            get_hot_stock_reasons,
         ]
 
         system_message = (
@@ -22,6 +25,18 @@ def create_social_media_analyst(llm):
             "Note: Your data sources are behavioral metrics (attention volume, ranking changes, willingness indices), "
             "NOT actual social media post content. Use the get_news tool alongside social sentiment tools "
             "to cross-validate findings with news-driven events.\n\n"
+            "Available tools and recommended usage:\n"
+            "1. get_social_sentiment_tool — core behavioral metrics (attention, participation, ranking). "
+            "Always start with this to gauge retail mood. Compare Xueqiu vs EastMoney trends for cross-platform divergence.\n"
+            "2. get_news — news headlines for the stock. Use alongside social sentiment to correlate mood spikes with specific events.\n"
+            "3. get_cls_flash — real-time financial news flashes from 财联社 (cls.cn). "
+            "Use to catch breaking news that may explain sudden changes in attention/ranking. "
+            "Call this when you see rapid shifts in sentiment indicators.\n"
+            "4. get_hot_stock_reasons — top active stocks and their theme/subject tags (e.g. '算力租赁+AI'). "
+            "Use to identify whether the stock is riding a broader market narrative and to contextualize popularity ranking moves.\n\n"
+            "Cross-reference strategy: When attention index spikes or ranking surges, "
+            "check get_cls_flash for breaking catalysts, then use get_news for the stock-specific story. "
+            "If the stock appears on get_hot_stock_reasons, note the theme tag to connect retail attention to market narratives.\n\n"
             "Degradation: If social sentiment data is temporarily unavailable, state this clearly and "
             "rely on news analysis to supplement. Do NOT fabricate sentiment data.\n\n"
             "Make sure to append a Markdown table at the end of the report to organize key points."

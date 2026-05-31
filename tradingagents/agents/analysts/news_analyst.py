@@ -36,12 +36,20 @@ def create_news_analyst(llm):
             "**Cross-Validation:**\n"
             "- If multiple sources contradict each other, flag the discrepancy explicitly.\n"
             "- When in doubt, defer to fundamental data over breaking news.\n\n"
+            "**News Classification:**\n"
+            "- For each piece of news you find, classify it as one of: 利好 (bullish), 利空 (bearish), 中性 (neutral). Explain the rationale briefly.\n\n"
+            "**Impact Quantification:**\n"
+            "- Rate the potential price impact of each news item: [高] significant (>3% move expected), [中] moderate (1-3%), [低] minimal (<1%). "
+            "Consider factors like: regulatory changes, earnings surprises, industry disruption.\n\n"
+            "**Timeliness Labeling:**\n"
+            "- Label each news item with its timeliness: [实时] same-day breaking news, [近日] within 3 days, [近期] within a week, [旧闻] older than a week. "
+            "Recent news gets higher weight in your analysis.\n\n"
             "**Degradation:**\n"
             "- If news searches return no results, clearly state 'No significant news found for this period.'\n"
             "- Offer a limited analysis based on global macro context alone.\n"
             "- Do NOT fabricate news events or speculate on unconfirmed reports.\n\n"
             "Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
-            " Make sure to append a Markdown table at the end of the report to organize key points."
+            " End your report with a Markdown summary table that includes: Date, Title, Classification (利好/利空/中性), Impact (高/中/低), Timeliness (实时/近日/近期/旧闻)."
             + get_language_instruction()
             + get_degradation_instruction()
         )

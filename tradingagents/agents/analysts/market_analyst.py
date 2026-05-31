@@ -35,6 +35,19 @@ Categories:
 
 Select indicators that provide diverse and complementary information. Avoid redundancy (e.g., do not select both rsi and stochrsi). Briefly explain why they are suitable for the given market context. When you tool call, please use the exact name of the indicators provided above as they are defined parameters, otherwise your call will fail. Please make sure to call get_stock_data first to retrieve the CSV that is needed to generate indicators. Then use get_indicators with the specific indicator names. Write a very detailed and nuanced report of the trends you observe. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
+            + """
+**A-Share Technical Focus:** When analyzing A-share stocks, pay special attention to: 
+   - 涨跌停板 (price limit board): ±10% for most stocks, ±20% for ChiNext/STAR 
+   - 龙虎榜 (dragon-tiger榜单) activity and institutional vs retail participation
+   - 北向资金 (northbound flow) trends — foreign investor sentiment
+   - Volume-price relationship in context of A-share retail-dominant market
+
+**Technical Patterns relevant to A-shares:**
+   - 金叉/死叉 (golden/death cross) of moving averages
+   - MACD divergence in trending vs range-bound markets
+   - Bollinger Band squeezes — common before breakouts
+   - Volume confirmation required for all signals
+"""
             + get_language_instruction()
             + get_degradation_instruction()
             + " Remember: you are the technical analysis specialist. Your indicators inform the trading decision but you are NOT responsible for the final trading decision."
