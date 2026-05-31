@@ -77,6 +77,10 @@ def _apply_env_overrides(config: dict) -> dict:
         env_key = f"TRADINGAGENTS_{key.upper()}"
         if os.getenv(env_key):
             config[key] = os.getenv(env_key)
+    fan_out_env = os.getenv("TRADINGAGENTS_FAN_OUT")
+    if fan_out_env and fan_out_env.lower() == "true":
+        config["fan_out_enabled"] = True
+        logger.info("Fan-out enabled via TRADINGAGENTS_FAN_OUT=true")
     if os.getenv("OPENAI_API_KEY"):
         config.setdefault("llm_provider", "openai")
     if os.getenv("DEEPSEEK_API_KEY"):
@@ -161,6 +165,10 @@ def _create_tool_nodes():
         get_market_context,
     )
     from .agents.utils.social_sentiment_tools import get_social_sentiment_tool
+    from .agents.utils.a_stock_data_tools import (
+        get_cls_flash, get_hot_stock_reasons, get_margin_trading,
+        get_institutional_holdings,
+    )
 
     return {
         "market": ToolNode([
@@ -171,6 +179,8 @@ def _create_tool_nodes():
         "social": ToolNode([
             get_social_sentiment_tool,
             get_news,
+            get_cls_flash,
+            get_hot_stock_reasons,
         ]),
         "news": ToolNode([
             get_news,
@@ -182,6 +192,8 @@ def _create_tool_nodes():
             get_balance_sheet,
             get_cashflow,
             get_income_statement,
+            get_margin_trading,
+            get_institutional_holdings,
         ]),
     }
 
@@ -227,4 +239,5 @@ def _start_dashboard(kb, config):
 def lazy_bootstrap():
     global _initialized
     if not _initialized:
-        bootstrap()
+        return bootstrap()
+    return None

@@ -16,6 +16,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import os
 import subprocess
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +26,6 @@ from dotenv import load_dotenv
 load_dotenv()
 load_dotenv(".env.enterprise", override=False)
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.dataflows.position_utils import calc_position_pnl
 from cli.stats_handler import StatsCallbackHandler
@@ -278,6 +278,12 @@ def build_config(
 ) -> Dict[str, Any]:
     config = DEFAULT_CONFIG.copy()
 
+    # Env var overrides (CLI args take precedence — applied below)
+    for key in ("llm_provider", "deep_think_llm", "quick_think_llm", "backend_url"):
+        env_key = f"TRADINGAGENTS_{key.upper()}"
+        if os.getenv(env_key):
+            config[key] = os.getenv(env_key)
+
     if llm_provider:
         config["llm_provider"] = llm_provider.lower()
 
@@ -293,6 +299,11 @@ def build_config(
 
     if backend_url:
         config["backend_url"] = backend_url
+
+    fan_out_env = os.getenv("TRADINGAGENTS_FAN_OUT")
+    if fan_out_env and fan_out_env.lower() == "true":
+        config["fan_out_enabled"] = True
+        logger.info("Fan-out enabled via TRADINGAGENTS_FAN_OUT=true")
 
     return config
 
@@ -390,22 +401,38 @@ def batch(
     stats_handler = StatsCallbackHandler()
 
     try:
-        # propagate() handles past context, position persistence,
-        # A-share limit prices, state logging, memory updates,
-        # and position auto-update — no need for manual orchestration.
-        graph = TradingAgentsGraph(
-            selected_analysts,
-            config=config,
-            debug=False,
-            callbacks=[stats_handler],
+        from tradingagents.bootstrap import lazy_bootstrap
+        from tradingagents.planner.schemas import Trigger, Context
+        from tradingagents.dataflows.a_stock_data import get_industry
+
+        boot_result = lazy_bootstrap()
+        if boot_result is None:
+            raise RuntimeError("Bootstrap failed — check API keys and .env")
+        planner, executor, _kb, _pm = boot_result
+
+        industry = ""
+        try:
+            industry = get_industry(ticker)
+        except Exception:
+            pass
+
+        trigger = Trigger(
+            type="customer_message",
+            message=f"分析{ticker}",
+            task="",
+            timeout_minutes=10,
         )
-        final_state, decision = graph.propagate(
-            ticker,
-            date,
-            cost_price=cost_price,
-            quantity=quantity,
-            position_opened_date=opened_date,
+        context = Context(
+            user_id="cli-batch",
+            ticker=ticker,
+            industry=industry,
+            portfolio_summary="",
         )
+
+        plan = planner.plan(trigger, context)
+        result = executor.execute(plan, trigger, context, callbacks=[stats_handler])
+        final_state = result.get("raw_state", {})
+        decision = final_state.get("final_trade_decision", "")
 
         # --- Archive the result ---
         save_to_archive(
