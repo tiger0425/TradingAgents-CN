@@ -1385,38 +1385,58 @@ def get_concept_blocks(code: str) -> str:
         "Origin": "https://gushitong.baidu.com",
         "Referer": "https://gushitong.baidu.com/",
     }
+
+    max_retries = 3
+    last_exception: Optional[Exception] = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
+            resp.raise_for_status()
+            d = resp.json()
+
+            if str(d.get("ResultCode", -1)) != "0":
+                raise ValueError(f"API 返回异常 ResultCode: {d.get('ResultCode')}")
+
+            result = d.get("Result", [])
+            if not result:
+                return _format_result([], f"概念板块 — {code}")
+
+            # 类型映射
+            type_map = {
+                "industry": "行业",
+                "concept": "概念",
+                "region": "地域",
+            }
+
+            rows: List[Dict[str, Any]] = []
+            for item in result:
+                raw_type = item.get("type", "")
+                rows.append({
+                    "分类": type_map.get(raw_type, raw_type),
+                    "名称": item.get("name", ""),
+                    "涨跌幅": item.get("increase", ""),
+                    "描述": item.get("desc", ""),
+                })
+
+            return _format_result(rows, f"概念板块 — {code}")
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries:
+                time.sleep(2 ** (attempt - 1))  # 指数退避: 1s, 2s, 4s
+            continue
+
+    # 所有重试均失败 → 回退到行业分类
+    error_msg = f"概念板块查询失败 ({code}): {str(last_exception)}（已重试{max_retries}次）"
     try:
-        resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
-        resp.raise_for_status()
-        d = resp.json()
-
-        if str(d.get("ResultCode", -1)) != "0":
-            raise ValueError(f"API 返回异常 ResultCode: {d.get('ResultCode')}")
-
-        result = d.get("Result", [])
-        if not result:
-            return _format_result([], f"概念板块 — {code}")
-
-        # 类型映射
-        type_map = {
-            "industry": "行业",
-            "concept": "概念",
-            "region": "地域",
-        }
-
-        rows: List[Dict[str, Any]] = []
-        for item in result:
-            raw_type = item.get("type", "")
-            rows.append({
-                "分类": type_map.get(raw_type, raw_type),
-                "名称": item.get("name", ""),
-                "涨跌幅": item.get("increase", ""),
-                "描述": item.get("desc", ""),
-            })
-
-        return _format_result(rows, f"概念板块 — {code}")
-    except Exception as e:
-        return f"概念板块查询失败 ({code}): {str(e)}"
+        industry_info = get_industry(code)
+        return (
+            f"## 概念板块 — {code}\n\n"
+            f"> ⚠️ 概念板块 API 暂时不可用（已重试{max_retries}次），以下为基础行业信息\n\n"
+            f"{industry_info}"
+        )
+    except Exception:
+        return error_msg
 
 
 def get_industry(code: str) -> str:
@@ -2064,6 +2084,60 @@ def get_consensus_eps(code: str) -> str:
 
 
 # ============================================================================
+# 14. 机构持仓 — akshare stock_institute_hold_detail
+# ============================================================================
+
+
+def get_institutional_holdings(code: str, report_date: str = "") -> str:
+    """查询个股机构持仓详情。
+
+    使用 akshare 的 stock_institute_hold_detail API，
+    返回持股机构类型、机构名称、持股数、持股比例等。
+
+    参数:
+        code: 股票代码，如 "600519"
+        report_date: 报告期，如 "2025-12-31"，默认自动取最新季度
+
+    返回:
+        Markdown 格式字符串
+    """
+    try:
+        import akshare as ak
+    except ImportError:
+        return "请先安装 akshare: pip install akshare"
+
+    try:
+        if not report_date:
+            today = datetime.now()
+            q = (today.month - 1) // 3 + 1
+            quarter = f"{today.year}Q{q}"
+        else:
+            dt = datetime.strptime(report_date, "%Y-%m-%d")
+            q = (dt.month - 1) // 3 + 1
+            quarter = f"{dt.year}Q{q}"
+
+        df = ak.stock_institute_hold_detail(stock=code, quarter=quarter)
+
+        if df is None or df.empty:
+            return f"## 机构持仓 — {code}\n\n_暂未获取到{quarter}季度机构持仓数据_"
+
+        rows: List[Dict[str, Any]] = []
+        for _, row in df.iterrows():
+            entry: Dict[str, Any] = {}
+            for col in df.columns:
+                val = row[col]
+                if isinstance(val, (int, float)):
+                    val = round(float(val), 4)
+                entry[str(col)] = val
+            rows.append(entry)
+
+        title = f"机构持仓 — {code}（{quarter}）"
+        return _format_result(rows, title)
+    except Exception as e:
+        return f"机构持仓查询失败 ({code}): {str(e)}"
+
+
+# ============================================================================
 # 模块导出
 # ============================================================================
 
@@ -2083,6 +2157,7 @@ __all__ = [
     "get_hot_stock_reasons",
     "get_cls_flash",
     "get_cninfo_announcements",
+    "get_institutional_holdings",
     "get_stock_info",
     "get_stock_news",
     "get_global_news_em",

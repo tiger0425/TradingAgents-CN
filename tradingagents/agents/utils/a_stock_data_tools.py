@@ -101,6 +101,15 @@ def get_concept_blocks(
 
 
 @tool
+def get_institutional_holdings(
+    code: Annotated[str, "A股6位代码，如 600519"],
+    report_date: Annotated[str, "报告期，如 2025-12-31，默认最新"] = "",
+) -> str:
+    """查询个股机构持仓详情，包含持股机构类型、机构名称、持股数、持股比例等。"""
+    return route_to_vendor("get_institutional_holdings", code=code, report_date=report_date)
+
+
+@tool
 def get_hot_stock_reasons(
     date: Annotated[str, "日期 YYYY-MM-DD，默认今日"] = "",
 ) -> str:
