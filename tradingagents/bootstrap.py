@@ -154,6 +154,7 @@ def _create_tool_nodes():
 
     from .agents.utils.agent_utils import (
         get_stock_data,
+        get_current_price,
         get_indicators,
         get_fundamentals,
         get_balance_sheet,
@@ -172,6 +173,7 @@ def _create_tool_nodes():
 
     return {
         "market": ToolNode([
+            get_current_price,
             get_stock_data,
             get_indicators,
             get_market_context,
