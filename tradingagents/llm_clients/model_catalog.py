@@ -76,6 +76,17 @@ MODEL_OPTIONS: ProviderModeOptions = {
             ("Custom model ID", "custom"),
         ],
     },
+    "minimax": {
+        "quick": [
+            ("MiniMax M3 - Frontier agentic, 1M ctx, interleaved thinking", "MiniMax-M3"),
+            ("MiniMax M2.7 - Fast coding and reasoning", "MiniMax-M2.7"),
+            ("Custom model ID", "custom"),
+        ],
+        "deep": [
+            ("MiniMax M3 - Frontier agentic, 1M ctx, interleaved thinking", "MiniMax-M3"),
+            ("Custom model ID", "custom"),
+        ],
+    },
     "qwen": {
         "quick": [
             ("Qwen 3.5 Flash", "qwen3.5-flash"),
