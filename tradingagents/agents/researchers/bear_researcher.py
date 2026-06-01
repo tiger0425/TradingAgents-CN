@@ -37,7 +37,7 @@ def create_bear_researcher(llm):
         debate_history = ctx["debate_history"]
         market_context = ctx.get("market_context", state.get("market_context", ""))
 
-        prompt = f"""You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+        prompt = f"""You are a Risk Analyst evaluating the potential downsides of this investment. Your goal is to present a well-reasoned assessment emphasizing risk factors, challenges, and cautionary indicators. Leverage the provided research and data to highlight potential concerns and counter optimistic assumptions effectively.
 
 {round_instruction}
 
@@ -63,7 +63,7 @@ Market research report: {reports_text}
 Conversation history of the debate:
 {debate_history}
 {opponent_reference}
-Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock.
+Use this information to deliver a thorough risk assessment, engage in a dynamic debate, and demonstrate the potential challenges facing this investment.
 """
 
         if market_context:
