@@ -148,6 +148,10 @@ def sanitize_messages_for_deepseek(messages: list) -> list:
         elif i < cut and isinstance(messages[i], ToolMessage):
             cut = min(cut, i + 1)
 
+    # If no tool cycle found, keep all messages as-is
+    if cut == n:
+        return list(messages)
+
     # Phase 2: strip orphaned tool_calls from the tail (never mutate originals)
     result = []
     for mi, m in enumerate(messages[cut:]):
@@ -181,6 +185,9 @@ def filter_valid_tool_calls(result, valid_tools: list) -> None:
     This mutates ``result.tool_calls`` in-place, removing any call
     whose name is not in ``{t.name for t in valid_tools}`` so only
     actually-available tools reach the graph ToolNode.
+
+    Also ensures non-empty content when tool_calls are present, which
+    MiniMax requires (returns 400 "chat content is empty" otherwise).
     """
     if not hasattr(result, 'tool_calls') or not result.tool_calls:
         return
@@ -188,3 +195,5 @@ def filter_valid_tool_calls(result, valid_tools: list) -> None:
     filtered = [tc for tc in result.tool_calls if tc.get('name') in valid_names]
     if len(filtered) != len(result.tool_calls):
         result.tool_calls = filtered
+    if not result.content:
+        result.content = "[Processing]"
