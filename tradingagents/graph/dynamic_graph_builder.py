@@ -18,7 +18,10 @@ from .conditional_logic import ConditionalLogic
 
 logger = logging.getLogger(__name__)
 
-DEEP_LLM_AGENTS = {"research_manager", "portfolio_manager"}
+# Agents that use deep_llm for complex reasoning.  Excludes research_manager
+# and portfolio_manager because they require tool_choice (structured output),
+# which deepseek-v4-pro's thinking mode does not support.
+DEEP_LLM_AGENTS = {"bull_researcher", "bear_researcher"}
 
 TOOL_KEY_MAP = {
     "market_analyst": "market",
