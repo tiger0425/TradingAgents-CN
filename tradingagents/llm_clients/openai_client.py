@@ -162,6 +162,7 @@ _PASSTHROUGH_KWARGS = (
 _PROVIDER_CONFIG = {
     "xai": ("https://api.x.ai/v1", "XAI_API_KEY"),
     "deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"),
+    "minimax": ("https://api.minimaxi.com/v1", "MINIMAX_API_KEY"),
     "qwen": ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY"),
     "glm": ("https://api.z.ai/api/paas/v4/", "ZHIPU_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
@@ -220,8 +221,26 @@ class OpenAIClient(BaseLLMClient):
 
         # DeepSeek's thinking-mode quirks live in their own subclass so the
         # base NormalizedChatOpenAI stays free of provider-specific branches.
-        chat_cls = DeepSeekChatOpenAI if self.provider == "deepseek" else NormalizedChatOpenAI
-        return chat_cls(**llm_kwargs)
+        if self.provider == "deepseek":
+            return DeepSeekChatOpenAI(**llm_kwargs)
+        if self.provider == "minimax":
+            # MiniMax M3: use bare ChatOpenAI with thinking disabled
+            # and reasoning_split for clean thinking/content separation.
+            # ChatOpenAI's default parameters (temperature, model_kwargs)
+            # cause MiniMax to hang on Chinese prompts.
+            return ChatOpenAI(
+                model=llm_kwargs["model"],
+                base_url=llm_kwargs.get("base_url"),
+                api_key=llm_kwargs.get("api_key"),
+                max_tokens=4000,
+                model_kwargs={
+                    "extra_body": {
+                        "thinking": {"type": "disabled"},
+                        "reasoning_split": True,
+                    }
+                },
+            )
+        return NormalizedChatOpenAI(**llm_kwargs)
 
     def validate_model(self) -> bool:
         """Validate model for the provider."""
