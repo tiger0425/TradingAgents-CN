@@ -28,6 +28,15 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
+def _is_deepseek(llm: Any) -> bool:
+    """Check whether *llm* is a DeepSeek model that needs thinking disabled."""
+    return (
+        hasattr(llm, 'model_name')
+        and isinstance(llm.model_name, str)
+        and 'deepseek-v4' in llm.model_name
+    )
+
+
 def bind_structured(llm: Any, schema: type[T], agent_name: str) -> Optional[Any]:
     """Return ``llm.with_structured_output(schema)`` or ``None`` if unsupported.
 
@@ -35,7 +44,7 @@ def bind_structured(llm: Any, schema: type[T], agent_name: str) -> Optional[Any]
     will use free-text generation for every call instead of one-shot fallback.
     """
     try:
-        return llm.with_structured_output(schema)
+        base = llm.with_structured_output(schema)
     except (NotImplementedError, AttributeError) as exc:
         logger.warning(
             "%s: provider does not support with_structured_output (%s); "
@@ -43,6 +52,29 @@ def bind_structured(llm: Any, schema: type[T], agent_name: str) -> Optional[Any]
             agent_name, exc,
         )
         return None
+
+    # DeepSeek V4 thinking mode rejects tool_choice.  We must disable
+    # thinking during the *invoke*, not during setup, because
+    # with_structured_output returns a Runnable that defers the API
+    # call.  Wrapping invoke with a temporary extra_body override
+    # ensures the flag is active when the HTTP request is made.
+    if _is_deepseek(llm):
+        from langchain_core.runnables import RunnableLambda
+
+        def _invoke_disabled_thinking(input, config=None, **kw):
+            was_extra = llm.model_kwargs.get('extra_body')
+            llm.model_kwargs['extra_body'] = {"thinking": {"type": "disabled"}}
+            try:
+                return base.invoke(input, config, **kw)
+            finally:
+                if was_extra is not None:
+                    llm.model_kwargs['extra_body'] = was_extra
+                else:
+                    llm.model_kwargs.pop('extra_body', None)
+
+        return RunnableLambda(_invoke_disabled_thinking)
+
+    return base
 
 
 def invoke_structured_or_freetext(
