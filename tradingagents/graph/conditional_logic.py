@@ -93,21 +93,20 @@ class ConditionalLogic:
     # ------------------------------------------------------------------
 
     def should_continue_market(self, state: AgentState):
-        """Determine if market analysis should continue."""
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
-            # FIX-8: 死循环检测
             is_loop, reason = self._detect_tool_loop(state, "market")
             if is_loop:
                 logger.warning("Breaking market analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
+                if reason == "limit_exceeded":
+                    return "Msg Clear Market"
                 return "continue"
             return "tools_market"
         return "Msg Clear Market"
 
     def should_continue_social(self, state: AgentState):
-        """Determine if social media analysis should continue."""
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
@@ -115,12 +114,13 @@ class ConditionalLogic:
             if is_loop:
                 logger.warning("Breaking social analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
+                if reason == "limit_exceeded":
+                    return "Msg Clear Social"
                 return "continue"
             return "tools_social"
         return "Msg Clear Social"
 
     def should_continue_news(self, state: AgentState):
-        """Determine if news analysis should continue."""
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
@@ -128,12 +128,13 @@ class ConditionalLogic:
             if is_loop:
                 logger.warning("Breaking news analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
+                if reason == "limit_exceeded":
+                    return "Msg Clear News"
                 return "continue"
             return "tools_news"
         return "Msg Clear News"
 
     def should_continue_fundamentals(self, state: AgentState):
-        """Determine if fundamentals analysis should continue."""
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
@@ -141,6 +142,8 @@ class ConditionalLogic:
             if is_loop:
                 logger.warning("Breaking fundamentals analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
+                if reason == "limit_exceeded":
+                    return "Msg Clear Fundamentals"
                 return "continue"
             return "tools_fundamentals"
         return "Msg Clear Fundamentals"
