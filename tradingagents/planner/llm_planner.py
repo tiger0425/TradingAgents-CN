@@ -118,12 +118,40 @@ class LLMPlanner:
         try:
             prompt = f"{PLANNER_PROMPT}\n\n## 触发事件\n类型:{trigger.type} 任务:{trigger.task}\n消息:{trigger.message}\n\n## 上下文\n持仓:{context.portfolio_summary or '无'} 自选:{context.watchlist_summary or '无'} 标的:{context.ticker or '无'} 行业:{context.industry or '无'}\n\n请生成执行计划JSON。"
             response = self.llm.invoke(prompt)
-            plan = json.loads(response.content) if hasattr(response, 'content') else {}
+            content = response.content if hasattr(response, 'content') else ""
+            plan = self._parse_json_response(content)
             plan["_generation_mode"] = "llm_full"
             return plan
         except Exception as e:
             logger.warning("LLM plan failed: %s", e)
             return self._fallback_plan(trigger)
+
+    @staticmethod
+    def _parse_json_response(content: str) -> dict:
+        """Extract JSON from an LLM response, tolerating markdown code blocks."""
+        # Direct parse
+        try:
+            return json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Markdown code block: ```json ... ```
+        import re
+        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(1))
+            except (json.JSONDecodeError, ValueError):
+                pass
+        # Find outermost { ... } or [ ... ]
+        for start_char, end_char in [('{', '}'), ('[', ']')]:
+            start = content.find(start_char)
+            end = content.rfind(end_char)
+            if start >= 0 and end > start:
+                try:
+                    return json.loads(content[start:end + 1])
+                except (json.JSONDecodeError, ValueError):
+                    pass
+        raise ValueError(f"Cannot parse JSON from response")
 
     def _fallback_plan(self, trigger: Trigger) -> dict:
         return {
