@@ -72,6 +72,10 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
         for message_dict, message in zip(outgoing, _input_to_messages(input_)):
             if not isinstance(message, AIMessage):
                 continue
+            # Only echo reasoning_content on pure-text messages, not on
+            # messages with tool_calls — DeepSeek rejects the combination.
+            if message_dict.get("tool_calls"):
+                continue
             reasoning = message.additional_kwargs.get("reasoning_content")
             if reasoning is not None:
                 message_dict["reasoning_content"] = reasoning
@@ -87,9 +91,7 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                     # Previous assistant's tool_calls were never resolved: strip
                     for i in range(len(clean) - 1, -1, -1):
                         if clean[i].get("role") == "assistant" and clean[i].get("tool_calls"):
-                            if clean[i].get("content"):
-                                del clean[i]["tool_calls"]
-                            else:
+                            if not clean[i].get("content"):
                                 clean[i]["content"] = "[Tool results]"
                             del clean[i]["tool_calls"]
                             break
@@ -143,6 +145,11 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
                 "output is unavailable. Agent factories fall back to "
                 "free-text generation automatically."
             )
+        if method is None:
+            method = "function_calling"
+        # V4 thinking mode rejects tool_choice — the actual disable
+        # happens in structured.py's bind_structured() which wraps
+        # invoke() with extra_body={"thinking": {"type": "disabled"}}.
         return super().with_structured_output(schema, method=method, **kwargs)
 
 # Kwargs forwarded from user config to ChatOpenAI
