@@ -110,4 +110,81 @@ def create_msg_delete():
     return delete_messages
 
 
-        
+def sanitize_messages_for_deepseek(messages: list) -> list:
+    """Trim message history to the last valid tool cycle, stripping orphans.
+
+    DeepSeek's API is stricter than OpenAI about message ordering:
+    every assistant message with ``tool_calls`` MUST have matching
+    ``ToolMessage`` responses immediately following it.  Orphaned
+    tool_calls cause HTTP 400 errors.
+
+    This function:
+    1. Scans backward to find the last complete tool cycle
+       (AIMessage with tool_calls + matching ToolMessages).
+    2. Drops all older messages to reduce context bloat.
+    3. Strips any remaining orphaned tool_calls from the tail so
+       the payload reaches the DeepSeek client sanitizer clean.
+
+    Returns a **new list** — original message objects are never
+    mutated so ``state["messages"]`` stays intact for other nodes.
+    """
+    from copy import copy as _shallow_copy
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    n = len(messages)
+    cut = n
+
+    # Phase 1: find the last complete tool cycle
+    for i in range(n - 1, -1, -1):
+        if isinstance(messages[i], AIMessage) and messages[i].tool_calls:
+            tc_ids = {tc["id"] for tc in messages[i].tool_calls if "id" in tc}
+            has_match = any(
+                isinstance(messages[j], ToolMessage) and messages[j].tool_call_id in tc_ids
+                for j in range(i + 1, n)
+            )
+            if has_match:
+                cut = i
+                break
+        elif i < cut and isinstance(messages[i], ToolMessage):
+            cut = min(cut, i + 1)
+
+    # Phase 2: strip orphaned tool_calls from the tail (never mutate originals)
+    result = []
+    for mi, m in enumerate(messages[cut:]):
+        if isinstance(m, AIMessage) and m.tool_calls:
+            tc_ids = {tc["id"] for tc in m.tool_calls if "id" in tc}
+            has_match = any(
+                isinstance(messages[cut:][j], ToolMessage)
+                and messages[cut:][j].tool_call_id in tc_ids
+                for j in range(mi + 1, len(messages) - cut)
+            )
+            if not has_match:
+                mc = _shallow_copy(m)
+                if mc.content:
+                    mc.tool_calls = []
+                else:
+                    mc.content = "[Tool results processed]"
+                    mc.tool_calls = []
+                result.append(mc)
+                continue
+        result.append(m)
+    return result
+
+
+def filter_valid_tool_calls(result, valid_tools: list) -> None:
+    """Strip hallucinated tool_calls not in the bound tools list.
+
+    Some LLMs (notably DeepSeek) ignore ``bind_tools()`` and invent
+    tool calls based on training data.  When the ToolNode can't find
+    the hallucinated tool, it returns an error → LLM retries → loop.
+
+    This mutates ``result.tool_calls`` in-place, removing any call
+    whose name is not in ``{t.name for t in valid_tools}`` so only
+    actually-available tools reach the graph ToolNode.
+    """
+    if not hasattr(result, 'tool_calls') or not result.tool_calls:
+        return
+    valid_names = {t.name for t in valid_tools}
+    filtered = [tc for tc in result.tool_calls if tc.get('name') in valid_names]
+    if len(filtered) != len(result.tool_calls):
+        result.tool_calls = filtered
