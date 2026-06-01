@@ -65,7 +65,7 @@ class LLMPlanner:
         if stale_items:
             logger.info("KB stale items: %s — will NOT skip analysis", stale_items)
 
-        if weighted_coverage >= 0.7 and not stale_items:
+        if weighted_coverage >= 0.99 and not stale_items:
             return self._plan_with_kb(kb_ctx, trigger, context)
 
         match = self.template_matcher.match(trigger, context)
@@ -128,14 +128,16 @@ class LLMPlanner:
 
     @staticmethod
     def _parse_json_response(content: str) -> dict:
-        """Extract JSON from an LLM response, tolerating markdown code blocks."""
+        """Extract JSON from an LLM response, tolerating markdown code blocks and think tags."""
+        # Strip MiniMax <think>...</think> tags which may contain braces
+        import re
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
         # Direct parse
         try:
             return json.loads(content)
         except (json.JSONDecodeError, ValueError):
             pass
         # Markdown code block: ```json ... ```
-        import re
         m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
         if m:
             try:
