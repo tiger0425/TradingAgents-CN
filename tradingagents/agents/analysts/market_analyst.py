@@ -7,6 +7,8 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_stock_data,
     get_degradation_instruction,
+    sanitize_messages_for_deepseek,
+    filter_valid_tool_calls,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -74,37 +76,9 @@ Select indicators that provide diverse and complementary information. Avoid redu
 
         chain = prompt | llm.bind_tools(tools)
 
-        # Keep the last valid tool cycle, strip orphaned tool_calls
-        from langchain_core.messages import AIMessage, ToolMessage
-        msgs = state["messages"]
-        n = len(msgs)
-        cut = n
-        for i in range(n - 1, -1, -1):
-            if isinstance(msgs[i], AIMessage) and msgs[i].tool_calls:
-                tc_ids = {tc["id"] for tc in msgs[i].tool_calls if "id" in tc}
-                has_match = any(
-                    isinstance(msgs[j], ToolMessage) and msgs[j].tool_call_id in tc_ids
-                    for j in range(i + 1, n)
-                )
-                if has_match:
-                    cut = i
-                    break
-            elif i < cut and isinstance(msgs[i], ToolMessage):
-                cut = min(cut, i + 1)
-        result_msgs = list(msgs[cut:])
-        for mi, m in enumerate(result_msgs):
-            if isinstance(m, AIMessage) and m.tool_calls:
-                tc_ids = {tc["id"] for tc in m.tool_calls if "id" in tc}
-                if not any(
-                    isinstance(result_msgs[j], ToolMessage) and result_msgs[j].tool_call_id in tc_ids
-                    for j in range(mi + 1, len(result_msgs))
-                ):
-                    if m.content:
-                        m.tool_calls = []
-                    else:
-                        m.content = "[Tool results processed]"
-                        m.tool_calls = []
+        result_msgs = sanitize_messages_for_deepseek(state["messages"])
         result = chain.invoke(result_msgs)
+        filter_valid_tool_calls(result, tools)
 
         report = result.content if result.content else ""
 

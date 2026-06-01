@@ -2,10 +2,12 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
+    get_news,
     get_global_news,
     get_language_instruction,
-    get_news,
     get_degradation_instruction,
+    sanitize_messages_for_deepseek,
+    filter_valid_tool_calls,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -21,37 +23,20 @@ def create_news_analyst(llm):
         ]
 
         system_message = (
-            "You are a news and macroeconomics analyst. Your role is distinct from the social sentiment analyst: "
-            "you focus on event-driven news, macroeconomic indicators, and official announcements.\n\n"
-            "**Search Strategy:**\n"
-            "1. Start with get_global_news(curr_date, look_back_days=7, limit=10) to establish macroeconomic context.\n"
-             "2. Then use get_news(ticker='<stock_ticker>', start_date, end_date) "
-             "for company-specific news. The ticker is the 6-digit A-share code (not the company name). "
-             "Try the ticker directly; the data source will return all available news for that stock.\n\n"
-            "**Source Credibility:**\n"
-            "- Tier 1: Official announcements, regulatory filings, earnings reports (highest priority)\n"
-            "- Tier 2: Authoritative financial media (Reuters, Bloomberg, Xinhua, etc.)\n"
-            "- Tier 3: General news, industry blogs, analyst notes\n"
-            "- When citing, note the source tier and prioritize Tier 1-2 sources.\n\n"
-            "**Cross-Validation:**\n"
-            "- If multiple sources contradict each other, flag the discrepancy explicitly.\n"
-            "- When in doubt, defer to fundamental data over breaking news.\n\n"
-            "**News Classification:**\n"
-            "- For each piece of news you find, classify it as one of: 利好 (bullish), 利空 (bearish), 中性 (neutral). Explain the rationale briefly.\n\n"
-            "**Impact Quantification:**\n"
-            "- Rate the potential price impact of each news item: [高] significant (>3% move expected), [中] moderate (1-3%), [低] minimal (<1%). "
-            "Consider factors like: regulatory changes, earnings surprises, industry disruption.\n\n"
-            "**Timeliness Labeling:**\n"
-            "- Label each news item with its timeliness: [实时] same-day breaking news, [近日] within 3 days, [近期] within a week, [旧闻] older than a week. "
-            "Recent news gets higher weight in your analysis.\n\n"
-            "**Degradation:**\n"
-            "- If news searches return no results, clearly state 'No significant news found for this period.'\n"
-            "- Offer a limited analysis based on global macro context alone.\n"
-            "- Do NOT fabricate news events or speculate on unconfirmed reports.\n\n"
-            "Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
-            " End your report with a Markdown summary table that includes: Date, Title, Classification (利好/利空/中性), Impact (高/中/低), Timeliness (实时/近日/近期/旧闻)."
+            "You are a news researcher tasked with analyzing recent news and macro-economic trends over the past week. Please write a comprehensive report of the current state of the macro environment and news that are most relevant to the company being researched. Look at news and trends across multiple sectors. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
+            + """
+**A-Share News Analysis Focus:**
+   - 政策面分析: impacts of central bank (央行), CSRC (证监会), and government policies
+   - 产业政策: industry-level policy changes affecting specific sectors
+   - 监管动态: regulatory developments, compliance events, delisting warnings
+   - 财报季: earnings season dynamics — positive/negative profit warnings (业绩预告)
+   - 北向资金相关新闻: foreign capital flow direction and drivers
+   - 大股东增减持: insider buying/selling signals
+"""
             + get_language_instruction()
             + get_degradation_instruction()
+            + " Remember: you are the news and macro environment specialist. Your insights inform trading decisions but you are NOT responsible for the final decision.",
         )
 
         prompt = ChatPromptTemplate.from_messages(
@@ -70,37 +55,9 @@ def create_news_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        # Keep the last valid tool cycle, strip orphaned tool_calls
-        from langchain_core.messages import AIMessage, ToolMessage
-        msgs = state["messages"]
-        n = len(msgs)
-        cut = n
-        for i in range(n - 1, -1, -1):
-            if isinstance(msgs[i], AIMessage) and msgs[i].tool_calls:
-                tc_ids = {tc["id"] for tc in msgs[i].tool_calls if "id" in tc}
-                has_match = any(
-                    isinstance(msgs[j], ToolMessage) and msgs[j].tool_call_id in tc_ids
-                    for j in range(i + 1, n)
-                )
-                if has_match:
-                    cut = i
-                    break
-            elif i < cut and isinstance(msgs[i], ToolMessage):
-                cut = min(cut, i + 1)
-        result_msgs = list(msgs[cut:])
-        for mi, m in enumerate(result_msgs):
-            if isinstance(m, AIMessage) and m.tool_calls:
-                tc_ids = {tc["id"] for tc in m.tool_calls if "id" in tc}
-                if not any(
-                    isinstance(result_msgs[j], ToolMessage) and result_msgs[j].tool_call_id in tc_ids
-                    for j in range(mi + 1, len(result_msgs))
-                ):
-                    if m.content:
-                        m.tool_calls = []
-                    else:
-                        m.content = "[Tool results processed]"
-                        m.tool_calls = []
+        result_msgs = sanitize_messages_for_deepseek(state["messages"])
         result = chain.invoke(result_msgs)
+        filter_valid_tool_calls(result, tools)
 
         report = result.content if result.content else ""
 
