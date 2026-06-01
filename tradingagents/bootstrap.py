@@ -125,8 +125,9 @@ def _create_llms(config: dict):
             base_url=config.get("backend_url"),
             **llm_kwargs,
         )
+        quick_provider = os.getenv("TRADINGAGENTS_QUICK_LLM_PROVIDER") or config["llm_provider"]
         quick_client = create_llm_client(
-            provider=config["llm_provider"],
+            provider=quick_provider,
             model=config["quick_think_llm"],
             base_url=config.get("backend_url"),
             **llm_kwargs,
