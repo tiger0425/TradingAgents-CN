@@ -37,6 +37,7 @@ class AnalyzeResponse(BaseModel):
     template_id: str
     estimated_cost_usd: float
     workflow_steps: int
+    industry_verification: dict | None = None
 
 
 class StatusResponse(BaseModel):
