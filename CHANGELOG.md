@@ -26,6 +26,8 @@ Breaking changes within the 0.x line are called out explicitly.
 - `build_instrument_context()` 新增可选 `industry` 和 `company_name` 参数
 - `ContextWindowManager.inject_context()` 返回 `industry` key
 - `openai_client.py` 中 DeepSeek 客户端默认禁用 thinking mode
+- **财报数据 LLM 可读性优化** — `akshare.py` 新增 `_format_financial_report()`：将 Sina 100+ 列原始 CSV 转换为结构化 Markdown（资产负债表分资产/负债/股东权益三段，利润表和现金流量表分项列表），仅保留 12-17 个核心财务指标；`_get_financial_report_sina()` 改为调用格式化函数替代 `df.to_csv()`。
+- **通用数据截断机制** — `a_stock_data.py` 的 `_format_result()` 新增 `max_columns`（默认 50）和 `column_filter` 参数，超过上限自动截断并标注省略列数，防止宽表直接注入 LLM prompt 导致解析失败。
 
 
 ## [0.2.9-cn] — 2026-05-29
