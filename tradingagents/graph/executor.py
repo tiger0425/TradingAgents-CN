@@ -13,6 +13,7 @@ from langgraph.prebuilt import ToolNode
 from .dynamic_graph_builder import DynamicGraphBuilder
 from ..agents.utils.agent_states import AgentState, InvestDebateState, RiskDebateState
 from ..dataflows.a_stock_data import get_company_name
+from ..industry.verifier import IndustryVerifier
 from ..planner.schemas import Trigger, Context
 
 logger = logging.getLogger(__name__)
@@ -167,6 +168,39 @@ class GraphExecutor:
 
         report = self._extract_report(final_state)
 
+        # Run IndustryVerifier on the assembled report (flag-and-continue)
+        industry = final_state.get("industry", "")
+        verification = None
+        if industry and report:
+            try:
+                verification = IndustryVerifier.verify_industry_consistency(
+                    industry=industry,
+                    report=report,
+                    quick_llm=self.quick_llm,
+                )
+                if not verification.get("consistent", True):
+                    logger.warning(
+                        "IndustryVerifier: consistency check failed for %s: %s",
+                        final_state.get("company_of_interest", "unknown"),
+                        verification.get("issues", []),
+                    )
+                    # Flag: append warning to the report
+                    issues = "；".join(verification.get("issues", []))
+                    report += (
+                        f"\n\n⚠️ **行业一致性警告**"
+                        f"（{verification.get('method', 'unknown')}）：{issues}"
+                    )
+            except Exception:
+                logger.exception(
+                    "IndustryVerifier: unexpected error during consistency check"
+                )
+                verification = {
+                    "consistent": True,
+                    "issues": ["verifier error"],
+                    "severity": "warning",
+                    "method": "error",
+                }
+
         return {
             "final_report": report,
             "raw_state": final_state,
@@ -175,6 +209,7 @@ class GraphExecutor:
             "template_id": plan.get("_template_id", ""),
             "estimated_cost_usd": plan.get("estimated_cost_usd", 0),
             "plan_workflow_steps": len(workflow),
+            "industry_verification": verification,
         }
 
     # ------------------------------------------------------------------
@@ -262,21 +297,35 @@ class GraphExecutor:
 
     @staticmethod
     def _extract_report(final_state: dict) -> str:
-        """Extract the final report from the graph's final state."""
-        # Try multiple output fields in priority order
-        for field in (
-            "final_trade_decision",
-            "investment_plan",
-            "trader_investment_plan",
-        ):
-            report = final_state.get(field, "")
-            if report:
-                return report
-        # Fallback: concatenate all report fields
-        parts = []
-        for field in ("market_report", "fundamentals_report", "news_report", "sentiment_report"):
-            if final_state.get(field):
-                parts.append(final_state[field])
+        """Build a complete analysis report from all graph state fields.
+
+        Assembles: analyst reports → investment plan → trader plan → final decision.
+        This mirrors the CLI batch _format_text_output for API consumers.
+        """
+        parts: list[str] = []
+
+        analyst_reports = [
+            ("Market Analyst", final_state.get("market_report", "")),
+            ("Fundamentals Analyst", final_state.get("fundamentals_report", "")),
+            ("News Analyst", final_state.get("news_report", "")),
+            ("Social Analyst", final_state.get("sentiment_report", "")),
+        ]
+        for title, content in analyst_reports:
+            if content:
+                parts.append(f"--- {title} ---\n\n{content}")
+
+        investment_plan = final_state.get("investment_plan", "")
+        if investment_plan:
+            parts.append(f"--- Investment Plan ---\n\n{investment_plan}")
+
+        trader_plan = final_state.get("trader_investment_plan", "")
+        if trader_plan:
+            parts.append(f"--- Trader Plan ---\n\n{trader_plan}")
+
+        final_decision = final_state.get("final_trade_decision", "")
+        if final_decision and final_decision != investment_plan:
+            parts.append(f"--- Final Decision ---\n\n{final_decision}")
+
         return "\n\n".join(parts) if parts else ""
 
     @staticmethod
