@@ -134,6 +134,11 @@ async def analyze(req: AnalyzeRequest):
 
     industry = ""
     if req.ticker:
+        from tradingagents.dataflows.a_stock_data import validate_ticker
+        ok, company_name = validate_ticker(req.ticker)
+        if not ok:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=company_name)
         try:
             from tradingagents.dataflows.a_stock_data import get_industry
             industry = get_industry(req.ticker)

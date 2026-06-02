@@ -36,6 +36,7 @@ Breaking changes within the 0.x line are called out explicitly.
 - **财报数据 LLM 可读性优化** — `akshare.py` 新增 `_format_financial_report()`：将 Sina 100+ 列原始 CSV 转换为结构化 Markdown（资产负债表分资产/负债/股东权益三段，利润表和现金流量表分项列表），仅保留 12-17 个核心财务指标；`_get_financial_report_sina()` 改为调用格式化函数替代 `df.to_csv()`。
 - **通用数据截断机制** — `a_stock_data.py` 的 `_format_result()` 新增 `max_columns`（默认 50）和 `column_filter` 参数，超过上限自动截断并标注省略列数，防止宽表直接注入 LLM prompt 导致解析失败。
 - **`get_fundamentals_a` 聚合真实财报** — `a_stock_data.py` 的 `get_fundamentals_a()` 从仅返回 11 字段实时行情改为聚合 get_current_price_a + get_financial_statements（资产负债表/利润表/现金流量表三张），单次调用即可获取完整基本面数据，消除因"名不副实"导致 LLM 重复调用 3+ 次的工具循环问题。
+- **股票代码输入校验** — 新增 `validate_ticker()` 函数，对 A 股代码做格式（6 位数字）+ 存在性（腾讯财经 API）双层校验。三个入口同步拦截：`cli/main.py` 交互式循环重试、`cli/batch.py` 错误退出、`api_server.py` 返回 HTTP 400。无效代码不再流入全长分析管道导致超时。
 
 
 ## [0.2.9-cn] — 2026-05-29

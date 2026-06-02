@@ -522,6 +522,41 @@ def get_company_name(code: str) -> str:
         return code
 
 
+def validate_ticker(code: str, market_type: str = "A_SHARE") -> tuple[bool, str]:
+    """校验股票代码是否有效。
+
+    对 A 股做双层校验：
+      1. 格式校验 — 是否为 6 位纯数字
+      2. 存在性校验 — 通过腾讯财经 API 确认股票名称
+
+    参数:
+        code:        股票代码，如 "600519"
+        market_type: 市场类型，默认 "A_SHARE"
+
+    返回:
+        (True, 公司中文名称)   → 有效
+        (False, 错误描述)       → 无效
+    """
+    code = code.strip()
+
+    if market_type == "A_SHARE":
+        if not code.isdigit() or len(code) != 6:
+            return (
+                False,
+                f"A 股代码必须为 6 位数字（如 600519），收到 '{code}'",
+            )
+
+    # 存在性校验：查询腾讯财经确认有返回值
+    company = get_company_name(code)
+    if company == code:
+        return (
+            False,
+            f"股票 '{code}' 不存在或无法查询，请检查代码是否正确",
+        )
+
+    return True, company
+
+
 def get_balance_sheet_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:
     """获取 A 股资产负债表。
 

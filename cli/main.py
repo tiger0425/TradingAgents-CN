@@ -686,8 +686,14 @@ def get_user_selections():
 
 
 def get_ticker():
-    """Get ticker symbol from user input."""
-    return typer.prompt("", default="SPY")
+    """Get ticker symbol from user input with A-share validation."""
+    from tradingagents.dataflows.a_stock_data import validate_ticker
+    while True:
+        raw = typer.prompt("", default="600519").strip()
+        ok, result = validate_ticker(raw)
+        if ok:
+            return raw
+        console.print(f"[red]错误：{result}[/red]")
 
 
 def get_analysis_date():

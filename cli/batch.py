@@ -388,6 +388,12 @@ def batch(
         )
         raise typer.Exit(code=1)
 
+    from tradingagents.dataflows.a_stock_data import validate_ticker
+    ok, name = validate_ticker(ticker)
+    if not ok:
+        typer.echo(f"错误: {name}", err=True)
+        raise typer.Exit(code=1)
+
     selected_analysts = _parse_analysts(analysts)
 
     config = build_config(
