@@ -6,85 +6,12 @@
   "created": "2026-05-13T08:00:00",
   "use_count": 0,
   "success_rate": 0.85,
-  "match_patterns": {
-    "keywords": ["分析", "怎么看", "能买吗", "怎么样", "好不好", "能不能", "帮我看看", "研究", "analyze"],
-    "required_context": [],
-    "negative_keywords": ["被套", "解套", "割肉", "亏了", "止损"],
-    "description": "标准个股多维度分析：技术面+基本面+新闻+舆情 → 多空辩论 → 交易方案 → 风控评估 → 最终建议"
-  },
-  "workflow": [
-    {
-      "step": 1, "agent": "market_analyst",
-      "task": "分析{ticker}技术面：K线形态、均线系统、MACD/RSI/BOLL、量价关系、关键支撑/压力位",
-      "context": ["{ticker}近60日OHLCV", "KB市场快照"],
-      "depends_on": [], "expected_output": "技术面分析报告"
-    },
-    {
-      "step": 2, "agent": "fundamentals_analyst",
-      "task": "分析{ticker}基本面：ROE/毛利率/现金流、估值(PE/PB/PS)、最近财报、行业对比",
-      "context": ["{ticker}财报数据", "{industry}行业对比"],
-      "depends_on": [], "expected_output": "基本面分析报告"
-    },
-    {
-      "step": 3, "agent": "news_analyst",
-      "task": "搜索{ticker}最近公告和新闻：业绩预告、重大合同、监管动态、行业政策",
-      "context": ["{ticker}公告", "{industry}行业新闻"],
-      "depends_on": [], "expected_output": "新闻分析报告"
-    },
-    {
-      "step": 4, "agent": "social_analyst",
-      "task": "分析{ticker}舆情：社交情绪、股吧讨论热度、机构调研动向",
-      "context": ["{ticker}社交数据"],
-      "depends_on": [], "expected_output": "舆情分析报告"
-    },
-    {
-      "step": 5, "agent": "bull_researcher",
-      "task": "从多方论证：为什么{ticker}值得买入？技术面支撑+基本面价值+催化剂",
-      "context": ["步骤1-4报告"],
-      "depends_on": [1, 2, 3, 4], "expected_output": "多方论证"
-    },
-    {
-      "step": 6, "agent": "bear_researcher",
-      "task": "从空方论证：为什么{ticker}有风险？技术面压力+基本面隐患+利空因素",
-      "context": ["步骤1-4报告"],
-      "depends_on": [1, 2, 3, 4], "expected_output": "空方论证"
-    },
-    {
-      "step": 7, "agent": "research_manager",
-      "task": "汇总多空双方观点，形成综合判断：买入/卖出/持有+置信度",
-      "context": ["步骤5多方", "步骤6空方"],
-      "depends_on": [5, 6], "expected_output": "综合研判"
-    },
-    {
-      "step": 8, "agent": "trader",
-      "task": "基于研究主管判断，制定具体交易方案：买入/卖出价格区间、数量、时机",
-      "context": ["步骤7综合研判", "{ticker}当前价格"],
-      "depends_on": [7], "expected_output": "交易方案"
-    },
-    {
-      "step": 9, "agent": "risk_aggressive",
-      "task": "从收益最大化角度评估风险：这个机会的上涨空间多大？",
-      "context": ["步骤8交易方案"],
-      "depends_on": [8], "expected_output": "激进风控意见"
-    },
-    {
-      "step": 10, "agent": "risk_conservative",
-      "task": "从最大回撤控制角度评估风险：最坏情况会亏多少？",
-      "context": ["步骤8交易方案"],
-      "depends_on": [8], "expected_output": "保守风控意见"
-    },
-    {
-      "step": 11, "agent": "risk_neutral",
-      "task": "综合激进和保守两方，提出平衡的风险管理建议",
-      "context": ["步骤9激进", "步骤10保守"],
-      "depends_on": [9, 10], "expected_output": "中立风控意见"
-    },
-    {
-      "step": 12, "agent": "portfolio_manager",
-      "task": "综合所有分析，输出最终建议：买入/卖出/持有+评级(A/B/C)+置信度(0-100)+关键价位+止损止盈",
-      "context": ["步骤7研判", "步骤8交易方案", "步骤11风控"],
-      "depends_on": [7, 8, 11],
-      "expected_output": "最终分析报告(Markdown格式)"
+    "match_patterns": {
+      "keywords": ["分析", "怎么看", "能买吗", "怎么样", "好不好", "能不能", "帮我看看", "研究", "analyze"],
+      "required_context": [],
+      "negative_keywords": ["被套", "解套", "割肉", "亏了", "止损"],
+      "industry_keywords": ["行业", "板块", "业"],
+      "description": "标准个股多维度分析：技术面+基本面+新闻+舆情 → 多空辩论 → 交易方案 → 风控评估 → 最终建议"
     }
   ],
   "estimated_cost_usd": 0.85,

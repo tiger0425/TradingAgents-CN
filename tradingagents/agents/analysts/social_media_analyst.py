@@ -16,6 +16,9 @@ def create_social_media_analyst(llm):
     def social_media_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
+        industry = state.get("industry", "")
+        if industry:
+            instrument_context += f"\n\n**行业舆情特征：** 该公司属于 {industry} 行业，请结合该行业的舆情特点和市场关注焦点进行分析。\n"
 
         tools = [
             get_social_sentiment_tool,

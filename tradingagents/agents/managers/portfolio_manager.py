@@ -104,6 +104,11 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
 {position_context}
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 
+        # Add industry context as calibration reference
+        industry = state.get("industry", "")
+        if industry:
+            prompt += f"\n\n**行业基准参考：** 被分析标的属于 {industry} 行业。最终建议中应考虑该行业的估值基准、景气周期和竞争格局。\n"
+
         # Add market context as calibration reference
         market_context = state.get("market_context", "")
         if market_context:

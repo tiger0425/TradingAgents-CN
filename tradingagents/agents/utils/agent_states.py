@@ -87,6 +87,7 @@ class AgentState(MessagesState):
     position_opened_date: Annotated[str, "Date when current position was opened"] = ""
     limit_up_price: Annotated[float, "A-share daily limit-up price"] = 0.0
     limit_down_price: Annotated[float, "A-share daily limit-down price"] = 0.0
+    industry: Annotated[str, "Detected industry classification, e.g. '商用载货车'"] = ""
 
     # Position tracking fields
     cost_price: Annotated[float, "Average cost price of current position"] = 0.0

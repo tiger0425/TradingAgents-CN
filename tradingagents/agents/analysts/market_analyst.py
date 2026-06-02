@@ -18,6 +18,14 @@ def create_market_analyst(llm):
     def market_analyst_node(state):
         current_date = state["trade_date"]
         instrument_context = build_instrument_context(state["company_of_interest"])
+        industry = state.get("industry", "")
+        industry_section = (
+            f"\n\n**行业技术面特征：** 当前分析的股票属于 {industry} 行业。"
+            "请注意该行业的典型技术形态、交易活跃度特征和板块联动规律。"
+            "行业轮动关系和板块排名可作为技术信号的重要验证。\n"
+            if industry
+            else ""
+        )
 
         tools = [
             get_current_price,
@@ -52,6 +60,7 @@ Select indicators that provide diverse and complementary information. Avoid redu
 """
             + get_language_instruction()
             + get_degradation_instruction()
+            + industry_section
             + " Remember: you are the technical analysis specialist. Your indicators inform the trading decision but you are NOT responsible for the final trading decision."
             + "\n\n**Market Environment Context:**\nThe current market environment data is available via the `get_market_context` tool.\nCall this tool at the START of your analysis to understand the broader market conditions (index trends, sector rotation, capital flows, market breadth) before interpreting individual stock technical indicators. Factor the market environment into your assessment of whether technical signals indicate genuine trends or market-driven noise.",
         )

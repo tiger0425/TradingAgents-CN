@@ -1,0 +1,1 @@
+# Industry framework configuration data

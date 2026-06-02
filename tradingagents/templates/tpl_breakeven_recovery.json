@@ -6,61 +6,12 @@
   "created": "2026-05-13T08:00:00",
   "use_count": 0,
   "success_rate": 0.88,
-  "match_patterns": {
-    "keywords": ["被套", "解套", "割肉", "止损", "亏了", "怎么办", "要不要卖", "扛不住", "跌了"],
-    "required_context": ["has_holdings"],
-    "negative_keywords": ["加仓", "抄底"],
-    "description": "持仓亏损，需要解套/止损方案分析"
-  },
-  "workflow": [
-    {
-      "step": 1, "agent": "market_analyst",
-      "task": "分析{ticker}技术面：当前趋势、支撑/压力位、距成本价{cost_price}的距离、反弹概率",
-      "context": ["{ticker}近60日OHLCV", "持仓:成本{cost_price}"],
-      "depends_on": [], "expected_output": "技术面诊断报告"
-    },
-    {
-      "step": 2, "agent": "fundamentals_analyst",
-      "task": "分析{ticker}基本面是否恶化：最新财报、行业对比、估值变化。判断跌是基本面问题还是市场情绪",
-      "context": ["{ticker}财报", "{industry}行业数据"],
-      "depends_on": [], "expected_output": "基本面评估"
-    },
-    {
-      "step": 3, "agent": "news_analyst",
-      "task": "搜索{ticker}最近利空消息：公告、新闻、行业政策。判断利空是否已消化",
-      "context": ["{ticker}公告", "{industry}新闻"],
-      "depends_on": [], "expected_output": "利空因素清单"
-    },
-    {
-      "step": 4, "agent": "trader",
-      "task": "基于技术面和基本面，模拟4种方案：A-持有等待回本 B-止损离场 C-逢低加仓摊薄成本 D-部分减仓。每种方案评估预期结果和概率",
-      "context": ["步骤1技术面", "步骤2基本面", "持仓:成本{cost_price}/{quantity}股"],
-      "depends_on": [1, 2], "expected_output": "四方案对比表(含预期结果+概率)"
-    },
-    {
-      "step": 5, "agent": "bull_researcher",
-      "task": "从多方论证：为什么{ticker}能涨回{cost_price}以上？需要什么条件？概率多大？需要多久？",
-      "context": ["步骤1-3输出", "步骤4四方案"],
-      "depends_on": [4], "expected_output": "多方论证(聚焦回本概率)"
-    },
-    {
-      "step": 6, "agent": "bear_researcher",
-      "task": "从空方论证：为什么{ticker}可能继续下跌？最坏情况跌到哪？",
-      "context": ["步骤1-3输出", "步骤4四方案"],
-      "depends_on": [4], "expected_output": "空方论证(聚焦下行风险)"
-    },
-    {
-      "step": 7, "agent": "research_manager",
-      "task": "汇总多空观点，判断哪种方案概率最高。核心问题：持有 vs 止损 vs 加仓？",
-      "context": ["步骤5多方", "步骤6空方"],
-      "depends_on": [5, 6], "expected_output": "综合判断+推荐方案"
-    },
-    {
-      "step": 8, "agent": "portfolio_manager",
-      "task": "综合所有分析，给出最终推荐方案和具体操作指令（价位/数量/止损）。格式：推荐方案+理由+操作指令+风险提示+备选方案",
-      "context": ["步骤7推荐方案", "用户风险偏好:{risk_profile}"],
-      "depends_on": [7],
-      "expected_output": "最终解套方案(Markdown格式)"
+    "match_patterns": {
+      "keywords": ["被套", "解套", "割肉", "止损", "亏了", "怎么办", "要不要卖", "扛不住", "跌了"],
+      "required_context": ["has_holdings"],
+      "negative_keywords": ["加仓", "抄底"],
+      "industry_keywords": ["行业", "板块", "业"],
+      "description": "持仓亏损，需要解套/止损方案分析"
     }
   ],
   "estimated_cost_usd": 0.75,

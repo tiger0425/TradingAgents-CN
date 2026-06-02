@@ -90,6 +90,13 @@ class TemplateMatcher:
         if required and not all(features.get(r, False) for r in required):
             return 0.0
 
+        # Industry-aware scoring boost
+        industry = features.get("industry")
+        industry_keywords = patterns.get("industry_keywords")
+        if industry and industry_keywords:
+            if industry in industry_keywords or any(kw in industry for kw in industry_keywords):
+                score += 0.15
+
         score += 0.1 * min(template.get("use_count", 0) / 50, 1.0)
         score += 0.1 * template.get("success_rate", 0.5)
 

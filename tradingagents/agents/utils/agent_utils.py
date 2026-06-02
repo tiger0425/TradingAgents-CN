@@ -66,8 +66,14 @@ def get_degradation_instruction() -> str:
     )
 
 
-def build_instrument_context(ticker: str) -> str:
-    """Describe the exact instrument so agents preserve market-appropriate ticker formats."""
+def build_instrument_context(ticker: str, industry: str = "") -> str:
+    """Describe the exact instrument so agents preserve market-appropriate ticker formats.
+
+    Args:
+        ticker: The stock ticker symbol.
+        industry: Optional industry classification (e.g. "商用载货车").
+                  When non-empty, appends industry context to the prompt.
+    """
     # A-shares use 6-digit numeric codes; other markets use alphanumeric tickers
     if ticker and ticker.isdigit() and len(ticker) == 6:
         exchange_hint = (
@@ -80,11 +86,14 @@ def build_instrument_context(ticker: str) -> str:
         exchange_hint = (
             "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
         )
-    return (
+    base = (
         f"The instrument to analyze is `{ticker}`. "
         f"{exchange_hint} "
         "Use this exact ticker in every tool call, report, and recommendation."
     )
+    if industry:
+        base += f"\n\n**行业背景：** 该股票属于 {industry} 行业。分析时请关注该行业的核心指标和竞争格局。"
+    return base
 
 def format_past_context(past_context: str) -> str:
     """Format past trading memory context for Portfolio Manager prompt injection.
@@ -172,6 +181,17 @@ def sanitize_messages_for_deepseek(messages: list) -> list:
                 result.append(mc)
                 continue
         result.append(m)
+    # Also strip orphaned ToolMessages (no preceding assistent with matching tool_calls).
+    # MiniMax enforces this strictly (error 2013).
+    valid_ids = set()
+    for m in result:
+        if isinstance(m, AIMessage) and m.tool_calls:
+            for tc in m.tool_calls:
+                if "id" in tc:
+                    valid_ids.add(tc["id"])
+    result = [m for m in result if not (
+        isinstance(m, ToolMessage) and m.tool_call_id not in valid_ids
+    )]
     return result
 
 

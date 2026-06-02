@@ -214,6 +214,7 @@ class ContextWindowManager:
             "market_context": market_ctx,
             "token_usage": token_usage,
             "compression_applied": compression_applied,
+            "industry": state.get("industry", ""),
         }
 
     # ------------------------------------------------------------------

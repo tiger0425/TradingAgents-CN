@@ -29,6 +29,13 @@ def create_trader(llm):
         cost_price = state.get("cost_price", 0.0)
         quantity = state.get("quantity", 0)
 
+        # Build industry context note
+        industry = state.get("industry", "")
+        if industry:
+            industry_note = f"\n\n**行业交易特征：** 当前标的属于 {industry} 行业。请考虑该行业典型的持仓周期、波动率特征和流动性特点。\n"
+        else:
+            industry_note = ""
+
         # Build position awareness note for the system message
         if cost_price > 0 and quantity > 0:
             position_note = (
@@ -89,6 +96,7 @@ def create_trader(llm):
                     + position_note
                     + get_language_instruction()
                     + get_degradation_instruction()
+                    + industry_note
                 ),
             },
             {

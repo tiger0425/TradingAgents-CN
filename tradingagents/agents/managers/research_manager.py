@@ -60,6 +60,10 @@ Both the Bull and Bear analysts were instructed to state a **本轮核心证据*
 {get_language_instruction()}
 {get_degradation_instruction()}"""
 
+        industry = state.get("industry", "")
+        if industry:
+            prompt += f"\n\n**行业对标框架：** 相关标的属于 {industry} 行业。综合研判时应以该行业的核心竞争要素和投资逻辑为分析框架。\n"
+
         investment_plan = invoke_structured_or_freetext(
             structured_llm,
             llm,

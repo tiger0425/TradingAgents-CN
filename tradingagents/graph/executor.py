@@ -227,6 +227,7 @@ class GraphExecutor:
             "news_report": "",
             "fundamentals_report": "",
             "market_context": context.market_state or "",
+            "industry": context.industry or "",
             "investment_debate_state": debate_init,
             "investment_plan": "",
             "trader_investment_plan": "",

@@ -7,6 +7,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.10-cn] — 2026-06-02
+
+### Added
+
+- **三层行业检测架构** — 新增 `tradingagents/industry/` 模块：（L1）`IndustryClassifier` 服务封装 `get_industry()` 为结构化分类结果；（L2）`IndustryFramework` 行业→分析框架映射（5 行业试点，含 correct_metrics + anti_patterns）；（L3）`IndustryVerifier.verify_industry_consistency()` 规则+LLM 二级一致性校验。
+- **Agent 行业上下文注入** — 7 个 Agent（4 analysts + trader + portfolio_manager + research_manager）的系统提示词现包含行业背景。`AgentState` 新增 `industry` 字段，通过 `build_instrument_context()` 进入 Agent 提示词。
+- **行业提示词注入** — fundamentals_analyst 获得行业估值框架指导；market_analyst 获得行业技术面特征；news_analyst 获得行业政策关注点；trader/PM/research_mgr 获得行业基准参考。
+- **一致性校验器** — `IndustryVerifier.verify_industry_consistency()` 规则层扫描 anti_patterns 关键词（如 SaaS 的"续约率/LTV/CAC"不出现在汽车报告中），LLM 层作为语义 fallback。
+- **TemplateMatcher 行业评分** — 修复废弃代码：`_score_template()` 现使用 `industry` 特征进行行业感知的模板匹配加权。
+- **新增测试** — `tests/test_industry_classifier.py`（11 tests）、`tests/test_industry_verifier.py`（13 tests）。
+
+### Changed
+
+- `AgentState` 新增 `industry: Annotated[str, ""]` 字段
+- `_build_init_state()` 传递 `context.industry` 到 AgentState
+- `build_instrument_context()` 新增可选 `industry` 参数
+- `ContextWindowManager.inject_context()` 返回 `industry` key
+
+
 ## [0.2.9-cn] — 2026-05-29
 
 ### Added
