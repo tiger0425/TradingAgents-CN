@@ -329,21 +329,38 @@ def get_stock_data_a(symbol: str, start_date: str, end_date: str) -> str:
 
 
 def get_fundamentals_a(ticker: str, curr_date: Optional[str] = None) -> str:
-    """获取 A 股个股基本面信息（PE/市值/股东户数等）。
+    """获取 A 股个股完整基本面信息（实时行情 + 三张财务报表）。
 
-    委托给 get_stock_info（东财 push2 接口），curr_date 参数忽略。
+    聚合四个数据源，返回一份综合基本面报告：
+      - 实时行情（腾讯财经）
+      - 资产负债表（Sina 新浪，最近一期）
+      - 利润表（Sina 新浪，最近一期）
+      - 现金流量表（Sina 新浪，最近一期）
+
+    每个子数据源独立容错，单个失败不影响其他部分。
 
     参数:
         ticker:    股票代码，如 "600519"
-        curr_date: 忽略（腾讯财经/东财返回实时数据）
+        curr_date: 保留兼容性，当前未使用
 
     返回:
-        Markdown 格式字符串
+        Markdown 格式字符串，各部分间用空行分隔
     """
-    try:
-        return get_stock_info(ticker)
-    except Exception as e:
-        return f"基本面查询失败: {str(e)}"
+    parts: list[str] = []
+
+    parts.append(get_current_price_a(ticker))
+
+    for stmt_type, stmt_label in [
+        ("balance", "资产负债表"),
+        ("income", "利润表"),
+        ("cashflow", "现金流量表"),
+    ]:
+        try:
+            parts.append(get_financial_statements(ticker, stmt_type))
+        except Exception:
+            parts.append(f"## {stmt_label} — {ticker}\n\n_查询失败_")
+
+    return "\n\n".join(parts)
 
 
 def get_indicators_a(
