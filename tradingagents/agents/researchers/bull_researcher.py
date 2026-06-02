@@ -36,8 +36,15 @@ def create_bull_researcher(llm):
         reports_text = ctx["reports_summary"]
         debate_history = ctx["debate_history"]
         market_context = ctx.get("market_context", state.get("market_context", ""))
+        industry = ctx.get("industry", "")
 
-        prompt = f"""You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
+        industry_info = ""
+        if industry:
+            industry_info = f"""
+**⚠️ 行业锚定约束：** 你正在辩论的标的属于【{industry}】行业。所有论点必须基于该行业实际的商业模式、竞争格局和关键驱动因素。严禁使用与{industry}行业无关的术语或分析框架。
+"""
+
+        prompt = f"""{industry_info}You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
 {round_instruction}
 

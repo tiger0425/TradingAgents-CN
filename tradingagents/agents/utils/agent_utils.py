@@ -95,7 +95,28 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
         "Use this exact ticker in every tool call, report, and recommendation."
     )
     if industry:
+        # Inject industry framework (correct_metrics + anti_patterns) when available
+        framework = None
+        try:
+            from tradingagents.industry.frameworks import IndustryFramework  # lazy import
+            framework = IndustryFramework().lookup(industry)
+        except Exception:
+            pass
+
         base += f"\n\n**行业背景：** 该股票属于 {industry} 行业。分析时请关注该行业的核心指标和竞争格局。"
+
+        if framework:
+            correct_metrics = framework.get("correct_metrics", [])
+            anti_patterns = framework.get("anti_patterns", [])
+            if correct_metrics or anti_patterns:
+                base += "\n\n**行业分析框架（必须遵守）：**"
+                if correct_metrics:
+                    base += "\n- 核心指标：" + "、".join(correct_metrics)
+                if anti_patterns:
+                    base += "\n- 不适用指标：" + "、".join(anti_patterns)
+                ctx = framework.get("context_instruction", "")
+                if ctx:
+                    base += f"\n\n分析指导：{ctx}"
     return base
 
 def format_past_context(past_context: str) -> str:

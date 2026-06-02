@@ -386,3 +386,92 @@ instrument_context = build_instrument_context(state["company_of_interest"], indu
 | trader.py `company_display` vs `company_name` correctly scoped | ✅ |
 | portfolio_manager.py industry read not duplicated | ✅ |
 | research_manager.py duplicate read removed | ✅ |
+
+## 2026-06-02: Wave 6 — Inject IndustryFramework metrics/anti-patterns into build_instrument_context
+
+### Problem
+`build_instrument_context()` injected only a weak single-sentence industry hint: `"分析时请关注该行业的核心指标和竞争格局"`. The LLM received no concrete guidance on *which* metrics to use or *which* to avoid.
+
+### Changes Made
+
+**File: `tradingagents/agents/utils/agent_utils.py`**
+- Replaced the single `if industry:` sentence block with a data-driven pipeline:
+  1. Lazy-import `IndustryFramework` inside the function (try/except for circular import safety)
+  2. Call `IndustryFramework().lookup(industry)` when industry is non-empty
+  3. If framework found AND has `correct_metrics` or `anti_patterns`: emit a **行业分析框架（必须遵守）** block
+     - `- 核心指标：` joined with "、"
+     - `- 不适用指标：` joined with "、"
+     - Optional `分析指导：{context_instruction}` paragraph
+  4. If framework not found or lists empty: fall back to the original single-sentence behavior
+- Original **行业背景** sentence is always emitted when industry is non-empty (regardless of framework found)
+
+### Design Decisions
+1. **Lazy import inside function body** — `IndustryFramework` lives in `tradingagents.industry` which may not be importable at module level (circular dependency risk). `try/except Exception` ensures a missing/external module never crashes the function.
+2. **Framework block always follows 行业背景** — The background sentence provides general context; the framework block provides specific, actionable guidance. Both are needed.
+3. **`correct_metrics` and `anti_patterns` gating** — If both lists are empty/null, the entire framework block is suppressed. This avoids empty bullet points like `- 核心指标：`.
+4. **"、" as list separator** — Chinese convention for separating items in a list (not commas).
+
+### Behavior Matrix
+
+| industry | Framework found | Framework has data | Output includes framework block |
+|---|---|---|---|
+| `""` | N/A | N/A | ❌ (no industry text at all) |
+| `"未知行业"` | ❌ | N/A | ❌ (only **行业背景** sentence) |
+| `"旅游综合"` | ❌ | N/A | ❌ (only **行业背景** sentence) |
+| `"商用载货车"` | ✅ (automotive) | ✅ (8 metrics, 12 anti) | ✅ **行业分析框架** with data |
+| `"银行"` | ✅ (banking) | ✅ (10 metrics, 11 anti) | ✅ **行业分析框架** with data |
+
+### Verification
+
+| Test | Result |
+|---|---|
+| `build_instrument_context("600418", "商用载货车", "江淮汽车")` contains "产能利用率" (correct_metrics) | ✅ |
+| `build_instrument_context("600418", "商用载货车", "江淮汽车")` contains "续约率" (anti_patterns) | ✅ |
+| `build_instrument_context("600418", "商用载货车", "江淮汽车")` contains "分析指导" (context_instruction) | ✅ |
+| `build_instrument_context("600418")` no industry text at all | ✅ |
+| `build_instrument_context("600418", "未知行业XXX")` has 行业背景 but no framework | ✅ |
+| `build_instrument_context("600418", "商用载货车")` works without company_name | ✅ |
+| LSP diagnostics — 0 new errors | ✅ |
+
+## 2026-06-02: Wave 6 — Inject industry into bull_researcher / bear_researcher prompts
+
+### Problem
+`ContextWindowManager.inject_context()` already returned `"industry": state.get("industry", "")` (line 217), but neither `bull_researcher.py` nor `bear_researcher.py` read it. The debate agents — the **loudest** from token perspective (6+ rounds) — had no industry grounding, so they blindly accepted terminology from analyst reports.
+
+### Changes Made
+
+**File: `tradingagents/agents/researchers/bull_researcher.py`**
+- Added `industry = ctx.get("industry", "")` after existing `ctx` reads (alongside `reports_text`, `debate_history`, `market_context`)
+- Built conditional `industry_info` block — empty string when `industry` is empty, full Chinese anchoring block when non-empty:
+  ```python
+  f"""
+  **⚠️ 行业锚定约束：** 你正在辩论的标的属于【{industry}】行业。所有论点必须基于该行业实际的商业模式、竞争格局和关键驱动因素。严禁使用与{industry}行业无关的术语或分析框架。
+  """
+  ```
+- Inserted `{industry_info}` at the **TOP** of the prompt f-string, **BEFORE** "You are a Bull Analyst..."
+
+**File: `tradingagents/agents/researchers/bear_researcher.py`**
+- Same pattern: `industry = ctx.get("industry", "")`, `industry_info` conditional, `{industry_info}` at top of prompt before "You are a Risk Analyst..."
+
+### Key Design Decisions
+1. **Read from ctx, not state** — Unlike the 7 agent files (Wave 5) which read `state.get("industry")`, bull/bear researchers read from `ctx` because they use `ContextWindowManager.inject_context()` which already returns `industry`. This is consistent with how they read `reports_summary`, `debate_history`, and `market_context` — all from `ctx`.
+2. **Prepend, not append** — Industry anchoring is placed at the TOP of the prompt as a hard constraint before any role description. This is deliberate: industry context must frame how the LLM interprets all subsequent instructions and data. Appending would let the role description settle in without the constraint.
+3. **No new imports** — Both files only import `ContextWindowManager`, unchanged. No `IndustryFramework` import needed.
+4. **Empty industry = zero footprint** — When `ctx.get("industry", "")` returns `""`, the `if industry:` guard produces `industry_info = ""`, and `f"""{industry_info}You are a ..."""` is identical to the original `f"""You are a ..."""`.
+
+### Behavior Matrix
+
+| `ctx["industry"]` | Prompt top has industry block? | Empty = no change? |
+|---|---|---|
+| `""` (empty) | ❌ | ✅ — exact same prompt as before |
+| `"商用载货车"` | ✅ — `**⚠️ 行业锚定约束：** 你正在辩论的标的属于【商用载货车】行业...` | N/A |
+| `"银行"` | ✅ — `**⚠️ 行业锚定约束：** 你正在辩论的标的属于【银行】行业...` | N/A |
+
+### Verification
+| Check | Result |
+|---|---|
+| LSP diagnostics — 0 new errors (all pre-existing) | ✅ |
+| Industry anchoring at TOP of prompt (before role description) | ✅ |
+| Empty industry → same prompt | ✅ |
+| ContextWindowManager.inject_context() not touched | ✅ |
+| bear_researcher.py same pattern | ✅ |
