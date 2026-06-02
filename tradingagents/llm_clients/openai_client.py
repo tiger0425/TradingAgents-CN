@@ -152,6 +152,54 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
         # invoke() with extra_body={"thinking": {"type": "disabled"}}.
         return super().with_structured_output(schema, method=method, **kwargs)
 
+class MiniMaxChatOpenAI(NormalizedChatOpenAI):
+    """MiniMax M3: stricter message ordering than DeepSeek.
+
+    MiniMax rejects messages where a ToolMessage appears without a
+    preceding assistant(tool_calls) — error 2013 "tool call result
+    does not follow tool call".  The same sanitization pattern used
+    for DeepSeek's orphaned tool_calls also works here, applied
+    bidirectionally (strip orphaned tool_calls AND orphaned ToolMessages).
+    """
+
+    def _get_request_payload(self, input_, *, stop=None, **kwargs):
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        outgoing = payload.get("messages", [])
+
+        # Collect valid tool_call ids from assistant messages
+        valid_tc_ids = set()
+        for msg in outgoing:
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                for tc in msg["tool_calls"]:
+                    if "id" in tc:
+                        valid_tc_ids.add(tc["id"])
+
+        if not valid_tc_ids:
+            return payload
+
+        # Strip orphaned tool messages
+        clean = []
+        for msg in outgoing:
+            if msg.get("role") == "tool":
+                if msg.get("tool_call_id") not in valid_tc_ids:
+                    continue
+            clean.append(msg)
+
+        # Strip orphaned tool_calls from assistant messages
+        # that have no matching tool messages in the cleaned list
+        clean_tool_ids = {m["tool_call_id"] for m in clean if m.get("role") == "tool" and m.get("tool_call_id")}
+        for msg in clean:
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                orphaned = [tc for tc in msg["tool_calls"] if tc.get("id") not in clean_tool_ids]
+                if orphaned and len(orphaned) == len(msg["tool_calls"]):
+                    if not msg.get("content"):
+                        msg["content"] = "[Tool results]"
+                    del msg["tool_calls"]
+
+        payload["messages"] = clean
+        return payload
+
+
 # Kwargs forwarded from user config to ChatOpenAI
 _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "reasoning_effort",
@@ -222,24 +270,16 @@ class OpenAIClient(BaseLLMClient):
         # DeepSeek's thinking-mode quirks live in their own subclass so the
         # base NormalizedChatOpenAI stays free of provider-specific branches.
         if self.provider == "deepseek":
+            # Disable thinking mode to prevent hallucination on opaque tickers
+            llm_kwargs.setdefault("model_kwargs", {}).setdefault("extra_body", {})
+            llm_kwargs["model_kwargs"]["extra_body"]["thinking"] = {"type": "disabled"}
             return DeepSeekChatOpenAI(**llm_kwargs)
         if self.provider == "minimax":
-            # MiniMax M3: use bare ChatOpenAI with thinking disabled
-            # and reasoning_split for clean thinking/content separation.
-            # ChatOpenAI's default parameters (temperature, model_kwargs)
-            # cause MiniMax to hang on Chinese prompts.
-            return ChatOpenAI(
-                model=llm_kwargs["model"],
-                base_url=llm_kwargs.get("base_url"),
-                api_key=llm_kwargs.get("api_key"),
-                max_tokens=4000,
-                model_kwargs={
-                    "extra_body": {
-                        "thinking": {"type": "disabled"},
-                        "reasoning_split": True,
-                    }
-                },
-            )
+            llm_kwargs.setdefault("model_kwargs", {})
+            llm_kwargs["model_kwargs"].setdefault("extra_body", {})
+            llm_kwargs["model_kwargs"]["extra_body"]["thinking"] = {"type": "disabled"}
+            llm_kwargs["model_kwargs"]["extra_body"]["reasoning_split"] = True
+            return MiniMaxChatOpenAI(**llm_kwargs)
         return NormalizedChatOpenAI(**llm_kwargs)
 
     def validate_model(self) -> bool:

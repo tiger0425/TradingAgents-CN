@@ -15,8 +15,9 @@ from tradingagents.dataflows.config import get_config
 def create_news_analyst(llm):
     def news_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
+        company_name = state.get("company_name", "")
         industry = state.get("industry", "")
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
         if industry:
             instrument_context += f"\n\n**行业政策关注：** 该公司属于 {industry} 行业，请重点关注该行业的产业政策、监管动态和行业重大新闻。\n"
 

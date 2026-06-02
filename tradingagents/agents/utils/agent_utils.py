@@ -66,13 +66,15 @@ def get_degradation_instruction() -> str:
     )
 
 
-def build_instrument_context(ticker: str, industry: str = "") -> str:
+def build_instrument_context(ticker: str, industry: str = "", company_name: str = "") -> str:
     """Describe the exact instrument so agents preserve market-appropriate ticker formats.
 
     Args:
         ticker: The stock ticker symbol.
         industry: Optional industry classification (e.g. "商用载货车").
                   When non-empty, appends industry context to the prompt.
+        company_name: Optional human-readable company name (e.g. "江淮汽车").
+                      When non-empty, displayed alongside the ticker for LLM grounding.
     """
     # A-shares use 6-digit numeric codes; other markets use alphanumeric tickers
     if ticker and ticker.isdigit() and len(ticker) == 6:
@@ -86,8 +88,9 @@ def build_instrument_context(ticker: str, industry: str = "") -> str:
         exchange_hint = (
             "preserving any exchange suffix (e.g. `.TO`, `.L`, `.HK`, `.T`)."
         )
+    display_name = f"{company_name} ({ticker})" if company_name else f"`{ticker}`"
     base = (
-        f"The instrument to analyze is `{ticker}`. "
+        f"The instrument to analyze is {display_name}. "
         f"{exchange_hint} "
         "Use this exact ticker in every tool call, report, and recommendation."
     )

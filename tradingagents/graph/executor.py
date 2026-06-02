@@ -12,6 +12,7 @@ from langgraph.prebuilt import ToolNode
 
 from .dynamic_graph_builder import DynamicGraphBuilder
 from ..agents.utils.agent_states import AgentState, InvestDebateState, RiskDebateState
+from ..dataflows.a_stock_data import get_company_name
 from ..planner.schemas import Trigger, Context
 
 logger = logging.getLogger(__name__)
@@ -184,6 +185,12 @@ class GraphExecutor:
         ticker = context.ticker or self._guess_ticker(trigger, plan)
         today = date.today().isoformat()
 
+        # Look up company name for entity grounding (graceful fallback to ticker)
+        try:
+            company_name_str = get_company_name(ticker)
+        except Exception:
+            company_name_str = ticker
+
         debate_init = InvestDebateState(
             bull_history="",
             bear_history="",
@@ -215,6 +222,8 @@ class GraphExecutor:
             kb_hint += f"\n[需补充: {', '.join(kb_results.missing_aspects)}]"
 
         user_message = trigger.message or trigger.task or "analysis"
+        if company_name_str != ticker:
+            user_message = f"{user_message}（公司：{company_name_str}，代码：{ticker}）"
         user_message += kb_hint
 
         return {
@@ -228,6 +237,7 @@ class GraphExecutor:
             "fundamentals_report": "",
             "market_context": context.market_state or "",
             "industry": context.industry or "",
+            "company_name": company_name_str,
             "investment_debate_state": debate_init,
             "investment_plan": "",
             "trader_investment_plan": "",

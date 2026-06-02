@@ -21,7 +21,9 @@ def create_trader(llm):
 
     def trader_node(state, name):
         company_name = state["company_of_interest"]
-        instrument_context = build_instrument_context(company_name)
+        company_display = state.get("company_name", "")
+        industry = state.get("industry", "")
+        instrument_context = build_instrument_context(company_name, industry=industry, company_name=company_display)
         investment_plan = state["investment_plan"]
         market_type = state.get("market_type", "A_SHARE")
         limit_up = state.get("limit_up_price", 0.0)
@@ -30,7 +32,6 @@ def create_trader(llm):
         quantity = state.get("quantity", 0)
 
         # Build industry context note
-        industry = state.get("industry", "")
         if industry:
             industry_note = f"\n\n**行业交易特征：** 当前标的属于 {industry} 行业。请考虑该行业典型的持仓周期、波动率特征和流动性特点。\n"
         else:

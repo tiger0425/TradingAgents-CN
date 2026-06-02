@@ -142,12 +142,19 @@ def _eastmoney_datacenter(
         return []
 
 
-def _format_result(data: List[Dict[str, Any]], title: str) -> str:
+def _format_result(
+    data: List[Dict[str, Any]],
+    title: str,
+    max_columns: int = 50,
+    column_filter: Optional[List[str]] = None,
+) -> str:
     """格式化查询结果为 Markdown 字符串。
 
     参数:
         data: 查询结果列表（每项一个 dict）
         title: 标题
+        max_columns: 最大列数，超过则截断并注明（默认 50，None=不限）
+        column_filter: 白名单列名列表，仅保留匹配的列（None=全部保留）
 
     返回:
         Markdown 格式字符串
@@ -164,26 +171,44 @@ def _format_result(data: List[Dict[str, Any]], title: str) -> str:
         lines.append("无数据")
         return "\n".join(lines)
 
-    # 从第一行提取表头
-    headers = list(data[0].keys())
+    raw_headers = list(data[0].keys())
+    total_cols = len(raw_headers)
+
+    # --- Column filtering ---
+    if column_filter is not None:
+        filter_set = set(column_filter)
+        display_headers = [h for h in raw_headers if h in filter_set]
+        if max_columns is not None and len(display_headers) > max_columns:
+            display_headers = display_headers[:max_columns]
+    elif max_columns is not None and total_cols > max_columns:
+        display_headers = raw_headers[:max_columns]
+    else:
+        display_headers = raw_headers
+
+    truncated = len(display_headers) < total_cols
 
     # Markdown 表格头
-    header_row = "| " + " | ".join(str(h) for h in headers) + " |"
-    separator_row = "| " + " | ".join(["---"] * len(headers)) + " |"
+    header_row = "| " + " | ".join(str(h) for h in display_headers) + " |"
+    separator_row = "| " + " | ".join(["---"] * len(display_headers)) + " |"
     lines.append(header_row)
     lines.append(separator_row)
 
     for row in data:
         values = []
-        for h in headers:
+        for h in display_headers:
             v = row.get(h, "")
-            # 将值转为字符串，处理 None
             if v is None:
                 v = ""
             elif not isinstance(v, (str, int, float)):
                 v = str(v)
             values.append(str(v))
         lines.append("| " + " | ".join(values) + " |")
+
+    if truncated:
+        omitted = total_cols - len(display_headers)
+        reason = "白名单过滤" if column_filter else f"超过 max_columns={max_columns}"
+        lines.append("")
+        lines.append(f"> 📊 原始数据 {total_cols} 列，{reason}，省略 {omitted} 列。")
 
     return "\n".join(lines)
 
@@ -449,6 +474,35 @@ def get_current_price_a(symbol: str) -> str:
         return _format_result([], f"实时行情 — {symbol}")
     except Exception as e:
         return f"行情查询失败 ({symbol}): {str(e)}"
+
+
+def get_company_name(code: str) -> str:
+    """获取 A 股上市公司中文名称。
+
+    通过腾讯财经 qt.gtimg.cn 接口查询，与 get_current_price_a() 同源。
+    解析 ~ 分隔响应中的 vals[1] 字段（公司名称）。
+
+    参数:
+        code: 股票代码，如 "600418"
+
+    返回:
+        公司中文名称，如 "江淮汽车"；查询失败时返回 code 本身
+    """
+    try:
+        prefix = "sh" if code[0] in "69" else "sz"
+        url = f"https://qt.gtimg.cn/q={prefix}{code}"
+        resp = _get_session().get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+        resp.encoding = "gbk"
+        text = resp.text
+        for line in text.split(";"):
+            if "=" not in line:
+                continue
+            vals = line.split("=")[1].strip('"').split("~")
+            if len(vals) > 1 and vals[1]:
+                return vals[1]
+        return code
+    except Exception:
+        return code
 
 
 def get_balance_sheet_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str] = None) -> str:

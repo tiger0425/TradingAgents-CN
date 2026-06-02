@@ -32,7 +32,9 @@ def create_portfolio_manager(llm):
     structured_llm = bind_structured(llm, PortfolioDecision, "Portfolio Manager")
 
     def portfolio_manager_node(state) -> dict:
-        instrument_context = build_instrument_context(state["company_of_interest"])
+        company_name = state.get("company_name", "")
+        industry = state.get("industry", "")
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
 
         history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]
@@ -105,7 +107,6 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""
 
         # Add industry context as calibration reference
-        industry = state.get("industry", "")
         if industry:
             prompt += f"\n\n**行业基准参考：** 被分析标的属于 {industry} 行业。最终建议中应考虑该行业的估值基准、景气周期和竞争格局。\n"
 

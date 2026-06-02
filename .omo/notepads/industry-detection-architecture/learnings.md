@@ -225,3 +225,164 @@ Note: The substring matching `any(kw in industry)` rewards templates whose `indu
 | LLM exception → graceful degradation | ✅ |
 | LLM NOT called when no framework | ✅ |
 | All 23 industry tests pass (13 verifier + 10 classifier) | ✅ |
+
+## 2026-06-02: Disable DeepSeek thinking mode to prevent hallucination
+
+### Problem
+DeepSeek v4-pro's thinking mode generated creative chain-of-thought that hallucinated fictional companies when analyzing A-share tickers. v4-flash has no thinking mode — this is why it didn't hallucinate. MiniMax already had thinking disabled but DeepSeek did not.
+
+### Changes Made
+
+**File: `tradingagents/llm_clients/openai_client.py`**
+- Added `thinking: {"type": "disabled"}` to `extra_body` in the DeepSeek provider block (before `return DeepSeekChatOpenAI(**llm_kwargs)`)
+- Uses same `setdefault` chaining pattern as MiniMax at lines 274-276
+- Comment: `# Disable thinking mode to prevent hallucination on opaque tickers`
+
+### Behavior Matrix
+
+| Provider | Before | After |
+|----------|--------|-------|
+| DeepSeek (v4-pro) | thinking enabled → hallucination on opaque tickers | thinking disabled → no hallucination |
+| MiniMax | thinking disabled | thinking disabled (unchanged) |
+| structured.py `bind_structured()` | temporarily enables/controls thinking | still works (no change) |
+
+### Design Decision
+1. **Same pattern as MiniMax** — `llm_kwargs.setdefault("model_kwargs", {}).setdefault("extra_body", {})` then set `thinking = {"type": "disabled"}`.
+2. **Client-level fix** — Disabling at the client level is the correct layer because it affects all regular (non-structured) invocations uniformly. Structured output (via `structured.py`) temporarily overrides thinking settings per-call.
+3. **No structued.py changes needed** — `bind_structured()` already handles thinking toggle correctly via `with_structured_output()` configuration.
+4. **Reasoning split not needed** — `reasoning_split = True` is MiniMax-specific; DeepSeek doesn't use it.
+
+## 2026-06-02: Add `get_company_name()` for entity grounding
+
+### Changes Made
+
+**File: `tradingagents/dataflows/a_stock_data.py`**
+- Added `get_company_name(code: str) -> str` function (right after `get_current_price_a()`)
+- Reuses the same Tencent Finance API pattern: `https://qt.gtimg.cn/q={prefix}{code}` → parse `~` delimited response → `vals[1]` is the company name
+- Uses existing `UA`, `TIMEOUT`, and `_get_session()` infrastructure
+
+### Design Decisions
+
+1. **Same prefix logic as `get_current_price_a()`** — `"sh"` for codes starting with `"6"` or `"9"`, `"sz"` for others.
+2. **Graceful degradation** — Returns `code` itself on any exception. A transient network failure must never crash the caller.
+3. **16 lines** — Kept deliberately minimal. No new imports, no dependencies, no complexity.
+4. **`resp.encoding = "gbk"`** — Tencent Finance uses GBK encoding; same pattern as `get_current_price_a()`.
+5. **Name-only extraction** — Unlike `get_current_price_a()` which validates 50+ fields, this function only requires `vals[1]` to be non-empty. Minimal parsing.
+
+### Verification
+
+| Code | Expected | Actual |
+|------|----------|--------|
+| `600418` | 江淮汽车 | ✅ |
+| `600519` | 贵州茅台 | ✅ |
+| `000001` | 平安银行 | ✅ |
+
+## 2026-06-02: Wave 4.5 — Inject company_name into AgentState and first human message
+
+### Changes Made
+
+**File: `tradingagents/graph/executor.py`**
+- Added import: `from ..dataflows.a_stock_data import get_company_name`
+- In `_build_init_state()`, after `ticker` resolution: wrapped `get_company_name(ticker)` in try/except, falling back to `ticker` itself on any failure
+- Added `"company_name": company_name_str` to the returned state dict (after `"industry"` line) — all agents can now access `state["company_name"]`
+- Enriched the first human message: when `company_name_str != ticker` (name lookup succeeded), appends `（公司：{company_name_str}，代码：{ticker}）` to the user message for entity grounding
+
+### Key Design Decisions
+1. **Graceful fallback** — `try/except Exception` ensures a transient network failure never blocks analysis. `company_name_str = ticker` means `company_name` in state will be the raw ticker, which all downstream code handles correctly.
+2. **Conditional enrichment** — The `if company_name_str != ticker` guard prevents double-counting when the lookup fails (e.g., `company_name_str = "600418"` would not add a redundant suffix).
+3. **Zero imports beyond one function** — Only `get_company_name` is imported, not the entire module.
+4. **No signature changes** — `_build_init_state()` signature is untouched; all callers are unaffected.
+
+### Verification
+- ✅ LSP diagnostics: no new errors (all 12 pre-existing)
+- ✅ `company_name` in state dict after `industry`
+- ✅ `get_company_name("600418")` → `"江淮汽车"` injected into state and message
+- ✅ `get_company_name()` failure → `company_name_str = ticker`, no enrichment
+- ✅ Function signature unchanged
+
+## 2026-06-02: Wave 4 — Extend `build_instrument_context` with company_name parameter
+
+### Changes Made
+
+**File: `tradingagents/agents/utils/agent_utils.py`**
+- Added `company_name: str = ""` keyword argument to `build_instrument_context()` after `industry` parameter
+- When non-empty: display name becomes `"{company_name} ({ticker})"` (e.g. `江淮汽车 (600418)`) instead of backtick-wrapped `` `{ticker}` ``
+- When empty: behavior is identical to original (backtick-wrapped ticker)
+- Updated docstring with company_name parameter description
+- All other logic (exchange hint, industry appendix) completely unchanged
+
+### Behavior Matrix
+
+| company_name | industry | Output example |
+|---|---|---|
+| `""` (empty) | `""` | `The instrument to analyze is \`600418\`.` |
+| `"江淮汽车"` | `""` | `The instrument to analyze is 江淮汽车 (600418).` |
+| `"江淮汽车"` | `"商用载货车"` | `The instrument to analyze is 江淮汽车 (600418). ... **行业背景：** ...` |
+| `""` | `"商用载货车"` | `The instrument to analyze is \`600418\`. ... **行业背景：** ...` |
+
+### Design Decisions
+1. **Optional keyword arg only** — `company_name=""` default ensures zero breakage for all 7 existing call sites that pass only ticker.
+2. **Display name computed via conditional expression** — `f"{company_name} ({ticker})" if company_name else f"`{ticker}`"` keeps it simple, no branching in the f-string.
+3. **No backticks on company_name version** — Natural language style (`江淮汽车 (600418)`) is more readable and LLM-friendly when the company name is known. The backtick emphasis is only needed for opaque numeric codes.
+4. **Pure string helper** — No import changes, no side effects, no external lookup.
+
+### Verification
+
+| Test | Result |
+|---|---|
+| `build_instrument_context("600418")` unchanged | ✅ |
+| `build_instrument_context("600418", company_name="江淮汽车")` contains "江淮汽车 (600418)" | ✅ |
+| `build_instrument_context("600418", industry="商用载货车", company_name="江淮汽车")` contains both | ✅ |
+| LSP diagnostics — no new errors | ✅ (only 3 pre-existing `list` type arg warnings) |
+
+(End of file - total 321 lines)
+
+## 2026-06-02: Wave 5 — Pass `industry` and `company_name` from all 7 agent call sites
+
+### Problem
+Wave 4 added `company_name=` and `industry=` params to `build_instrument_context()`, but none of the 7 call sites passed them — `build_instrument_context(state["company_of_interest"])` was called everywhere with only the ticker. The LLM never saw `江淮汽车 (600418)`, only `` `600418` ``.
+
+### Changes Made
+
+**All 7 agent files** — same pattern, two new reads + pass to `build_instrument_context`:
+
+```python
+company_name = state.get("company_name", "")
+industry = state.get("industry", "")
+instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
+```
+
+| File | Variable pattern | Special handling |
+|---|---|---|
+| `market_analyst.py` | standard | `industry` read **moved before** build call (was after) |
+| `fundamentals_analyst.py` | standard | `industry` read moved before build call |
+| `news_analyst.py` | standard | `industry` read moved before build call |
+| `social_media_analyst.py` | standard | `industry` read moved before build call |
+| `research_manager.py` | standard | Added reads (none existed); duplicate `industry = state.get()` at old location removed |
+| `portfolio_manager.py` | standard | Added reads; duplicate industry read later removed (now uses the single read) |
+| `trader.py` | `company_display` | `company_name` already used for ticker, so `company_display = state.get("company_name", "")` passed to `build_instrument_context`; duplicate `industry = state.get()` removed |
+
+### Design Decisions
+1. **Read once, reuse** — For agents that already read `state["industry"]` for separate prompt injection, the read was moved before `build_instrument_context()` and reused, preventing duplicate dict lookups.
+2. **`trader.py` uses `company_display`** — `company_name` was already bound to `state["company_of_interest"]` (the ticker), so a separate `company_display` variable holds the Chinese name.
+3. **Backward compatible** — `state.get("company_name", "")` and `state.get("industry", "")` both default to empty string, producing identical output to pre-Wave-5 behavior when no company_name/industry is in state.
+
+### Behavior Matrix
+
+| company_name in state | industry in state | LLM sees |
+|---|---|---|
+| missing / `""` | missing / `""` | `` The instrument to analyze is `600418`. `` (identical to before) |
+| missing / `""` | `"商用载货车"` | `` The instrument to analyze is `600418`. ... **行业背景：** ... `` |
+| `"江淮汽车"` | missing / `""` | `The instrument to analyze is 江淮汽车 (600418).` |
+| `"江淮汽车"` | `"商用载货车"` | `The instrument to analyze is 江淮汽车 (600418). ... **行业背景：** ...` |
+
+### Verification
+| Check | Result |
+|---|---|
+| All 7 agents pass `industry=` + `company_name=` to `build_instrument_context()` | ✅ |
+| `state.get()` used (never `state[]`) — safe when key missing | ✅ |
+| 0 duplicate `state.get("industry")` reads across all 7 files | ✅ |
+| LSP diagnostics — 0 new errors (all warnings pre-existing) | ✅ |
+| trader.py `company_display` vs `company_name` correctly scoped | ✅ |
+| portfolio_manager.py industry read not duplicated | ✅ |
+| research_manager.py duplicate read removed | ✅ |

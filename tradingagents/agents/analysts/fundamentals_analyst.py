@@ -18,9 +18,11 @@ from tradingagents.dataflows.config import get_config
 def create_fundamentals_analyst(llm):
     def fundamentals_analyst_node(state):
         current_date = state["trade_date"]
-        instrument_context = build_instrument_context(state["company_of_interest"])
-
+        company_name = state.get("company_name", "")
         industry = state.get("industry", "")
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
+
+
         industry_guidance = (
             f"\n\n**行业分析框架：** 该公司属于 {industry} 行业。请参照该行业的估值方法和关键财务指标进行分析，同行对比时以该行业龙头企业为参照。\n"
             if industry else ""
