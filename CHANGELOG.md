@@ -11,6 +11,11 @@ Breaking changes within the 0.x line are called out explicitly.
 
 ### Added
 
+- **两层行业框架体系** — `industry_frameworks.json` 重构为 `{_type_rules, frameworks}` 嵌套结构，新增 6 种行业类型规则（制造业/金融/消费品/医药/科技SaaS/运营商），每种定义通用 anti_patterns 和 correct_metrics_examples。`_AUTO_GEN_PROMPT` 升级为三步流程：判定类型 → 继承类型通用反模式 → 合并行业特有反模式（并集，不覆盖）。解决 LLM 自动生成时跨行业指标错用问题（如"通信线缆"被误注入 SaaS/光模块指标）。
+- **通信线缆及配套框架** — 新增 `comm_cable` 行业框架，基于华泰/国盛/中信建投/天风券商研报。12 项 correct_metrics（G.652.D散纤现货价、运营商集采价格/招标量、光棒产能利用率、铜铝成本占比等），17 项 anti_patterns（显式阻止 1.6T光模块ASP、CPO技术路线、AI算力需求等不相关指标）。keywords 使用复合词（"通信线缆"而非"通信"）防止反向劫持。
+- **`IndustryFramework.lookup()` 精度提升** — `_load()` 新增双重格式检测（嵌套 `{_type_rules, frameworks}` vs 旧扁平格式），向后兼容；`list_frameworks()` 过滤 `_type_rules` 防止泄露；新增 `get_type_rules()` 访问器。
+- **预存 Bug 修复** — `frameworks.py` 删除 `_load_generated()` 内部（L164-206）`_fuzzy_match` 重复代码，该代码引用未定义变量 `industry_name` 导致模块导入时 NameError。
+- **新增测试** — `tests/test_industry_framework.py`（8 个 TDD 测试，含 comm_cable 匹配验证 + 全框架向后兼容 + `list_frameworks` 过滤）。
 - **三层行业检测架构** — 新增 `tradingagents/industry/` 模块：（L1）`IndustryClassifier` 服务封装 `get_industry()` 为结构化分类结果；（L2）`IndustryFramework` 行业→分析框架映射（5 行业试点，含 correct_metrics + anti_patterns）；（L3）`IndustryVerifier.verify_industry_consistency()` 规则+LLM 二级一致性校验。
 - **Agent 行业上下文注入** — 7 个 Agent（4 analysts + trader + portfolio_manager + research_manager）的系统提示词现包含行业背景。`AgentState` 新增 `industry` 字段，通过 `build_instrument_context()` 进入 Agent 提示词。
 - **行业提示词注入** — fundamentals_analyst 获得行业估值框架指导；market_analyst 获得行业技术面特征；news_analyst 获得行业政策关注点；trader/PM/research_mgr 获得行业基准参考。
