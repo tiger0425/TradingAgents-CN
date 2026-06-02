@@ -29,15 +29,17 @@ def test_comm_cable_rejects_saas():
 
 
 def test_comm_cable_no_framework_yet():
-    """RED/optional: "通信线缆及配套" currently has no dedicated framework.
+    """comm_cable framework now exists in the nested JSON; lookup returns it.
 
-    Since there is no 'comm_cable' framework yet, lookup should return None
-    (no auto-generation without quick_llm).
+    The old test expected None because the framework didn't exist.
+    After adding comm_cable to industry_frameworks.json, lookup should
+    return the dedicated comm_cable framework.
     """
     fw = IndustryFramework()
     result = fw.lookup("通信线缆及配套")
-    assert result is None, (
-        f"Expected None for unmatched industry, got {result['name']}"
+    assert result is not None, "通信线缆及配套 should match comm_cable framework"
+    assert result["name_en"] == "comm_cable", (
+        f"Expected comm_cable, got {result.get('name_en')}"
     )
 
 

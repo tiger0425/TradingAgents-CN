@@ -36,4 +36,16 @@
   - `frameworks: 5` — 5 original frameworks
   - All 6 type rules have non-empty `anti_patterns` (5–15 items) and `correct_metrics_examples` (5–8 items)
   - `tech_saas` framework retains empty `anti_patterns` at framework level (its type rule fills the gap with 7 anti-patterns: 光缆集采价, 铜铝原材料成本, 光棒产能, 运营商集采招标量, 电力电缆在手订单, 批价, 经销商库存)
-  - `"通信"` remains in tech_saas keywords
+   - `"通信"` remains in tech_saas keywords
+
+## 2026-06-02: Fixed `frameworks.py` for nested JSON + upgraded `_AUTO_GEN_PROMPT`
+- **File**: `tradingagents/industry/frameworks.py`
+- **Changes**:
+  1. `__init__()`: Added `self._type_rules` field
+  2. `_load()`: Nested vs flat format detection, separates `_type_rules` from `_frameworks`
+  3. `list_frameworks()`: Filters out `_type_rules` key
+  4. `_AUTO_GEN_PROMPT`: 3-step upgrade (classify type → inherit anti_patterns → union-merge)
+  5. `get_type_rules()`: New accessor method
+- **Test results**: 8/8 GREEN (framework), 13/13 GREEN (verifier), 10/11 GREEN (classifier — 1 slow-network timeout)
+- `fw.lookup("通信线缆及配套")` → `comm_cable` ✓, all 5 existing frameworks still match ✓
+- LSP: 0 new warnings
