@@ -184,6 +184,8 @@ LLM 自动生成时，prompt 强制执行三步流程：
 
 这确保了即使对新行业（如"航空制造"），LLM 也会继承 `manufacturing` 类型的通用反模式（排除光模块/SaaS指标），再补充航空行业特有的指标。
 
+> **v0.2.10-cn 更新**：`_AUTO_GEN_PROMPT` 已改为动态生成方式。新增 `_build_auto_gen_prompt()` 方法，从 `self._type_rules` JSON 运行时构建 prompt 中的类型列表和反模式规则（同时注入 `anti_patterns` + `correct_metrics_examples`），彻底消除 JSON 与 prompt 间的硬编码重复。当 `_type_rules` 为空时自动回退到原硬编码常量，保证向后兼容。
+
 ### 3.2 IndustryClassifier
 
 `tradingagents.industry.classifier.IndustryClassifier`
@@ -423,7 +425,7 @@ verify_industry_consistency("汽车制造", "建议关注续约率和LTV/CAC..."
 
 ### 当前限制
 
-1. **IndustryVerifier 未接入生产流程** — 定义和测试完整，但实际 Agent 分析后不运行一致性校验
+1. ~~**IndustryVerifier 未接入生产流程**~~ ✅ **已解决** — `executor.py` 每次成功分析后自动调用 `verify_industry_consistency()`（flag-and-continue），检测到反模式时追加警告到报告并返回验证结果。`AnalyzeResponse` 新增 `industry_verification` 字段。
 2. **tech_saas 框架 anti_patterns 为空** — 依赖 Layer 1 `_type_rules.tech_saas` 7 条 anti_patterns 补全
 3. **`_AUTO_GEN_PROMPT` 中类型规则硬编码** — 与 `_type_rules` JSON 重复定义，存在维护一致性风险
 4. **仅覆盖 6 个具体行业** — 扩展需要手工 JSON 配置或依赖 LLM 自动生成

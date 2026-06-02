@@ -16,6 +16,8 @@ Breaking changes within the 0.x line are called out explicitly.
 - **`IndustryFramework.lookup()` 精度提升** — `_load()` 新增双重格式检测（嵌套 `{_type_rules, frameworks}` vs 旧扁平格式），向后兼容；`list_frameworks()` 过滤 `_type_rules` 防止泄露；新增 `get_type_rules()` 访问器。
 - **预存 Bug 修复** — `frameworks.py` 删除 `_load_generated()` 内部（L164-206）`_fuzzy_match` 重复代码，该代码引用未定义变量 `industry_name` 导致模块导入时 NameError。
 - **新增测试** — `tests/test_industry_framework.py`（8 个 TDD 测试，含 comm_cable 匹配验证 + 全框架向后兼容 + `list_frameworks` 过滤）。
+- **IndustryVerifier 接入生产流程** — `executor.py` 在每次成功分析后自动调用 `verify_industry_consistency()`（flag-and-continue）。检测到反模式时追加警告到报告 + 返回验证结果；完全 try/except 包裹，永不崩溃。`AnalyzeResponse` 新增 `industry_verification` 字段。形成"Prompt 约束 → Agent 分析 → Verifier 扫描"完整保护链。
+- **`_AUTO_GEN_PROMPT` 动态化** — 新增 `_build_auto_gen_prompt()` 方法，从 `self._type_rules` JSON 动态生成 prompt 的类型列表和反模式规则（同时注入 anti_patterns + correct_metrics_examples）。消除 JSON 与 prompt 间硬编码重复。空 `_type_rules` 时回退到原硬编码常量。
 - **三层行业检测架构** — 新增 `tradingagents/industry/` 模块：（L1）`IndustryClassifier` 服务封装 `get_industry()` 为结构化分类结果；（L2）`IndustryFramework` 行业→分析框架映射（5 行业试点，含 correct_metrics + anti_patterns）；（L3）`IndustryVerifier.verify_industry_consistency()` 规则+LLM 二级一致性校验。
 - **Agent 行业上下文注入** — 7 个 Agent（4 analysts + trader + portfolio_manager + research_manager）的系统提示词现包含行业背景。`AgentState` 新增 `industry` 字段，通过 `build_instrument_context()` 进入 Agent 提示词。
 - **行业提示词注入** — fundamentals_analyst 获得行业估值框架指导；market_analyst 获得行业技术面特征；news_analyst 获得行业政策关注点；trader/PM/research_mgr 获得行业基准参考。
