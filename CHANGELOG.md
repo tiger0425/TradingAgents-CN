@@ -18,6 +18,9 @@ Breaking changes within the 0.x line are called out explicitly.
 - **TemplateMatcher 行业评分** — 修复废弃代码：`_score_template()` 现使用 `industry` 特征进行行业感知的模板匹配加权。
 - **实体锚定修复（v4-pro 幻觉根治）** — 两步修复 DeepSeek v4-pro 分析 A 股时编造虚构公司（如 "NovaTech Solutions"）的问题：（1）`openai_client.py` 中为 DeepSeek 客户端禁用 thinking mode（与 MiniMax 对齐）；（2）新增 `get_company_name(ticker)` 函数（腾讯财经 API）→ `build_instrument_context()` 现输出 "江淮汽车 (600418)" 而非仅 `` `600418` `` → `_build_init_state()` 将公司名称注入 AgentState → 7 个 Agent 调用点传入 `company_name=`。
 - **新增测试** — `tests/test_industry_classifier.py`（11 tests）、`tests/test_industry_verifier.py`（13 tests）。
+- **LLM 自动生成行业框架** — `IndustryFramework.lookup(industry, quick_llm=llm)` 当行业无手工定义框架时，自动通过 LLM 生成分析框架（correct_metrics + anti_patterns + peer_companies），缓存到 `generated_frameworks.json`。新增行业零配置，运行时自动补充。
+- **辩论 Agent 行业锚定** — `bull_researcher` 和 `bear_researcher` 每轮辩论 prompt 开头注入行业锚定约束（`"你正在辩论的标的属于【旅游综合】行业..."`），防止辩论双方延续分析师报告中的错误行业术语。
+- **框架指标注入强化** — `build_instrument_context()` 现从 `IndustryFramework` 读取 `correct_metrics` 和 `anti_patterns`，生成强制约束块（"行业分析框架（必须遵守）"），显式告诉 LLM 该用什么指标、不该用什么指标。
 
 ### Changed
 
@@ -26,6 +29,10 @@ Breaking changes within the 0.x line are called out explicitly.
 - `build_instrument_context()` 新增可选 `industry` 和 `company_name` 参数
 - `ContextWindowManager.inject_context()` 返回 `industry` key
 - `openai_client.py` 中 DeepSeek 客户端默认禁用 thinking mode
+- `IndustryFramework.lookup()` 新增可选 `quick_llm` 参数，未命中时自动 LLM 生成框架
+- `build_instrument_context()` 新增可选 `quick_llm` 参数，传递给 framework lookup
+- 7 个 Agent 调用 `build_instrument_context()` 时传入 `quick_llm=llm`
+- `bull/bear_researcher` 从 `ctx["industry"]` 读取行业并注入每轮辩论 prompt
 - **财报数据 LLM 可读性优化** — `akshare.py` 新增 `_format_financial_report()`：将 Sina 100+ 列原始 CSV 转换为结构化 Markdown（资产负债表分资产/负债/股东权益三段，利润表和现金流量表分项列表），仅保留 12-17 个核心财务指标；`_get_financial_report_sina()` 改为调用格式化函数替代 `df.to_csv()`。
 - **通用数据截断机制** — `a_stock_data.py` 的 `_format_result()` 新增 `max_columns`（默认 50）和 `column_filter` 参数，超过上限自动截断并标注省略列数，防止宽表直接注入 LLM prompt 导致解析失败。
 
