@@ -161,50 +161,6 @@ class IndustryFramework:
             logger.warning("Failed to load generated frameworks: %s", exc)
             self._generated = {}
 
-        name = industry_name.strip()
-
-        # 1. Exact keyword match (fast path)
-        for key, fw in self._frameworks.items():
-            if name in fw.get("keywords", []):
-                return fw
-
-        # 2. Substring match — keyword is contained in the input
-        #    e.g. "商用载货车龙头" contains "商用车" / "汽车" / "商用载货车"
-        matched = []
-        for key, fw in self._frameworks.items():
-            for kw in fw.get("keywords", []):
-                if kw and kw in name:
-                    matched.append((len(kw), key, fw))
-
-        # 3. Substring match — input is contained in a keyword
-        #    e.g. "汽车" is contained in "新能源汽车" / "汽车零部件"
-        if not matched:
-            for key, fw in self._frameworks.items():
-                for kw in fw.get("keywords", []):
-                    if kw and name in kw:
-                        matched.append((len(kw), key, fw))
-
-        if matched:
-            # Pick the framework with the longest keyword match (most specific)
-            matched.sort(key=lambda t: -t[0])
-            return matched[0][2]
-
-        # 4. Partial token match — split input on common delimiters
-        tokens = [t for sep in " /-–—,、;；" for part in [name.split(sep)] for t in part]
-        if len(tokens) > 1:
-            for token in tokens:
-                token = token.strip()
-                if not token:
-                    continue
-                for key, fw in self._frameworks.items():
-                    if token in fw.get("keywords", []):
-                        return fw
-                    for kw in fw.get("keywords", []):
-                        if kw and (kw in token or token in kw):
-                            return fw
-
-        return None
-
     def list_frameworks(self) -> list[FrameworkDict]:
         """Return all registered frameworks (sorted by key)."""
         return [self._frameworks[k] for k in sorted(self._frameworks)]
