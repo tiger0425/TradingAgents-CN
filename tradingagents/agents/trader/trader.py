@@ -23,7 +23,7 @@ def create_trader(llm):
         company_name = state["company_of_interest"]
         company_display = state.get("company_name", "")
         industry = state.get("industry", "")
-        instrument_context = build_instrument_context(company_name, industry=industry, company_name=company_display)
+        instrument_context = build_instrument_context(company_name, industry=industry, company_name=company_display, quick_llm=llm)
         investment_plan = state["investment_plan"]
         market_type = state.get("market_type", "A_SHARE")
         limit_up = state.get("limit_up_price", 0.0)

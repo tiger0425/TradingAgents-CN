@@ -20,7 +20,7 @@ def create_fundamentals_analyst(llm):
         current_date = state["trade_date"]
         company_name = state.get("company_name", "")
         industry = state.get("industry", "")
-        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name, quick_llm=llm)
 
 
         industry_guidance = (

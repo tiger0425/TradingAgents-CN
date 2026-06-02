@@ -19,7 +19,7 @@ def create_market_analyst(llm):
         current_date = state["trade_date"]
         company_name = state.get("company_name", "")
         industry = state.get("industry", "")
-        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name, quick_llm=llm)
         industry_section = (
             f"\n\n**行业技术面特征：** 当前分析的股票属于 {industry} 行业。"
             "请注意该行业的典型技术形态、交易活跃度特征和板块联动规律。"

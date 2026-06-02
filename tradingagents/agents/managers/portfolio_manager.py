@@ -34,7 +34,7 @@ def create_portfolio_manager(llm):
     def portfolio_manager_node(state) -> dict:
         company_name = state.get("company_name", "")
         industry = state.get("industry", "")
-        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name)
+        instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name, quick_llm=llm)
 
         history = state["risk_debate_state"]["history"]
         risk_debate_state = state["risk_debate_state"]

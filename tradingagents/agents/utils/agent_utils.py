@@ -1,4 +1,5 @@
 from langchain_core.messages import HumanMessage, RemoveMessage
+from typing import Any
 
 # Import tools from separate utility files
 from tradingagents.agents.utils.core_stock_tools import (
@@ -66,7 +67,7 @@ def get_degradation_instruction() -> str:
     )
 
 
-def build_instrument_context(ticker: str, industry: str = "", company_name: str = "") -> str:
+def build_instrument_context(ticker: str, industry: str = "", company_name: str = "", quick_llm: Any = None) -> str:
     """Describe the exact instrument so agents preserve market-appropriate ticker formats.
 
     Args:
@@ -75,6 +76,8 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
                   When non-empty, appends industry context to the prompt.
         company_name: Optional human-readable company name (e.g. "江淮汽车").
                       When non-empty, displayed alongside the ticker for LLM grounding.
+        quick_llm: Optional LangChain-compatible LLM for auto-generating frameworks
+                   for unknown industries.
     """
     # A-shares use 6-digit numeric codes; other markets use alphanumeric tickers
     if ticker and ticker.isdigit() and len(ticker) == 6:
@@ -99,7 +102,7 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
         framework = None
         try:
             from tradingagents.industry.frameworks import IndustryFramework  # lazy import
-            framework = IndustryFramework().lookup(industry)
+            framework = IndustryFramework().lookup(industry, quick_llm=quick_llm)
         except Exception:
             pass
 
