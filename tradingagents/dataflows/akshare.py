@@ -447,6 +447,205 @@ def get_fundamentals(
 # 4–6. Financial Statements (Balance Sheet, Cash Flow, Income Statement)
 # ============================================================================
 
+# Priority financial metrics per report type.
+# Only these columns are extracted from the raw Sina API response (which can
+# return 100+ columns); the rest are discarded to keep LLM input lean.
+_FINANCIAL_REPORT_PRIORITY = {
+    "资产负债表": [
+        # --- 资产 (Assets) ---
+        "货币资金",
+        "应收票据及应收账款",
+        "存货",
+        "流动资产合计",
+        "固定资产",
+        "非流动资产合计",
+        "资产总计",
+        # --- 负债 (Liabilities) ---
+        "短期借款",
+        "应付票据及应付账款",
+        "流动负债合计",
+        "非流动负债合计",
+        "负债合计",
+        # --- 股东权益 (Equity) ---
+        "实收资本（或股本）",
+        "未分配利润",
+        "归属于母公司股东权益合计",
+        "负债和股东权益总计",
+    ],
+    "利润表": [
+        "营业总收入",
+        "营业收入",
+        "营业总成本",
+        "营业成本",
+        "营业利润",
+        "利润总额",
+        "净利润",
+        "归属于母公司股东的净利润",
+        "基本每股收益",
+        "稀释每股收益",
+    ],
+    "现金流量表": [
+        "经营活动现金流入小计",
+        "经营活动现金流出小计",
+        "经营活动产生的现金流量净额",
+        "投资活动现金流入小计",
+        "投资活动现金流出小计",
+        "投资活动产生的现金流量净额",
+        "筹资活动现金流入小计",
+        "筹资活动现金流出小计",
+        "筹资活动产生的现金流量净额",
+        "现金及现金等价物净增加额",
+        "期初现金及现金等价物余额",
+        "期末现金及现金等价物余额",
+    ],
+}
+
+# Semantic section headers for balance sheet metrics.
+_BALANCE_SHEET_SECTIONS = {
+    "资产": [
+        "货币资金", "应收票据及应收账款", "存货",
+        "流动资产合计", "固定资产", "非流动资产合计", "资产总计",
+    ],
+    "负债": [
+        "短期借款", "应付票据及应付账款",
+        "流动负债合计", "非流动负债合计", "负债合计",
+    ],
+    "股东权益": [
+        "实收资本（或股本）", "未分配利润",
+        "归属于母公司股东权益合计", "负债和股东权益总计",
+    ],
+}
+
+
+def _format_financial_report(
+    df: "pd.DataFrame",
+    label: str,
+    ticker: str,
+    freq: str,
+    report_type: str,
+) -> str:
+    """Convert a wide financial-report DataFrame into structured, LLM-friendly Markdown.
+
+    The raw Sina API response can contain 100+ columns (one per financial metric).
+    This function:
+      - Extracts only priority metrics defined in ``_FINANCIAL_REPORT_PRIORITY``.
+      - Groups balance-sheet items into Assets / Liabilities / Equity sections.
+      - Formats output as a two-column Markdown table (项目 | 金额).
+      - Falls back to showing *all* columns if no priority columns match (rare).
+
+    Returns:
+        str: Structured Markdown, ready for LLM consumption.
+    """
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines: list[str] = [
+        f"# {label} for {ticker} ({freq})",
+        "# Data source: akshare (Sina Financial Reports)",
+        f"# Report type: {report_type}",
+        f"# Data retrieved on: {now_str}",
+        "",
+    ]
+
+    # --- Report date ---
+    report_date = ""
+    if "报告日" in df.columns:
+        report_date = str(df.iloc[0]["报告日"])
+        lines.append(f"**报告日**: {report_date}")
+    lines.append("")
+
+    # --- Collect matched priority columns ---
+    priority = _FINANCIAL_REPORT_PRIORITY.get(report_type, [])
+    # NB: Sina columns may have parens or subtle variants, so we match by
+    #     startswith on the cleaned key.
+    actual_cols = {str(c).strip(): c for c in df.columns if str(c).strip() != "报告日"}
+    matched: dict[str, str] = {}  # clean_key → label (may be original column name)
+
+    for pkey in priority:
+        pkey_stripped = pkey.strip()
+        for clean, orig in actual_cols.items():
+            if clean.startswith(pkey_stripped) or pkey_stripped.startswith(clean):
+                matched[clean] = orig
+                break
+
+    # Fallback: if no priority columns matched, use all non-date columns
+    if not matched:
+        for clean, orig in actual_cols.items():
+            matched[clean] = orig
+        lines.append("> ⚠️ 未匹配到预定义关键指标，显示全部可用字段。")
+        lines.append("")
+
+    # --- Build the table(s) ---
+    row = df.iloc[0]
+
+    def _fmt_val(col_name: str) -> str:
+        v = row[col_name]
+        if pd.isna(v):
+            return "—"
+        try:
+            n = float(v)
+            if n == int(n) and abs(n) < 1e12:
+                return f"{int(n):,}"
+            return f"{n:,.2f}"
+        except (ValueError, TypeError):
+            return str(v)
+
+    if report_type == "资产负债表" and matched:
+        # Sectioned output
+        for section_name, section_keys in _BALANCE_SHEET_SECTIONS.items():
+            section_items: list[tuple[str, str]] = []
+            for sk in section_keys:
+                # find the actual matched column that starts with sk
+                for clean, orig in matched.items():
+                    if clean.startswith(sk) or sk.startswith(clean):
+                        section_items.append((orig, _fmt_val(orig)))
+                        break
+            if not section_items:
+                continue
+            lines.append(f"### {section_name}")
+            lines.append("| 项目 | 金额 |")
+            lines.append("|------|------|")
+            for item_label, item_val in section_items:
+                lines.append(f"| {item_label} | {item_val} |")
+            lines.append("")
+
+        # Any unmatched priority columns → catch-all section
+        shown_orig = {orig for _, orig in _BALANCE_SHEET_SECTIONS.get("资产", [])}
+        shown_orig.update(orig for _, orig in _BALANCE_SHEET_SECTIONS.get("负债", []))
+        shown_orig.update(orig for _, orig in _BALANCE_SHEET_SECTIONS.get("股东权益", []))
+        # Actually shown_orig needs to use matched keys...
+        # Simpler: just track which matched keys we've displayed
+        displayed = set()
+        for section_keys in _BALANCE_SHEET_SECTIONS.values():
+            for sk in section_keys:
+                for clean, orig in matched.items():
+                    if clean.startswith(sk) or sk.startswith(clean):
+                        displayed.add(orig)
+        others = [(orig, _fmt_val(orig)) for clean, orig in matched.items() if orig not in displayed]
+        if others:
+            lines.append("### 其他")
+            lines.append("| 项目 | 金额 |")
+            lines.append("|------|------|")
+            for item_label, item_val in others:
+                lines.append(f"| {item_label} | {item_val} |")
+            lines.append("")
+    else:
+        # Single flat table for income / cashflow
+        lines.append("| 项目 | 金额 |")
+        lines.append("|------|------|")
+        for orig in matched.values():
+            lines.append(f"| {orig} | {_fmt_val(orig)} |")
+        lines.append("")
+
+    # --- Note about column reduction ---
+    total_cols = len(df.columns) - 1  # exclude 报告日
+    shown_cols = len(matched)
+    if total_cols > shown_cols:
+        lines.append(
+            f"> 📊 原始数据 {total_cols} 列，为便于分析只展示 {shown_cols} 个关键指标。"
+        )
+
+    return "\n".join(lines)
+
+
 def _get_financial_report_sina(
     ticker: str,
     report_type: str,
@@ -464,38 +663,21 @@ def _get_financial_report_sina(
         label: Human-readable label for the header (e.g. "Balance Sheet").
 
     Returns:
-        CSV-formatted string with header.
+        Structured Markdown with key financial metrics (not raw CSV).
     """
     try:
         _ensure_akshare()
 
-        df = ak.stock_financial_report_sina(stock=ticker, symbol_type=report_type)
+        df = ak.stock_financial_report_sina(stock=ticker, symbol=report_type)
+
+        # Filter: keep only the most recent report period
+        if df is not None and not df.empty and '报告日' in df.columns:
+            df = df.sort_values('报告日', ascending=False).head(1)
 
         if df is None or df.empty:
             return f"No {label.lower()} data found for symbol '{ticker}'"
 
-        # Filter columns (reporting periods) by curr_date to prevent look-ahead bias
-        if curr_date:
-            cutoff = pd.Timestamp(curr_date)
-            # Financial report columns are dates representing fiscal period ends
-            valid_cols = [df.columns[0]]  # always keep the first column (item names)
-            for col in df.columns[1:]:
-                try:
-                    col_dt = pd.Timestamp(col)
-                    if col_dt <= cutoff:
-                        valid_cols.append(col)
-                except (ValueError, TypeError):
-                    valid_cols.append(col)
-            df = df[valid_cols]
-
-        csv_string = df.to_csv(index=False)
-
-        header = f"# {label} for {ticker} ({freq})\n"
-        header += f"# Data source: akshare (Sina Financial Reports)\n"
-        header += f"# Report type: {report_type}\n"
-        header += f"# Data retrieved on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-
-        return header + csv_string
+        return _format_financial_report(df, label, ticker, freq, report_type)
 
     except ImportError as e:
         return f"Error: {e}"
