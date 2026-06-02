@@ -7,6 +7,40 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.11-cn] — 2026-06-03
+
+### Added
+
+- **工具循环四层防护体系** — 根治分析师工具反复调用死循环问题（FIX-11）。详见 `docs/tool-loop-prevention-system.md`。
+  - **Layer 1 — 工具精简**：`fundamentals_analyst` 工具列表从 5 个（`get_fundamentals`, `get_balance_sheet`, `get_cashflow`, `get_income_statement`, `get_insider_transactions`）缩减为 1 个（`get_fundamentals`）。`get_fundamentals` 已聚合实时行情 + 三张财务报表，其余工具均为冗余。同时移除 `get_insider_transactions`（属于 news 域，且不在 fundamentals ToolNode 中，调用必定失败）。
+  - **Layer 2 — 智能断环（per-analyst helpers）**：为每个分析师添加数据完备性检测，一旦已获取足够数据即跳出工具循环，不再依赖定量上限：
+    - `_fundamentals_already_fetched` — `get_fundamentals` 调用 ≥2 次 → 断环
+    - `_market_data_fully_fetched` — ≥3/4 工具已调用 → 断环
+    - `_news_data_fully_fetched` — `get_news` + `get_global_news` 均已调用 → 断环
+    - `_social_data_fully_fetched` — ≥3/4 工具已调用 → 断环
+  - **Layer 3 — per-analyst 定量上限**：`fundamentals=2`, `market=8`, `news=5`, `social=5`，全局默认 4。替换原全局 `max_tool_calls_per_analyst=6`。
+  - **Layer 4 — "continue" 路由 bug 修复**：4 个 `should_continue_*` 方法中，`repeat_detected` 和 `alternating_no_progress` 返回的 `"continue"` 在 graph 边映射中不存在路由。全部改为 `"Msg Clear *"`，确保任何循环检测都正确终止。
+- **API `final_report` 完整输出** — `executor.py:_extract_report()` 从仅返回第一个非空字段（~700 chars）改为组装全部 4 个分析师报告 + 投资计划 + 交易计划 + 最终决策（~7000 chars），与 CLI batch 输出对齐。
+- **辩论安全上限收窄** — `should_continue_debate` 安全上限从 `2*max_rounds+2=6` 降为 `2*max_rounds+1=5`（默认配置），质量阈值从 0.3 提至 0.4，并在完成配置轮数+1 后强制硬截止。
+- **Batch 输出修复** — CLI batch 移除 200 字符截断，新增 `ANALYST_AGENT_NAMES` 字典替换被误用的 `ANALYST_JSON_KEYS`（原将 "fundamentals" 显示为 "Technical Analyst"）。
+
+### Changed
+
+- `ConditionalLogic.__init__` — `max_tool_calls_per_analyst` 6→4，`max_repeat_calls` 3→2，新增 `_analyst_tool_limits` 字典。
+- `fundamentals_analyst.create_fundamentals_analyst()` — 移除 4 个冗余工具，系统提示词明确 "ONE tool, call it once"。
+- `fundamental_data_tools.get_fundamentals` — docstring 声明已聚合三张财务报表。
+- `executor.GraphExecutor._extract_report()` — 从单一字段提取改为完整报告组装。
+- `cli/batch._format_text_output()` — 移除所有 `_truncate_text` 调用，标题改用 `ANALYST_AGENT_NAMES`。
+- `graph/setup.py` `should_continue_debate` — 安全上限公式调整，质量阈值提升，新增硬截止。
+
+### Fixed
+
+- **死循环根治**：fundamentals analyst 从 6 次触限 → 0 次，market 从 4→10 次触限 → 0 次，news/social 从偶尔触限 → 0 次。
+- **`"continue"` 路由 bug**：4 个 `should_continue_*` 方法中不存在路由的 `"continue"` 返回值全部修复。
+- **ToolNode 不匹配**：`get_insider_transactions` 从 fundamentals analyst 移除（新闻工具，不在 fundamentals ToolNode 中）。
+- **Batch 标签错乱**：fundamentals analyst 输出不再显示为 "Technical Analyst"。
+
+
 ## [0.2.10-cn] — 2026-06-02
 
 ### Added

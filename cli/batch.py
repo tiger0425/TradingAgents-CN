@@ -31,6 +31,13 @@ from tradingagents.dataflows.position_utils import calc_position_pnl
 from cli.stats_handler import StatsCallbackHandler
 from cli.archive import save_to_archive
 
+ANALYST_AGENT_NAMES: Dict[str, str] = {
+    "market": "Market Analyst",
+    "social": "Social Analyst",
+    "news": "News Analyst",
+    "fundamentals": "Fundamentals Analyst",
+}
+
 ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
 ANALYST_VALID_VALUES = set(ANALYST_ORDER)
 
@@ -212,24 +219,24 @@ def _format_text_output(
             continue
         content = final_state.get(report_key, "")
         if content:
-            title = ANALYST_JSON_KEYS.get(analyst_key, analyst_key).title()
-            lines.append(f"\n--- {title} Analyst ---")
-            lines.append(_truncate_text(content, 200))
+            title = ANALYST_AGENT_NAMES.get(analyst_key, analyst_key)
+            lines.append(f"\n--- {title} ---")
+            lines.append(content)
 
     investment_plan = final_state.get("investment_plan", "")
     if investment_plan:
         lines.append(f"\n--- Investment Plan ---")
-        lines.append(_truncate_text(investment_plan, 300))
+        lines.append(investment_plan)
 
     trader_plan = final_state.get("trader_investment_plan", "")
     if trader_plan:
         lines.append(f"\n--- Trader Plan ---")
-        lines.append(_truncate_text(trader_plan, 300))
+        lines.append(trader_plan)
 
     final_decision = final_state.get("final_trade_decision", "")
     if final_decision:
         lines.append(f"\n--- Final Decision ---")
-        lines.append(_truncate_text(final_decision, 500))
+        lines.append(final_decision)
 
     lines.append(f"\n{sep}")
     return "\n".join(lines)
