@@ -16,14 +16,16 @@ Breaking changes within the 0.x line are called out explicitly.
 - **行业提示词注入** — fundamentals_analyst 获得行业估值框架指导；market_analyst 获得行业技术面特征；news_analyst 获得行业政策关注点；trader/PM/research_mgr 获得行业基准参考。
 - **一致性校验器** — `IndustryVerifier.verify_industry_consistency()` 规则层扫描 anti_patterns 关键词（如 SaaS 的"续约率/LTV/CAC"不出现在汽车报告中），LLM 层作为语义 fallback。
 - **TemplateMatcher 行业评分** — 修复废弃代码：`_score_template()` 现使用 `industry` 特征进行行业感知的模板匹配加权。
+- **实体锚定修复（v4-pro 幻觉根治）** — 两步修复 DeepSeek v4-pro 分析 A 股时编造虚构公司（如 "NovaTech Solutions"）的问题：（1）`openai_client.py` 中为 DeepSeek 客户端禁用 thinking mode（与 MiniMax 对齐）；（2）新增 `get_company_name(ticker)` 函数（腾讯财经 API）→ `build_instrument_context()` 现输出 "江淮汽车 (600418)" 而非仅 `` `600418` `` → `_build_init_state()` 将公司名称注入 AgentState → 7 个 Agent 调用点传入 `company_name=`。
 - **新增测试** — `tests/test_industry_classifier.py`（11 tests）、`tests/test_industry_verifier.py`（13 tests）。
 
 ### Changed
 
-- `AgentState` 新增 `industry: Annotated[str, ""]` 字段
-- `_build_init_state()` 传递 `context.industry` 到 AgentState
-- `build_instrument_context()` 新增可选 `industry` 参数
+- `AgentState` 新增 `industry: Annotated[str, ""]` 字段和 `company_name` 字段
+- `_build_init_state()` 传递 `context.industry` 到 AgentState，并调用 `get_company_name()` 注入公司名称
+- `build_instrument_context()` 新增可选 `industry` 和 `company_name` 参数
 - `ContextWindowManager.inject_context()` 返回 `industry` key
+- `openai_client.py` 中 DeepSeek 客户端默认禁用 thinking mode
 
 
 ## [0.2.9-cn] — 2026-05-29
