@@ -77,10 +77,7 @@ def create_social_media_analyst(llm):
         filter_valid_tool_calls(result, tools)
 
         has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
-        if has_tool_calls or result.content == "[Processing]":
-            content = result.content if (result.content and result.content != "[Processing]") else ""
-        else:
-            content = result.content if result.content else ""
+        content = "" if has_tool_calls else (result.content if result.content else "")
 
         return {
             "messages": [result],

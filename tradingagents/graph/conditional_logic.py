@@ -23,10 +23,13 @@ class ConditionalLogic:
         self.max_repeat_calls = 2                  # 同一工具+参数最多重复 2 次
         # 基本面具身定制：fundamentals analyst 已聚合三张表，2 工具即足够
         self._analyst_tool_limits: dict[str, int] = {
-            "fundamentals": 2,
+            "fundamentals": 3,
             "market": 8,
             "news": 5,
             "social": 5,
+        }
+        self._analyst_repeat_limits: dict[str, int] = {
+            "market": 3,  # 4 tools, LLM may re-call same tool before moving on
         }
         # 辩论质量追踪器（FIX-5）
         self.quality_tracker = DebateQualityTracker()
@@ -76,7 +79,10 @@ class ConditionalLogic:
         if last_calls:
             counter = Counter(last_calls)
             most_common = counter.most_common(1)[0]
-            if most_common[1] >= self.max_repeat_calls:
+            repeat_limit = self._analyst_repeat_limits.get(
+                analyst_type, self.max_repeat_calls
+            )
+            if most_common[1] >= repeat_limit:
                 logger.warning(
                     "Tool loop detected for %s: %d repeat calls of '%s'",
                     analyst_type, most_common[1], most_common[0],
@@ -116,7 +122,7 @@ class ConditionalLogic:
             is_loop, reason = self._detect_tool_loop(state, "market")
             if is_loop:
                 logger.warning("Breaking market analyst tool loop: %s", reason)
-                self._inject_break_message(state, reason)
+                self._inject_break_message(state, reason, messages)
                 return "Msg Clear Market"
             return "tools_market"
         return "Msg Clear Market"
@@ -243,16 +249,60 @@ class ConditionalLogic:
         return len(called) >= 3
 
     @staticmethod
-    def _inject_break_message(state: AgentState, reason: str) -> None:
-        """向消息列表注入终止提示，指导 LLM 基于已获取数据生成报告。"""
-        state["messages"].append(
-            HumanMessage(content=(
-                "工具调用已终止（原因：{reason}）。"
-                "你必须立即基于已获取的数据生成分析报告。"
-                "不要再调用任何工具。不要再请求更多数据。"
-                "直接输出报告内容。如果数据确实不足，诚实标注局限性。"
-            ).format(reason=reason))
-        )
+    def _inject_break_message(state: AgentState, reason: str, messages: list = None) -> None:
+        """向消息列表注入终止提示，指导 LLM 基于已获取数据生成报告。
+
+        当 reason 为 repeat_detected 时，查找重复工具上次的 ToolMessage 结果，
+        将实际数据注入提示，防止 LLM 编造数字（如 DeepSeek 幻觉 ¥47.53）。
+        """
+        msg = (
+            "工具调用已终止（原因：{reason}）。"
+            "你必须立即基于已获取的数据生成分析报告。"
+            "不要再调用任何工具。不要再请求更多数据。"
+            "直接输出报告内容。如果数据确实不足，诚实标注局限性。"
+        ).format(reason=reason)
+
+        if reason.startswith("repeat") and messages:
+            tool_data = ConditionalLogic._extract_repeated_tool_result(messages)
+            if tool_data:
+                msg = (
+                    "以下工具已经成功获取过数据，请不要再重复调用:\n\n"
+                    + tool_data
+                    + "\n\n" + msg
+                )
+
+        state["messages"].append(HumanMessage(content=msg))
+
+    @staticmethod
+    def _extract_repeated_tool_result(messages: list) -> str:
+        """从消息历史中提取最近成功执行过的工具及其返回数据摘要。
+
+        遍历消息，找到所有已完成（有 matching ToolMessage）的工具调用，
+        返回简洁摘要供 LLM 参考，避免编造数据。
+        """
+        from langchain_core.messages import ToolMessage
+        called: dict[str, str] = {}
+        for i, m in enumerate(messages):
+            if hasattr(m, 'tool_calls') and m.tool_calls:
+                for tc in m.tool_calls:
+                    name = tc.get('name', '')
+                    if name not in called:
+                        called[name] = "<结果未找到>"
+                    # Look for matching ToolMessage
+                    tc_id = tc.get('id', '')
+                    for j in range(i + 1, len(messages)):
+                        if (isinstance(messages[j], ToolMessage)
+                                and getattr(messages[j], 'tool_call_id', '') == tc_id):
+                            content = str(messages[j].content)
+                            # Truncate long results to ~200 chars
+                            if len(content) > 200:
+                                content = content[:197] + "..."
+                            called[name] = content
+                            break
+        lines = []
+        for name, summary in sorted(called.items()):
+            lines.append(f"- {name}: {summary}")
+        return "\n".join(lines) if lines else ""
 
     # ------------------------------------------------------------------
     # FIX-2: 辩论路由枚举化（基于 latest_speaker，防死循环安全上限）
