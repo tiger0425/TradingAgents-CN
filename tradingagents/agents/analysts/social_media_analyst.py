@@ -76,8 +76,7 @@ def create_social_media_analyst(llm):
         result = chain.invoke(result_msgs)
         filter_valid_tool_calls(result, tools)
 
-        has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
-        content = "" if has_tool_calls else (result.content if result.content else "")
+        content = result.content if (result.content and result.content != "[Processing]") else state.get("_break_msg", "")
 
         return {
             "messages": [result],

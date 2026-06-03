@@ -112,18 +112,20 @@ class ConditionalLogic:
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
+            if ConditionalLogic._break_already_injected(messages):
+                return "Msg Clear Market"
             if self._market_data_fully_fetched(messages):
                 logger.info(
                     "Market: all data sources already retrieved, breaking tool loop"
                 )
                 self._inject_break_message(state, "all_data_retrieved")
-                return "Msg Clear Market"
+                return "tools_market"
 
             is_loop, reason = self._detect_tool_loop(state, "market")
             if is_loop:
                 logger.warning("Breaking market analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason, messages)
-                return "Msg Clear Market"
+                return "tools_market"
             return "tools_market"
         return "Msg Clear Market"
 
@@ -131,18 +133,20 @@ class ConditionalLogic:
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
+            if ConditionalLogic._break_already_injected(messages):
+                return "Msg Clear Social"
             if self._social_data_fully_fetched(messages):
                 logger.info(
                     "Social: most data sources already retrieved, breaking tool loop"
                 )
                 self._inject_break_message(state, "all_data_retrieved")
-                return "Msg Clear Social"
+                return "tools_social"
 
             is_loop, reason = self._detect_tool_loop(state, "social")
             if is_loop:
                 logger.warning("Breaking social analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
-                return "Msg Clear Social"
+                return "tools_social"
             return "tools_social"
         return "Msg Clear Social"
 
@@ -150,18 +154,20 @@ class ConditionalLogic:
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
+            if ConditionalLogic._break_already_injected(messages):
+                return "Msg Clear News"
             if self._news_data_fully_fetched(messages):
                 logger.info(
                     "News: all data sources already retrieved, breaking tool loop"
                 )
                 self._inject_break_message(state, "all_data_retrieved")
-                return "Msg Clear News"
+                return "tools_news"
 
             is_loop, reason = self._detect_tool_loop(state, "news")
             if is_loop:
                 logger.warning("Breaking news analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
-                return "Msg Clear News"
+                return "tools_news"
             return "tools_news"
         return "Msg Clear News"
 
@@ -169,18 +175,20 @@ class ConditionalLogic:
         messages = state["messages"]
         last_message = messages[-1]
         if last_message.tool_calls:
+            if ConditionalLogic._break_already_injected(messages):
+                return "Msg Clear Fundamentals"
             if self._fundamentals_already_fetched(messages):
                 logger.info(
                     "Fundamentals: get_fundamentals data already retrieved, breaking tool loop"
                 )
                 self._inject_break_message(state, "data_already_retrieved")
-                return "Msg Clear Fundamentals"
+                return "tools_fundamentals"
 
             is_loop, reason = self._detect_tool_loop(state, "fundamentals")
             if is_loop:
                 logger.warning("Breaking fundamentals analyst tool loop: %s", reason)
                 self._inject_break_message(state, reason)
-                return "Msg Clear Fundamentals"
+                return "tools_fundamentals"
             return "tools_fundamentals"
         return "Msg Clear Fundamentals"
 
@@ -203,6 +211,20 @@ class ConditionalLogic:
                     if tc.get('name', '') == 'get_fundamentals':
                         count += 1
         return count >= 2
+
+    @staticmethod
+    def _break_already_injected(messages: list) -> bool:
+        """Check if a break message was already injected in a prior cycle.
+
+        If so, the ToolNode already did a no-op pass and the LLM was re-invoked.
+        If the LLM still called tools (ignored the break message), force-clear
+        to prevent infinite tools→break→tools→break recursion.
+        """
+        for m in messages[-3:]:
+            txt = str(m.content) if hasattr(m, 'content') else ""
+            if "工具调用已终止（原因：" in txt or "以下工具已经成功获取过数据" in txt:
+                return True
+        return False
 
     @staticmethod
     def _market_data_fully_fetched(messages) -> bool:
@@ -254,6 +276,9 @@ class ConditionalLogic:
 
         当 reason 为 repeat_detected 时，查找重复工具上次的 ToolMessage 结果，
         将实际数据注入提示，防止 LLM 编造数字（如 DeepSeek 幻觉 ¥47.53）。
+
+        同时将注入的消息保存到 state["_break_msg"], 供 analyst 在内容为空时
+        作为 fallback 报告。
         """
         msg = (
             "工具调用已终止（原因：{reason}）。"
@@ -271,6 +296,7 @@ class ConditionalLogic:
                     + "\n\n" + msg
                 )
 
+        state["_break_msg"] = msg
         state["messages"].append(HumanMessage(content=msg))
 
     @staticmethod
