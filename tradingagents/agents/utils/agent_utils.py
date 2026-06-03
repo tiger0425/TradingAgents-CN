@@ -67,6 +67,27 @@ def get_degradation_instruction() -> str:
     )
 
 
+_MULTI_INDUSTRY_COMPANIES: dict[str, str] = {
+    "600418": (
+        '江淮汽车（600418）虽交易所分类为商用载货车，但实际业务横跨多个领域：'
+        '①乘用车（含与华为合作的高端新能源品牌尊界/MAEXTRO）；'
+        '②商用车（轻型、中型、重型卡车及客车底盘）；'
+        '③新能源车制造（江淮iEV系列、为蔚来NIO代工）；'
+        '④传统燃油车发动机。'
+        '分析时必须综合考虑多业务线协同效应，不可仅局限于商用车框架。'
+        '华为合作（尊界品牌）和蔚来代工是重要的估值驱动因子，不能遗漏。'
+    ),
+}
+
+
+def _get_multi_industry_context(ticker: str, company_name: str) -> str:
+    """Return supplemental business context for multi-industry companies."""
+    ctx = _MULTI_INDUSTRY_COMPANIES.get(ticker, "")
+    if not ctx and company_name:
+        ctx = _MULTI_INDUSTRY_COMPANIES.get(company_name, "")
+    return ctx
+
+
 def build_instrument_context(ticker: str, industry: str = "", company_name: str = "", quick_llm: Any = None) -> str:
     """Describe the exact instrument so agents preserve market-appropriate ticker formats.
 
@@ -97,6 +118,12 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
         f"{exchange_hint} "
         "Use this exact ticker in every tool call, report, and recommendation."
     )
+
+    # ── Multi-industry company context: inject supplemental business description ──
+    multi_ctx = _get_multi_industry_context(ticker, company_name)
+    if multi_ctx:
+        base += f"\n\n**⚠️ 跨行业公司提醒：** {multi_ctx}"
+
     if industry:
         # Inject industry framework (correct_metrics + anti_patterns) when available
         framework = None
@@ -146,6 +173,20 @@ def create_msg_delete():
     return delete_messages
 
 
+def _is_first_entry(messages: list) -> bool:
+    """Check if this is the analyst's first entry (not re-entering after tool exec).
+
+    When re-entering after a ToolNode execution, the last message is the
+    ToolMessage containing the tool result.  In that case we must NOT sanitize
+    because the LLM needs to see the full context (including what was already
+    fetched) to avoid redundant tool calls.
+    """
+    if not messages:
+        return True
+    from langchain_core.messages import ToolMessage
+    return not isinstance(messages[-1], ToolMessage)
+
+
 def sanitize_messages_for_deepseek(messages: list) -> list:
     """Trim message history to the last valid tool cycle, stripping orphans.
 
@@ -160,14 +201,31 @@ def sanitize_messages_for_deepseek(messages: list) -> list:
     2. Drops all older messages to reduce context bloat.
     3. Strips any remaining orphaned tool_calls from the tail so
        the payload reaches the DeepSeek client sanitizer clean.
+    4. Injects a data-availability summary at the start so the LLM
+       remembers which tools have already returned data even after
+       the history is trimmed (prevents re-calling same tool).
 
     Returns a **new list** — original message objects are never
     mutated so ``state["messages"]`` stays intact for other nodes.
     """
     from copy import copy as _shallow_copy
-    from langchain_core.messages import AIMessage, ToolMessage
+    from langchain_core.messages import AIMessage, ToolMessage, HumanMessage
 
     n = len(messages)
+
+    # ── Pre-extraction: build data-availability summary from FULL history ──
+    fetched: dict[str, set[str]] = {}  # tool_name → {arg_summary, ...}
+    for i, m in enumerate(messages):
+        if isinstance(m, AIMessage) and m.tool_calls:
+            for tc in m.tool_calls:
+                name = tc.get("name", "")
+                args_str = ",".join(
+                    f"{k}={v}" for k, v in sorted(tc.get("args", {}).items())
+                )
+                fetched.setdefault(name, set()).add(args_str)
+        elif isinstance(m, ToolMessage):
+            pass  # ToolResult already accounted by AIMessage
+
     cut = n
 
     # Phase 1: find the last complete tool cycle
@@ -219,6 +277,20 @@ def sanitize_messages_for_deepseek(messages: list) -> list:
     result = [m for m in result if not (
         isinstance(m, ToolMessage) and m.tool_call_id not in valid_ids
     )]
+
+    # ── Phase 3: prepend data-availability summary ──
+    if fetched:
+        lines = ["[已获取数据摘要 / Data already retrieved]"]
+        for tool_name, args_set in sorted(fetched.items()):
+            if len(args_set) <= 3:
+                for a in sorted(args_set):
+                    lines.append(f"  ✅ {tool_name}({a}) — 成功获取")
+            else:
+                lines.append(f"  ✅ {tool_name} — {len(args_set)} 次调用均成功获取")
+        lines.append("如果已获取的数据足够完成分析，请不要再调用这些工具。直接基于已有数据生成报告。")
+        summary = "\n".join(lines)
+        result.insert(0, HumanMessage(content=summary))
+
     return result
 
 

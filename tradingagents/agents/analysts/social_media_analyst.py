@@ -7,6 +7,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_degradation_instruction,
     sanitize_messages_for_deepseek,
     filter_valid_tool_calls,
+    _is_first_entry,
 )
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 from tradingagents.agents.utils.a_stock_data_tools import get_cls_flash, get_hot_stock_reasons
@@ -71,15 +72,19 @@ def create_social_media_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result_msgs = sanitize_messages_for_deepseek(state["messages"])
+        result_msgs = sanitize_messages_for_deepseek(state["messages"]) if _is_first_entry(state["messages"]) else state["messages"]
         result = chain.invoke(result_msgs)
         filter_valid_tool_calls(result, tools)
 
-        report = result.content if result.content else ""
+        has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
+        if has_tool_calls or result.content == "[Processing]":
+            content = result.content if (result.content and result.content != "[Processing]") else ""
+        else:
+            content = result.content if result.content else ""
 
         return {
             "messages": [result],
-            "sentiment_report": report,
+            "sentiment_report": content,
         }
 
     return social_media_analyst_node

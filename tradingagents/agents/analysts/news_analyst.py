@@ -8,6 +8,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_degradation_instruction,
     sanitize_messages_for_deepseek,
     filter_valid_tool_calls,
+    _is_first_entry,
 )
 from tradingagents.dataflows.config import get_config
 
@@ -59,15 +60,19 @@ def create_news_analyst(llm):
 
         chain = prompt | llm.bind_tools(tools)
 
-        result_msgs = sanitize_messages_for_deepseek(state["messages"])
+        result_msgs = sanitize_messages_for_deepseek(state["messages"]) if _is_first_entry(state["messages"]) else state["messages"]
         result = chain.invoke(result_msgs)
         filter_valid_tool_calls(result, tools)
 
-        report = result.content if result.content else ""
+        has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
+        if has_tool_calls or result.content == "[Processing]":
+            content = result.content if (result.content and result.content != "[Processing]") else ""
+        else:
+            content = result.content if result.content else ""
 
         return {
             "messages": [result],
-            "news_report": report,
+            "news_report": content,
         }
 
     return news_analyst_node
