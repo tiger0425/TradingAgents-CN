@@ -40,6 +40,7 @@ Breaking changes within the 0.x line are called out explicitly.
 - **ToolNode 不匹配**：`get_insider_transactions` 从 fundamentals analyst 移除（新闻工具，不在 fundamentals ToolNode 中）。
 - **Batch 标签错乱**：fundamentals analyst 输出不再显示为 "Technical Analyst"。
 - **`get_indicators` 全部失败修复**：两个 bug 导致所有技术指标调用 100% 失败。`a_stock_data.py:429` 的 `col not in stock.columns` 检查在 stockstats 懒计算之前执行，所有指标列误判为"不支持"——改为 `try: stock[col]` 先触发懒计算。col_map 目标列名错误：`macd_diff`/`macd_dea`（应为 `macds`/`macdh`）、`kdj*_9_3_3`（应为 `kdj*` 不带后缀）、`boll_*_20_2`（应为 `boll`/`boll_ub`/`boll_lb` 不带后缀）；新增 `close_50_sma`/`close_200_sma`/`close_10_ema`/`atr`/`vwma`/`mfi` 等缺失指标。`interface.py` 降级检测同步扩展中文错误模式。修复后实测 17/17 指标正常返回。
+- **A 股财报三表全量恢复**：`a_stock_data.py:get_financial_statements()` 原调用 `quotes.sina.cn/.../jsonp_v2.php` JSONP 端点已死（对所有股票返回 `__ERROR: 3 - Service not valid`），导致 600418 江淮汽车等 A 股出现 LLM"脑补"英文北美卡车行业术语（EPA 2027/Class 8/ACT Research/Daimler-PACCAR）的幻觉问题。迁移到上游 simonlin1212/a-stock-data v3.1+ 的 OpenAPI 端点 `openapi.php/CompanyFinanceService.getFinanceReport2022`，通过 `source=lrb/fzb/llb` 区分报表类型，新增同比字段 (`item_tongbi`)。修复后 600418/600519 实测：三表 + 综合基本面 8/8 全部正常返回真实中文财务数据。
 
 
 ## [0.2.10-cn] — 2026-06-02

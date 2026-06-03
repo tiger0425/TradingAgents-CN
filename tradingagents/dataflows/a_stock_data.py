@@ -1242,29 +1242,29 @@ def get_dividend_history(code: str, page_size: int = 30) -> str:
 def get_financial_statements(code: str, report_type: str = "balance") -> str:
     """查询新浪财报三表（资产负债表/利润表/现金流量表）。
 
-    直连新浪财经 JSONP API，零第三方依赖。
-    自动识别沪市（sh）和深市（sz）前缀。
-    返回最近 5 期财务数据。
+    直连新浪财经 OpenAPI（simonlin1212/a-stock-data v3.1+ 端点），
+    零第三方依赖。自动识别沪市（sh）和深市（sz）前缀。
+    返回最近 5 期财务数据，含同比字段（item_tongbi）。
+
+    历史变更：v0.2.11-cn 之前使用 `jsonp_v2.php` JSONP 端点，该端点
+    已重定向到 sina.com 主页，对所有股票返回 `__ERROR: Service not valid`。
+    现迁移到上游 v3.1+ 已切换的 OpenAPI 端点。
 
     参数:
         code: 股票代码，如 "600519"
         report_type: 报表类型
-                     - "balance"   → 资产负债表 (BalanceSheet)
-                     - "income"    → 利润表 (ProfitStatement)
-                     - "cashflow"  → 现金流量表 (CashFlow)
+                     - "balance"   → 资产负债表
+                     - "income"    → 利润表
+                     - "cashflow"  → 现金流量表
 
     返回:
         Markdown 格式字符串，包含最近 5 期财务数据
         出错时返回错误描述字符串
     """
-    # ── Sina symbol 前缀 ────────────────────────────────────────────
-    sina_sym = f"sh{code}" if code.startswith("6") else f"sz{code}"
-
-    # ── report_type 映射 ────────────────────────────────────────────
-    endpoint_map: Dict[str, str] = {
-        "balance": "BalanceSheet",
-        "income": "ProfitStatement",
-        "cashflow": "CashFlow",
+    source_map: Dict[str, str] = {
+        "balance": "fzb",    # 资产负债表
+        "income": "lrb",     # 利润表
+        "cashflow": "llb",   # 现金流量表
     }
     type_name_map: Dict[str, str] = {
         "balance": "资产负债表",
@@ -1272,67 +1272,68 @@ def get_financial_statements(code: str, report_type: str = "balance") -> str:
         "cashflow": "现金流量表",
     }
 
-    if report_type not in endpoint_map:
+    if report_type not in source_map:
         return (
             f"财报查询失败: 不支持的报表类型 '{report_type}'"
             f"，可选 balance(资产负债表)/income(利润表)/cashflow(现金流量表)"
         )
 
-    endpoint = endpoint_map[report_type]
+    source = source_map[report_type]
     type_name = type_name_map[report_type]
 
+    # 沪市加 sh 前缀，深市加 sz 前缀
+    sina_sym = f"sh{code}" if code.startswith("6") else f"sz{code}"
+
     url = (
-        f"https://quotes.sina.cn/cn/api/jsonp_v2.php/data"
-        f"/CN_{endpoint}Service.get{endpoint}Data"
+        "https://quotes.sina.cn/cn/api/openapi.php"
+        "/CompanyFinanceService.getFinanceReport2022"
     )
     params: Dict[str, Any] = {
-        "symbol": sina_sym,
+        "paperCode": sina_sym,
+        "source": source,
         "type": "0",
         "page": "1",
         "num": "5",
     }
-    headers: Dict[str, str] = {
-        "User-Agent": UA,
-        "Referer": "https://finance.sina.com.cn/",
-    }
+    headers: Dict[str, str] = {"User-Agent": UA}
 
     try:
         resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
+        body = resp.json()
 
-        # ── 解析 JSONP 响应 ──────────────────────────────────────
-        # 格式: try{ jsonpCallback({...}); }catch(e){}
-        text = resp.text.strip()
-        start = text.find("(")
-        end = text.rfind(")")
-        if start >= 0 and end > start:
-            json_str = text[start + 1 : end]
-        else:
-            json_str = text
-
-        body = json.loads(json_str)
-
-        # ── 提取数据 ──────────────────────────────────────────────
-        # 新浪返回多种格式：直接数组、{result:{data:[...]}}、{data:[...]}
-        result_data: Any = body
-        if isinstance(body, dict):
-            for key in ("result", "data"):
-                candidate = body.get(key)
-                if candidate is not None:
-                    result_data = candidate
-                    if isinstance(candidate, dict):
-                        inner = candidate.get("data") or candidate.get("result")
-                        if inner is not None:
-                            result_data = inner
-                    break
-
-        if isinstance(result_data, dict):
-            result_data = [result_data]
-        elif not isinstance(result_data, list):
+        # 数据路径: result.data.report_list[period].data[].{item_title,item_value,item_tongbi}
+        report_list = (
+            body.get("result", {}).get("data", {}).get("report_list") or {}
+        )
+        if not isinstance(report_list, dict) or not report_list:
             return _format_result([], f"财务报表({type_name}) — {code}")
 
-        # 取前 5 条
-        rows = result_data[:5]
+        # 按报告期倒序（最新在前），取前 5 期
+        periods = sorted(report_list.keys(), reverse=True)[:5]
+        rows: List[Dict[str, Any]] = []
+        for period in periods:
+            period_data = report_list[period]
+            if not isinstance(period_data, dict):
+                continue
+            items = period_data.get("data")
+            if not isinstance(items, list):
+                continue
+            row: Dict[str, Any] = {
+                "报告期": f"{period[:4]}-{period[4:6]}-{period[6:8]}"
+            }
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("item_title")
+                value = item.get("item_value")
+                if not title or value is None:
+                    continue
+                row[str(title)] = value
+                tongbi = item.get("item_tongbi")
+                if tongbi not in (None, ""):
+                    row[f"{title}_同比"] = tongbi
+            rows.append(row)
 
         return _format_result(rows, f"财务报表({type_name}) — {code}")
     except Exception as e:
