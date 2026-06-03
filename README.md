@@ -31,6 +31,7 @@
 ## News
 
 - [2026-06] **IndustryVerifier 接入 + 动态 Prompt**：`executor.py` 接入 verifier（flag-and-continue），每次分析后自动扫描反模式并追加警告。`AnalyzeResponse` 新增 `industry_verification` 字段。`_AUTO_GEN_PROMPT` 改为从 `_type_rules` JSON 动态生成，消除硬编码重复。形成完整 Prompt 约束→分析→扫描保护链。
+- [2026-06] **辩论 Agent 行业反模式注入**：bull/bear 辩论 Agent 和 3 个风控 Agent 现接收 anti_patterns 禁止术语。`ContextWindowManager.inject_context()` 增加 framework lookup。全链路 12 个 Agent 均受行业约束，消除"通信线缆"标的讨论 AEC/铜缆/CPO 等错配问题。
 - [2026-06] **两层行业框架体系升级**：`industry_frameworks.json` 新增 `_type_rules`（6 种行业类型通用反模式规则）+ `comm_cable` 通信线缆及配套框架（基于华泰/国盛/中信建投/天风券商研报）。`_AUTO_GEN_PROMPT` 升级为三步流程（判定类型→继承通用反模式→合并行业特有反模式）。解决 LLM 自动生成时跨行业指标错用问题。新增 `test_industry_framework.py`（8 个 TDD 测试）。21 industry tests 全绿，633 regression tests 通过。
 - [2026-06] **三层行业检测架构上线**：IndustryClassifier 服务（3-level fallback → 结构化分类）、Agent 行业上下文注入（7 Agent 系统提示词）、IndustryFramework 行业→框架映射（5 行业试点 + 反模式规则）、一致性校验器（规则+LLM 二级）、TemplateMatcher 行业评分修复。解决"卡车制造商被 SaaS 框架分析"的问题。
 - [2026-05] **V4 下一阶段完成**：TRADINGAGENTS_FAN_OUT 环境变量支持（灰度开关）；CLI batch 迁移到 GraphExecutor（与 API 路径统一）；概念板块 API 重试+回退；融资融券数据集成到 Agent 工具链；机构持仓数据（akshare）接入；4 个分析师提示词针对 A 股场景定制；600418 端到端回归测试（商用载货车行业检测 + 无 AI 幻觉验证）；性能基准测试脚本。834 测试通过，0 失败。
