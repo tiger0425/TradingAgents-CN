@@ -207,6 +207,18 @@ class ContextWindowManager:
             + cls.estimate_tokens(market_ctx)
         )
 
+        # Look up industry framework anti_patterns for debate agents
+        anti_patterns = []
+        industry = state.get("industry", "")
+        if industry:
+            try:
+                from tradingagents.industry.frameworks import IndustryFramework
+                framework = IndustryFramework().lookup(industry)
+                if framework:
+                    anti_patterns = framework.get("anti_patterns", [])
+            except Exception:
+                pass
+
         return {
             "reports_summary": reports_text,
             "debate_history": compressed_history,
@@ -214,7 +226,8 @@ class ContextWindowManager:
             "market_context": market_ctx,
             "token_usage": token_usage,
             "compression_applied": compression_applied,
-            "industry": state.get("industry", ""),
+            "industry": industry,
+            "anti_patterns": anti_patterns,
         }
 
     # ------------------------------------------------------------------
