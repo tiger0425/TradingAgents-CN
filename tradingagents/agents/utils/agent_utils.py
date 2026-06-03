@@ -133,20 +133,26 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
         except Exception:
             pass
 
+        # Inject anti_patterns FIRST with strong formatting to avoid attention decay
+        if framework:
+            anti_patterns = framework.get("anti_patterns", [])
+            if anti_patterns:
+                anti_list = "、".join(anti_patterns)
+                base = (
+                    f"🚫 **严禁在分析中使用以下指标：** {anti_list}。"
+                    f"这些指标完全不属于 {industry} 行业，如果在报告中提到任何一项，将导致分析无效。\n\n"
+                ) + base
+
         base += f"\n\n**行业背景：** 该股票属于 {industry} 行业。分析时请关注该行业的核心指标和竞争格局。"
 
         if framework:
             correct_metrics = framework.get("correct_metrics", [])
-            anti_patterns = framework.get("anti_patterns", [])
-            if correct_metrics or anti_patterns:
-                base += "\n\n**行业分析框架（必须遵守）：**"
-                if correct_metrics:
-                    base += "\n- 核心指标：" + "、".join(correct_metrics)
-                if anti_patterns:
-                    base += "\n- 不适用指标：" + "、".join(anti_patterns)
-                ctx = framework.get("context_instruction", "")
-                if ctx:
-                    base += f"\n\n分析指导：{ctx}"
+            if correct_metrics:
+                base += "\n\n**行业分析框架（可使用的指标）：**"
+                base += "\n- 核心指标：" + "、".join(correct_metrics)
+            ctx = framework.get("context_instruction", "")
+            if ctx:
+                base += f"\n\n分析指导：{ctx}"
     return base
 
 def format_past_context(past_context: str) -> str:
