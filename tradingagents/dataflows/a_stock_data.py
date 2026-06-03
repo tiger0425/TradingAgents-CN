@@ -1,9 +1,9 @@
 """
 A股全栈数据供应商 — 基于 simonlin1212/a-stock-data
 
-Upstream: simonlin1212/a-stock-data v3.1
+Upstream: simonlin1212/a-stock-data v3.2.2
 Repository: https://github.com/simonlin1212/a-stock-data
-Last synced: 2026-05-29
+Last synced: 2026-06-04
 
 端点与上游锚点映射：
 ┌────────────────────────────────┬──────────────────────────────┐
@@ -405,41 +405,31 @@ def get_indicators_a(
 
         stock = stockstats_wrap(data)
 
+        # 核心指标 → stockstats 列名映射（值不同的特殊情况）
+        from tradingagents.agents.utils.indicator_registry import INDICATORS
+
+        _CORE_STOCKSTATS: dict[str, str] = {
+            "rsi": "rsi_14",
+        }
+
         # 常用指标名 → stockstats 内部列名映射
         # 注意：stockstats 懒计算指标，必须通过 stock[col] 访问触发计算，
         # 不能在访问前检查 col in stock.columns（此时只有基础列）
         col_map = {
-            # RSI
+            # 核心指标（键来自 INDICATORS 注册表）
+            **{info.name: _CORE_STOCKSTATS.get(info.name, info.name) for info in INDICATORS},
+            # 非核心别名（stockstats 专用，如 kdj_*, sma_*, boll 变体等）
             "rsi_14": "rsi_14",
-            "rsi": "rsi_14",
-            # MACD: stockstats 使用 macd/macds/macdh（非 macd_diff/macd_dea）
-            "macd": "macd",
-            "macds": "macds",
-            "macdh": "macdh",
-            # KDJ: stockstats 使用 kdjk/kdjd/kdjj（不带 _9_3_3 后缀）
             "kdj_k": "kdjk",
             "kdj_d": "kdjd",
             "kdj_j": "kdjj",
-            # Bollinger: stockstats 使用 boll/boll_ub/boll_lb
-            "boll": "boll",
             "boll_upper": "boll_ub",
             "boll_mid": "boll",
             "boll_lower": "boll_lb",
-            "boll_ub": "boll_ub",
-            "boll_lb": "boll_lb",
-            # SMA（close_N_sma 可直接用，此处提供短别名）
             "sma_5": "close_5_sma",
             "sma_10": "close_10_sma",
             "sma_20": "close_20_sma",
             "sma_30": "close_30_sma",
-            "close_50_sma": "close_50_sma",
-            "close_200_sma": "close_200_sma",
-            # EMA
-            "close_10_ema": "close_10_ema",
-            # 其他：stockstats 原生支持的指标名
-            "atr": "atr",
-            "vwma": "vwma",
-            "mfi": "mfi",
         }
 
         col = col_map.get(indicator, indicator)
@@ -1410,9 +1400,49 @@ def get_cls_flash(count: int = 20) -> str:
 # 9. 巨潮公告 (Layer 7.1)
 # ============================================================================
 
+# 巨潮 股票→orgId 映射（模块级缓存，首次调用时拉取一次，全程复用）
+_CNINFO_ORGID_MAP: Dict[str, str] = {}
+
+
+def _cninfo_orgid(code: str) -> str:
+    """查股票真实 orgId（V3.2.2 新增，修复 #19）。
+
+    巨潮 orgId 并非统一 gssx0{code} 格式（如 601318→9900002221、
+    601398→jjxt0000019、688017→9900041602），硬编码会导致大量股票
+    （尤其 601xxx 段）返回 totalAnnouncement=0。优先动态查官方映射表
+    szse_stock.json（6198 只股），查不到再回退硬编码。
+    """
+    global _CNINFO_ORGID_MAP
+    if not _CNINFO_ORGID_MAP:
+        try:
+            r = requests.get(
+                "http://www.cninfo.com.cn/new/data/szse_stock.json",
+                headers={"User-Agent": UA},
+                timeout=15,
+            )
+            _CNINFO_ORGID_MAP = {
+                s["code"]: s["orgId"]
+                for s in r.json().get("stockList", [])
+            }
+        except Exception as e:
+            print(f"[WARN] 巨潮 orgId 映射表拉取失败，回退硬编码规则: {e}")
+    org = _CNINFO_ORGID_MAP.get(code)
+    if org:
+        return org
+    # fallback：老格式（仅部分老股票如 600519/600036 适用）
+    if code.startswith("6"):
+        return f"gssh0{code}"
+    elif code.startswith(("8", "4")):
+        return f"gsbj0{code}"
+    return f"gssz0{code}"
+
 
 def get_cninfo_announcements(code: str, page_size: int = 20) -> str:
     """查询巨潮公告。
+
+    V3.2.2 修复（#19）：硬编码 gssx0{code} 致大量 601xxx 股票公告为空 →
+    改用 _cninfo_orgid() 动态查官方映射表 szse_stock.json（模块级缓存），
+    硬编码降为 fallback。
 
     直连巨潮 cninfo 历史公告查询 API，返回公告标题、发布时间、PDF链接。
 
@@ -1425,11 +1455,7 @@ def get_cninfo_announcements(code: str, page_size: int = 20) -> str:
         出错时返回错误描述字符串。
     """
     try:
-        # 推导 orgId：上证 gssh0{code}，深证/创业板 gssz0{code}
-        if code.startswith("6"):
-            org_id = f"gssh0{code}"
-        else:
-            org_id = f"gssz0{code}"
+        org_id = _cninfo_orgid(code)  # V3.2.2: 动态查询真实 orgId
 
         url = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
         headers = {
@@ -1486,30 +1512,30 @@ def get_cninfo_announcements(code: str, page_size: int = 20) -> str:
 def get_concept_blocks(code: str) -> str:
     """查询个股关联的概念板块、行业板块和地域板块。
 
-    直连百度股市通 PAE API，返回板块名称、涨跌幅和描述。
+    V3.2.2 替换：百度 PAE getrelatedblock 已失效（ResultCode 10003，见 #18），
+    改用东财 slist（spt=3）一次请求拿全个股所属板块（行业/概念/地域混合 +
+    BK码 + 涨跌幅 + 龙头股），零鉴权。
 
     参数:
         code: 股票代码，如 "600519"
 
     返回:
-        Markdown 格式字符串，包含板块分类、名称、涨跌幅和描述
+        Markdown 格式字符串，包含板块名称、板块代码、涨跌幅和龙头股
 
     数据源:
-        https://finance.pae.baidu.com/api/getrelatedblock
+        https://push2.eastmoney.com/api/qt/slist/get (spt=3)
     """
-    url = "https://finance.pae.baidu.com/api/getrelatedblock"
+    market_code = 1 if code.startswith("6") else 0
+    url = "https://push2.eastmoney.com/api/qt/slist/get"
     params = {
-        "code": code,
-        "market": "ab",
-        "typeCode": "all",
-        "finClientType": "pc",
+        "fltt": "2", "invt": "2",
+        "secid": f"{market_code}.{code}",
+        "spt": "3", "pi": "0", "pz": "200", "po": "1",
+        "fields": "f12,f14,f3,f128",
     }
     headers = {
         "User-Agent": UA,
-        "Host": "finance.pae.baidu.com",
-        "Accept": "application/vnd.finance-web.v1+json",
-        "Origin": "https://gushitong.baidu.com",
-        "Referer": "https://gushitong.baidu.com/",
+        "Referer": "https://quote.eastmoney.com/",
     }
 
     max_retries = 3
@@ -1521,28 +1547,18 @@ def get_concept_blocks(code: str) -> str:
             resp.raise_for_status()
             d = resp.json()
 
-            if str(d.get("ResultCode", -1)) != "0":
-                raise ValueError(f"API 返回异常 ResultCode: {d.get('ResultCode')}")
-
-            result = d.get("Result", [])
-            if not result:
+            diff = (d.get("data") or {}).get("diff") or {}
+            items = diff.values() if isinstance(diff, dict) else diff
+            if not items:
                 return _format_result([], f"概念板块 — {code}")
 
-            # 类型映射
-            type_map = {
-                "industry": "行业",
-                "concept": "概念",
-                "region": "地域",
-            }
-
             rows: List[Dict[str, Any]] = []
-            for item in result:
-                raw_type = item.get("type", "")
+            for it in items:
                 rows.append({
-                    "分类": type_map.get(raw_type, raw_type),
-                    "名称": item.get("name", ""),
-                    "涨跌幅": item.get("increase", ""),
-                    "描述": item.get("desc", ""),
+                    "名称": it.get("f14", ""),
+                    "板块代码": it.get("f12", ""),
+                    "涨跌幅": it.get("f3", ""),
+                    "龙头股": it.get("f128", ""),
                 })
 
             return _format_result(rows, f"概念板块 — {code}")
@@ -1623,26 +1639,23 @@ def get_industry(code: str) -> str:
         if isinstance(result_md, str) and "失败" not in result_md:
             lines = result_md.split("\n")
             in_table = False
-            industry_col = -1
             name_col = -1
             for line in lines:
                 stripped = line.strip()
-                if stripped.startswith("|") and ("分类" in stripped or "名称" in stripped):
+                # 新格式列：名称、板块代码(BK)、涨跌幅、龙头股
+                if stripped.startswith("|") and "名称" in stripped:
                     cols = [c.strip() for c in stripped.split("|")[1:-1]]
                     for idx, col in enumerate(cols):
-                        if col == "分类":
-                            industry_col = idx
-                        elif col == "名称":
+                        if col == "名称":
                             name_col = idx
                     in_table = True
                     continue
                 if in_table and stripped.startswith("|---"):
                     continue
-                if in_table and industry_col >= 0 and name_col >= 0 and stripped.startswith("|"):
+                if in_table and name_col >= 0 and stripped.startswith("|"):
                     cols = [c.strip() for c in stripped.split("|")[1:-1]]
-                    if len(cols) > max(industry_col, name_col):
-                        if cols[industry_col] == "行业" and cols[name_col]:
-                            return cols[name_col]
+                    if len(cols) > name_col and cols[name_col]:
+                        return cols[name_col]  # 返回第一个板块名
                 if in_table and not stripped.startswith("|"):
                     break
     except Exception:
