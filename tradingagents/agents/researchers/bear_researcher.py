@@ -43,6 +43,10 @@ def create_bear_researcher(llm):
             industry_info = f"""
 **⚠️ 行业锚定约束：** 你正在辩论的标的属于【{industry}】行业。所有论点必须基于该行业实际的商业模式、竞争格局和关键驱动因素。严禁使用与{industry}行业无关的术语或分析框架。
 """
+            anti_patterns = ctx.get("anti_patterns", [])
+            if anti_patterns:
+                anti_str = "、".join(anti_patterns)
+                industry_info += f"\n**⚠️ 严格禁止使用以下不适用于{industry}行业的术语：** {anti_str}"
 
         prompt = f"""{industry_info}You are a Risk Analyst evaluating the potential downsides of this investment. Your goal is to present a well-reasoned assessment emphasizing risk factors, challenges, and cautionary indicators. Leverage the provided research and data to highlight potential concerns and counter optimistic assumptions effectively.
 

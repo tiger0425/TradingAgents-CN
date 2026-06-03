@@ -44,6 +44,20 @@ def create_conservative_debator(llm):
             agg_ref = f"Aggressive analyst said: {current_aggressive_response}" if current_aggressive_response.strip() else "(no aggressive argument)"
             neut_ref = f"Neutral analyst said: {current_neutral_response}" if current_neutral_response.strip() else "(no neutral argument)"
 
+        # ---- Industry anchoring ----
+        industry = state.get("industry", "")
+        industry_block = ""
+        if industry:
+            industry_block = f"""\n\n**⚠️ 行业锚定约束：** 你正在评估的交易标的属于【{industry}】行业。评估风险时必须基于该行业实际的商业模式、竞争格局和关键驱动因素。"""
+            try:
+                from tradingagents.industry.frameworks import IndustryFramework
+                fw = IndustryFramework().lookup(industry)
+                if fw and fw.get("anti_patterns"):
+                    anti_str = "、".join(fw.get("anti_patterns", []))
+                    industry_block += f"\n**严格禁止使用以下不适用于{industry}行业的术语：** {anti_str}"
+            except Exception:
+                pass
+
         prompt = f"""As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. {round_instruction} You prioritize stability, security, and risk mitigation, carefully assessing potential losses, economic downturns, and market volatility. When evaluating the trader's decision or plan, critically examine high-risk elements, pointing out where the decision may expose the firm to undue risk and where more cautious alternatives could secure long-term gains. Here is the trader's decision:
 
 {trader_decision}
@@ -56,7 +70,7 @@ Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
 Here is the current conversation history: {history} {agg_ref}. {neut_ref}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting."""
+Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting.{industry_block}"""
 
         response = llm.invoke(prompt)
 
