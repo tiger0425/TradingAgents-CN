@@ -39,6 +39,7 @@ Breaking changes within the 0.x line are called out explicitly.
 - **`"continue"` 路由 bug**：4 个 `should_continue_*` 方法中不存在路由的 `"continue"` 返回值全部修复。
 - **ToolNode 不匹配**：`get_insider_transactions` 从 fundamentals analyst 移除（新闻工具，不在 fundamentals ToolNode 中）。
 - **Batch 标签错乱**：fundamentals analyst 输出不再显示为 "Technical Analyst"。
+- **`get_indicators` 全部失败修复**：两个 bug 导致所有技术指标调用 100% 失败。`a_stock_data.py:429` 的 `col not in stock.columns` 检查在 stockstats 懒计算之前执行，所有指标列误判为"不支持"——改为 `try: stock[col]` 先触发懒计算。col_map 目标列名错误：`macd_diff`/`macd_dea`（应为 `macds`/`macdh`）、`kdj*_9_3_3`（应为 `kdj*` 不带后缀）、`boll_*_20_2`（应为 `boll`/`boll_ub`/`boll_lb` 不带后缀）；新增 `close_50_sma`/`close_200_sma`/`close_10_ema`/`atr`/`vwma`/`mfi` 等缺失指标。`interface.py` 降级检测同步扩展中文错误模式。修复后实测 17/17 指标正常返回。
 
 
 ## [0.2.10-cn] — 2026-06-02

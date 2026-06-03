@@ -391,8 +391,18 @@ def route_to_vendor(method: str, *args, **kwargs):
         impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
 
         try:
-            return impl_func(*args, **kwargs)
+            call_kwargs = {k: v for k, v in kwargs.items() if k != 'vendor'}
+            result = impl_func(*args, **call_kwargs)
+            # Check for inline error responses from vendors
+            if isinstance(result, str) and (
+                'Service not valid' in result or '__ERROR' in result
+                or '失败' in result or 'Error' in result
+            ):  # 中文错误字符串（如 "指标查询失败"）也应触发降级
+                continue
+            return result
         except AlphaVantageRateLimitError:
-            continue  # Only rate limits trigger fallback
+            continue
+        except Exception:
+            continue  # Any error triggers fallback to next vendor
 
     raise RuntimeError(f"No available vendor for '{method}'")

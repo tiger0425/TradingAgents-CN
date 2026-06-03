@@ -406,33 +406,52 @@ def get_indicators_a(
         stock = stockstats_wrap(data)
 
         # 常用指标名 → stockstats 内部列名映射
+        # 注意：stockstats 懒计算指标，必须通过 stock[col] 访问触发计算，
+        # 不能在访问前检查 col in stock.columns（此时只有基础列）
         col_map = {
+            # RSI
             "rsi_14": "rsi_14",
             "rsi": "rsi_14",
+            # MACD: stockstats 使用 macd/macds/macdh（非 macd_diff/macd_dea）
             "macd": "macd",
-            "macd_diff": "macd_diff",
-            "macd_dea": "macd_dea",
-            "kdj_k": "kdjk_9_3_3",
-            "kdj_d": "kdjd_9_3_3",
-            "kdj_j": "kdjj_9_3_3",
-            "boll_upper": "boll_upper_20_2",
-            "boll_mid": "boll_mid_20_2",
-            "boll_lower": "boll_lower_20_2",
+            "macds": "macds",
+            "macdh": "macdh",
+            # KDJ: stockstats 使用 kdjk/kdjd/kdjj（不带 _9_3_3 后缀）
+            "kdj_k": "kdjk",
+            "kdj_d": "kdjd",
+            "kdj_j": "kdjj",
+            # Bollinger: stockstats 使用 boll/boll_ub/boll_lb
+            "boll": "boll",
+            "boll_upper": "boll_ub",
+            "boll_mid": "boll",
+            "boll_lower": "boll_lb",
+            "boll_ub": "boll_ub",
+            "boll_lb": "boll_lb",
+            # SMA（close_N_sma 可直接用，此处提供短别名）
             "sma_5": "close_5_sma",
             "sma_10": "close_10_sma",
             "sma_20": "close_20_sma",
             "sma_30": "close_30_sma",
+            "close_50_sma": "close_50_sma",
+            "close_200_sma": "close_200_sma",
+            # EMA
+            "close_10_ema": "close_10_ema",
+            # 其他：stockstats 原生支持的指标名
+            "atr": "atr",
+            "vwma": "vwma",
+            "mfi": "mfi",
         }
 
         col = col_map.get(indicator, indicator)
 
-        if col not in stock.columns:
+        # 先通过 stock[col] 触发 stockstats 懒计算再检查结果
+        try:
+            latest_val = stock[col].iloc[-1]
+        except (KeyError, IndexError, TypeError):
             return (
                 f"指标查询失败: 不支持指标 '{indicator}'\n"
                 f"可用指标: {', '.join(sorted(set(col_map.keys())))}\n"
             )
-
-        latest_val = stock[col].iloc[-1]
         if isinstance(latest_val, (int, float)):
             val_str = f"{latest_val:.4f}"
         else:
