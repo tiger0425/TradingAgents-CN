@@ -51,6 +51,7 @@ Breaking changes within the 0.x line are called out explicitly.
 - **预存 Bug 修复** — `frameworks.py` 删除 `_load_generated()` 内部（L164-206）`_fuzzy_match` 重复代码，该代码引用未定义变量 `industry_name` 导致模块导入时 NameError。
 - **新增测试** — `tests/test_industry_framework.py`（8 个 TDD 测试，含 comm_cable 匹配验证 + 全框架向后兼容 + `list_frameworks` 过滤）。
 - **辩论 Agent 反模式注入** — `bull_researcher` 和 `bear_researcher` 现通过 `ContextWindowManager.inject_context()` 接收 `anti_patterns`，将具体禁止术语追加到辩论 prompt。`context_manager.inject_context()` 新增 `IndustryFramework.lookup()` 反模式查询，return dict 新增 `anti_patterns` 字段。3 个 risk debater（aggressive/conservative/neutral）新增行业锚定约束 + 独立 framework lookup。消除全链路最后一个行业错配缺口。
+- **反模式约束位置优化** — `build_instrument_context()` 中反模式（不适用指标）从 prompt 尾部（69% 位置，434/632 字符）移至 prompt 头部（5% 位置，36/688 字符），配合 🚫 强格式和"将导致分析无效"后果提示。解决 LLM 注意力衰减导致忽略反模式约束的问题。
 - **IndustryVerifier 接入生产流程** — `executor.py` 在每次成功分析后自动调用 `verify_industry_consistency()`（flag-and-continue）。检测到反模式时追加警告到报告 + 返回验证结果；完全 try/except 包裹，永不崩溃。`AnalyzeResponse` 新增 `industry_verification` 字段。形成"Prompt 约束 → Agent 分析 → Verifier 扫描"完整保护链。
 - **`_AUTO_GEN_PROMPT` 动态化** — 新增 `_build_auto_gen_prompt()` 方法，从 `self._type_rules` JSON 动态生成 prompt 的类型列表和反模式规则（同时注入 anti_patterns + correct_metrics_examples）。消除 JSON 与 prompt 间硬编码重复。空 `_type_rules` 时回退到原硬编码常量。
 - **三层行业检测架构** — 新增 `tradingagents/industry/` 模块：（L1）`IndustryClassifier` 服务封装 `get_industry()` 为结构化分类结果；（L2）`IndustryFramework` 行业→分析框架映射（5 行业试点，含 correct_metrics + anti_patterns）；（L3）`IndustryVerifier.verify_industry_consistency()` 规则+LLM 二级一致性校验。
