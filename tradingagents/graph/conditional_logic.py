@@ -118,7 +118,7 @@ class ConditionalLogic:
                 logger.info(
                     "Market: all data sources already retrieved, breaking tool loop"
                 )
-                self._inject_break_message(state, "all_data_retrieved")
+                self._inject_break_message(state, "all_data_retrieved", messages)
                 return "tools_market"
 
             is_loop, reason = self._detect_tool_loop(state, "market")
@@ -139,13 +139,13 @@ class ConditionalLogic:
                 logger.info(
                     "Social: most data sources already retrieved, breaking tool loop"
                 )
-                self._inject_break_message(state, "all_data_retrieved")
+                self._inject_break_message(state, "all_data_retrieved", messages)
                 return "tools_social"
 
             is_loop, reason = self._detect_tool_loop(state, "social")
             if is_loop:
                 logger.warning("Breaking social analyst tool loop: %s", reason)
-                self._inject_break_message(state, reason)
+                self._inject_break_message(state, reason, messages)
                 return "tools_social"
             return "tools_social"
         return "Msg Clear Social"
@@ -160,13 +160,13 @@ class ConditionalLogic:
                 logger.info(
                     "News: all data sources already retrieved, breaking tool loop"
                 )
-                self._inject_break_message(state, "all_data_retrieved")
+                self._inject_break_message(state, "all_data_retrieved", messages)
                 return "tools_news"
 
             is_loop, reason = self._detect_tool_loop(state, "news")
             if is_loop:
                 logger.warning("Breaking news analyst tool loop: %s", reason)
-                self._inject_break_message(state, reason)
+                self._inject_break_message(state, reason, messages)
                 return "tools_news"
             return "tools_news"
         return "Msg Clear News"
@@ -181,13 +181,13 @@ class ConditionalLogic:
                 logger.info(
                     "Fundamentals: get_fundamentals data already retrieved, breaking tool loop"
                 )
-                self._inject_break_message(state, "data_already_retrieved")
+                self._inject_break_message(state, "data_already_retrieved", messages)
                 return "tools_fundamentals"
 
             is_loop, reason = self._detect_tool_loop(state, "fundamentals")
             if is_loop:
                 logger.warning("Breaking fundamentals analyst tool loop: %s", reason)
-                self._inject_break_message(state, reason)
+                self._inject_break_message(state, reason, messages)
                 return "tools_fundamentals"
             return "tools_fundamentals"
         return "Msg Clear Fundamentals"
@@ -274,11 +274,8 @@ class ConditionalLogic:
     def _inject_break_message(state: AgentState, reason: str, messages: list = None) -> None:
         """向消息列表注入终止提示，指导 LLM 基于已获取数据生成报告。
 
-        当 reason 为 repeat_detected 时，查找重复工具上次的 ToolMessage 结果，
-        将实际数据注入提示，防止 LLM 编造数字（如 DeepSeek 幻觉 ¥47.53）。
-
-        同时将注入的消息保存到 state["_break_msg"], 供 analyst 在内容为空时
-        作为 fallback 报告。
+        _extract_repeated_tool_result 将工具返回的实际数据注入提示文本，
+        防止 LLM 编造数字（如 DeepSeek 幻觉 ¥47.53）。
         """
         msg = (
             "工具调用已终止（原因：{reason}）。"
@@ -287,16 +284,15 @@ class ConditionalLogic:
             "直接输出报告内容。如果数据确实不足，诚实标注局限性。"
         ).format(reason=reason)
 
-        if reason.startswith("repeat") and messages:
+        if messages:
             tool_data = ConditionalLogic._extract_repeated_tool_result(messages)
             if tool_data:
                 msg = (
-                    "以下工具已经成功获取过数据，请不要再重复调用:\n\n"
+                    "以下工具已经成功获取过数据:\n\n"
                     + tool_data
                     + "\n\n" + msg
                 )
 
-        state["_break_msg"] = msg
         state["messages"].append(HumanMessage(content=msg))
 
     @staticmethod

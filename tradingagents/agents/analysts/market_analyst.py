@@ -92,7 +92,25 @@ Select indicators that provide diverse and complementary information. Avoid redu
         filter_valid_tool_calls(result, tools)
 
         has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
-        content = result.content if (result.content and result.content != "[Processing]") else state.get("_break_msg", "")
+        from langchain_core.messages import ToolMessage
+
+        content = result.content if (result.content and result.content != "[Processing]") else ""
+        if not content or len(content) < 80:
+            for m in reversed(state["messages"]):
+                c = str(m.content or "") if m.content else ""
+                if (isinstance(m, ToolMessage) and len(c) > 30
+                        and "Error:" not in c and "not a valid tool" not in c):
+                    content = c[:5000]
+                    break
+
+        bm = ""
+        for m in reversed(state["messages"]):
+            c = getattr(m, 'content', '') or ''
+            if "以下工具已经成功获取过数据" in str(c):
+                bm = c
+                break
+        if bm:
+            content = bm + ("\n\n" + content if content else "")
 
         return {
             "messages": [result],
