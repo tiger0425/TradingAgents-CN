@@ -213,7 +213,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-1-red-injection-contract.txt
   ```
 
-- [ ] 2. TDD: 编写 failing test 验证 ReportRenderer 接入 executor
+- [x] 2. TDD: 编写 failing test 验证 ReportRenderer 接入 executor
 
   **What to do**:
   - 新建 `tests/test_report_renderer_integration.py`
@@ -254,7 +254,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-2-red-renderer-integration.txt
   ```
 
-- [ ] 3. TDD: 编写 failing test 验证行业字段白名单格式
+- [x] 3. TDD: 编写 failing test 验证行业字段白名单格式
 
   **What to do**:
   - 新建 `tests/test_whitelist.py`
@@ -295,7 +295,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-3-red-whitelist.txt
   ```
 
-- [ ] 4. TDD: 编写 failing test 验证 report_skeleton 模板字段
+- [x] 4. TDD: 编写 failing test 验证 report_skeleton 模板字段
 
   **What to do**:
   - 新建 `tests/test_template_report_skeleton.py`
