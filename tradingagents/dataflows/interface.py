@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import from vendor-specific modules
 from .y_finance import (
