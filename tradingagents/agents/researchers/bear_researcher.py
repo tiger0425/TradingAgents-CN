@@ -1,3 +1,4 @@
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.graph.context_manager import ContextWindowManager
 
 
@@ -48,7 +49,9 @@ def create_bear_researcher(llm):
                 anti_str = "、".join(anti_patterns)
                 industry_info += f"\n**⚠️ 严格禁止使用以下不适用于{industry}行业的术语：** {anti_str}"
 
-        prompt = f"""{industry_info}You are a Risk Analyst evaluating the potential downsides of this investment. Your goal is to present a well-reasoned assessment emphasizing risk factors, challenges, and cautionary indicators. Leverage the provided research and data to highlight potential concerns and counter optimistic assumptions effectively.
+        prompt = f"""{get_anti_hallucination_instruction("debate")}
+
+{industry_info}You are a Risk Analyst evaluating the potential downsides of this investment. Your goal is to present a well-reasoned assessment emphasizing risk factors, challenges, and cautionary indicators. Leverage the provided research and data to highlight potential concerns and counter optimistic assumptions effectively.
 
 {round_instruction}
 

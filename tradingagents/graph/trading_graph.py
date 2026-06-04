@@ -31,6 +31,7 @@ from tradingagents.dataflows.config import set_config
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
     get_stock_data,
+    get_current_price,
     get_indicators,
     get_fundamentals,
     get_balance_sheet,
@@ -41,6 +42,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_global_news,
     get_market_context,
 )
+from tradingagents.agents.utils.a_stock_data_tools import get_cls_flash, get_hot_stock_reasons
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
@@ -169,6 +171,8 @@ class TradingAgentsGraph:
         return {
             "market": ToolNode(
                 [
+                    # Current real-time price
+                    get_current_price,
                     # Core stock data tools
                     get_stock_data,
                     # Technical indicators
@@ -183,6 +187,10 @@ class TradingAgentsGraph:
                     get_social_sentiment_tool,
                     # News tools for cross-validation
                     get_news,
+                    # Real-time financial news flashes from 财联社
+                    get_cls_flash,
+                    # Hot stock reasons with theme/subject tags
+                    get_hot_stock_reasons,
                 ]
             ),
             "news": ToolNode(

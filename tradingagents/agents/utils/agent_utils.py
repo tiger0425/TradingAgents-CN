@@ -59,7 +59,12 @@ def get_degradation_instruction() -> str:
     from tradingagents.dataflows.config import get_config
     lang = (get_config().get("output_language") or "English")
     if lang.strip().lower() == "english":
-        return ""
+        return (
+            "Degradation policy: If a data source returns empty or is unavailable, "
+            "explicitly mark the data limitation in the report. Do not fabricate "
+            "data or invent information. If critical data is missing, be honest "
+            "and recommend deferring the decision."
+        )
     return (
         " 降级策略：若数据源返回空或不可用，请在报告中明确标注数据局限性，"
         "并基于已有信息提供有限分析。不得编造数据或虚构未获取到的信息。"
@@ -319,6 +324,13 @@ def filter_valid_tool_calls(result, valid_tools: list) -> None:
     valid_names = {t.name for t in valid_tools}
     filtered = [tc for tc in result.tool_calls if tc.get('name') in valid_names]
     if len(filtered) != len(result.tool_calls):
+        removed = [tc['name'] for tc in result.tool_calls if tc.get('name') not in valid_names]
+        valid_list = ", ".join(sorted(valid_names))
+        feedback = f"[已过滤不可用工具: {', '.join(removed)}。当前可用工具: {valid_list}]"
+        if result.content and result.content != "[Processing]":
+            result.content = feedback + "\n" + result.content
+        else:
+            result.content = feedback
         result.tool_calls = filtered
     if not result.content:
         result.content = "[Processing]"

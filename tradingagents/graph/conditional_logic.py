@@ -45,18 +45,28 @@ class ConditionalLogic:
         2. 调用超限 — 历史总工具调用次数 >= max_tool_calls_per_analyst
         3. 交替无进展 — 最近 N 次调用仅由 2-3 种 (工具,参数) 组合构成，无新信息
 
+        FIX-8 P0: 仅从当前 analyst 启动时（state 中 <analyst_type>_start_idx）
+        开始计数，避免前序 analyst 的工具调用消息污染当前配额。
+
         Returns:
             (True, reason) 如果检测到循环；(False, "ok") 如果正常。
         """
         messages = state["messages"]
+
+        start_idx_key = f"{analyst_type}_start_idx"
+        start_idx = state.get(start_idx_key, -1)
+        if start_idx is None or start_idx < 0:
+            start_idx = 0
+
+        scoped_messages = messages[start_idx:]
         tool_call_msgs = [
-            msg for msg in messages[-20:]  # 只看最近 20 条消息
+            msg for msg in scoped_messages[-20:]
             if hasattr(msg, 'tool_calls') and msg.tool_calls
         ]
 
         # --- 检查 1: 总调用次数超限（优先级最高）---
         tool_msg_count = sum(
-            1 for msg in messages
+            1 for msg in scoped_messages
             if hasattr(msg, 'tool_calls') and msg.tool_calls
         )
         max_allowed = self._analyst_tool_limits.get(
@@ -64,14 +74,14 @@ class ConditionalLogic:
         )
         if tool_msg_count >= max_allowed:
             logger.warning(
-                "Tool call limit exceeded for %s: %d calls",
-                analyst_type, tool_msg_count,
+                "Tool call limit exceeded for %s: %d calls (start_idx=%d)",
+                analyst_type, tool_msg_count, start_idx,
             )
             return True, "limit_exceeded"
 
         # --- 检查 2: 连续重复 ---
         last_calls: list[str] = []
-        for msg in tool_call_msgs[-5:]:  # 最近 5 次带工具调用的消息
+        for msg in tool_call_msgs[-5:]:
             for tc in msg.tool_calls:
                 call_key = f"{tc.get('name', '')}:{str(tc.get('args', {}))}"
                 last_calls.append(call_key)
@@ -90,11 +100,9 @@ class ConditionalLogic:
                 return True, "repeat_detected"
 
         # --- 检查 3: 交替无进展 ---
-        # 如果最近 6+ 次调用只有 2-3 种组合且严格交替 → 无进展
         if len(last_calls) >= 6:
             unique = set(last_calls)
             if 2 <= len(unique) <= 3:
-                # 确认没有连续重复（连续重复已在检查 2 捕获）
                 logger.warning(
                     "Tool loop detected for %s: alternating calls without progress "
                     "(unique=%d, total=%d)",

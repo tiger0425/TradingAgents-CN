@@ -19,7 +19,7 @@ so that:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -240,3 +240,201 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
     if decision.time_horizon:
         parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
     return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Market Analyst
+# ---------------------------------------------------------------------------
+
+
+class MarketReport(BaseModel):
+    """Structured technical analysis report produced by the Market Analyst.
+
+    Covers price action, volume, and indicator-based readings for a ticker.
+    The trend direction and supporting indicators are captured in structured
+    fields, while the full narrative lives in markdown_body.
+    """
+
+    ticker: str = Field(description="Ticker symbol being analysed.")
+    analysis_date: str = Field(description="Date of the analysis in YYYY-MM-DD format.")
+    trend: Literal["bullish", "bearish", "neutral"] = Field(
+        description=(
+            "Overall market / price trend direction. "
+            "Chinese: 市场/价格趋势方向，可选 bullish / bearish / neutral。"
+        ),
+    )
+    indicators_used: list[str] = Field(
+        description="List of technical indicators consulted (e.g. RSI, MACD, SMA50, SMA200).",
+    )
+    key_findings: list[str] = Field(
+        description="Key technical observations that drove the trend conclusion.",
+    )
+    markdown_body: str = Field(
+        description="Full prose technical analysis in markdown format.",
+    )
+
+
+def render_market_report(report: MarketReport) -> str:
+    """Render a MarketReport to markdown for storage and downstream agents."""
+    indicators = ", ".join(report.indicators_used)
+    findings = "\n".join(f"- {f}" for f in report.key_findings)
+    return "\n".join([
+        f"# Market Analysis: {report.ticker}",
+        "",
+        f"**Date**: {report.analysis_date}",
+        f"**Trend**: {report.trend}",
+        f"**Indicators Used**: {indicators}",
+        "",
+        "**Key Findings**:",
+        findings,
+        "",
+        "---",
+        "",
+        report.markdown_body,
+    ])
+
+
+# ---------------------------------------------------------------------------
+# Fundamentals Analyst
+# ---------------------------------------------------------------------------
+
+
+class FundamentalsReport(BaseModel):
+    """Structured fundamentals analysis report produced by the Fundamentals Analyst.
+
+    Captures financial health, key metrics, and narrative analysis for a
+    ticker based on financial statements and valuation models.
+    """
+
+    ticker: str = Field(description="Ticker symbol being analysed.")
+    analysis_date: str = Field(description="Date of the analysis in YYYY-MM-DD format.")
+    financial_health: Literal["strong", "moderate", "weak"] = Field(
+        description=(
+            "Assessment of the company's financial health based on its "
+            "financial statements. "
+            "Chinese: 基于财务报表的公司财务健康评估，可选 strong / moderate / weak。"
+        ),
+    )
+    key_metrics: dict[str, float] = Field(
+        description="Key financial metrics (e.g. P/E ratio, EPS growth, debt-to-equity).",
+    )
+    key_findings: list[str] = Field(
+        description="Key fundamental observations that drove the health assessment.",
+    )
+    markdown_body: str = Field(
+        description="Full prose fundamentals analysis in markdown format.",
+    )
+
+
+def render_fundamentals_report(report: FundamentalsReport) -> str:
+    """Render a FundamentalsReport to markdown for storage and downstream agents."""
+    metrics = "\n".join(f"- **{k}**: {v}" for k, v in report.key_metrics.items())
+    findings = "\n".join(f"- {f}" for f in report.key_findings)
+    return "\n".join([
+        f"# Fundamentals Analysis: {report.ticker}",
+        "",
+        f"**Date**: {report.analysis_date}",
+        f"**Financial Health**: {report.financial_health}",
+        "",
+        "**Key Metrics**:",
+        metrics,
+        "",
+        "**Key Findings**:",
+        findings,
+        "",
+        "---",
+        "",
+        report.markdown_body,
+    ])
+
+
+# ---------------------------------------------------------------------------
+# News Analyst
+# ---------------------------------------------------------------------------
+
+
+class NewsReport(BaseModel):
+    """Structured news-analysis report produced by the News Analyst.
+
+    Summarises recent news events relevant to the ticker and assigns an
+    aggregate sentiment direction.
+    """
+
+    ticker: str = Field(description="Ticker symbol being analysed.")
+    analysis_date: str = Field(description="Date of the analysis in YYYY-MM-DD format.")
+    sentiment: Literal["positive", "negative", "neutral"] = Field(
+        description=(
+            "Aggregate news sentiment for the ticker. "
+            "Chinese: 该标的的整体新闻情绪，可选 positive / negative / neutral。"
+        ),
+    )
+    key_events: list[str] = Field(
+        description="Key recent news events that influenced the sentiment assessment.",
+    )
+    markdown_body: str = Field(
+        description="Full prose news analysis in markdown format.",
+    )
+
+
+def render_news_report(report: NewsReport) -> str:
+    """Render a NewsReport to markdown for storage and downstream agents."""
+    events = "\n".join(f"- {e}" for e in report.key_events)
+    return "\n".join([
+        f"# News Analysis: {report.ticker}",
+        "",
+        f"**Date**: {report.analysis_date}",
+        f"**Sentiment**: {report.sentiment}",
+        "",
+        "**Key Events**:",
+        events,
+        "",
+        "---",
+        "",
+        report.markdown_body,
+    ])
+
+
+# ---------------------------------------------------------------------------
+# Social / Sentiment Analyst
+# ---------------------------------------------------------------------------
+
+
+class SocialReport(BaseModel):
+    """Structured social-media / sentiment report produced by the Social Analyst.
+
+    Captures aggregate social sentiment, trending topics, and narrative
+    analysis from social media and alternative data sources.
+    """
+
+    ticker: str = Field(description="Ticker symbol being analysed.")
+    analysis_date: str = Field(description="Date of the analysis in YYYY-MM-DD format.")
+    sentiment: Literal["bullish", "bearish", "neutral"] = Field(
+        description=(
+            "Aggregate social-media sentiment for the ticker. "
+            "Chinese: 该标的的社交媒体整体情绪，可选 bullish / bearish / neutral。"
+        ),
+    )
+    hot_topics: list[str] = Field(
+        description="Trending social-media topics relevant to the ticker.",
+    )
+    markdown_body: str = Field(
+        description="Full prose social-media analysis in markdown format.",
+    )
+
+
+def render_social_report(report: SocialReport) -> str:
+    """Render a SocialReport to markdown for storage and downstream agents."""
+    topics = "\n".join(f"- {t}" for t in report.hot_topics)
+    return "\n".join([
+        f"# Social Media Analysis: {report.ticker}",
+        "",
+        f"**Date**: {report.analysis_date}",
+        f"**Sentiment**: {report.sentiment}",
+        "",
+        "**Hot Topics**:",
+        topics,
+        "",
+        "---",
+        "",
+        report.markdown_body,
+    ])

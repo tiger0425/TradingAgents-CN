@@ -29,8 +29,8 @@ def bootstrap(env_file: str = ".env"):
     config = DEFAULT_CONFIG.copy()
     config = _apply_env_overrides(config)
 
-    deep_llm, quick_llm = _create_llms(config)
-    if not deep_llm or not quick_llm:
+    llms = _create_llms(config)
+    if not llms:
         logger.warning("LLM clients unavailable — planner and executor disabled")
         return None
     tool_nodes = _create_tool_nodes()
@@ -40,10 +40,10 @@ def bootstrap(env_file: str = ".env"):
     from .graph.executor import GraphExecutor
 
     kb = KnowledgeBase()
-    planner = LLMPlanner(kb=kb, llm=quick_llm)
+    planner = LLMPlanner(kb=kb, llm=llms["analyst"])
     executor = GraphExecutor(
-        quick_thinking_llm=quick_llm,
-        deep_thinking_llm=deep_llm,
+        quick_thinking_llm=llms["analyst"],
+        deep_thinking_llm=llms["deep"],
         tool_nodes=tool_nodes,
         max_debate_rounds=config.get("max_debate_rounds", 1),
         max_risk_rounds=config.get("max_risk_discuss_rounds", 1),
@@ -92,7 +92,10 @@ def _create_llms(config: dict):
     from .llm_clients import create_llm_client
     from .llm_clients.validators import validate_model
 
-    llm_kwargs = {}
+    llm_kwargs = {
+        "temperature": config.get("llm_temperature", 0.0),
+        "max_tokens": config.get("llm_max_tokens", 4096),
+    }
     provider = config.get("llm_provider", "").lower()
 
     deep_model = config.get("deep_think_llm", "")
@@ -118,36 +121,71 @@ def _create_llms(config: dict):
         if config.get("anthropic_effort"):
             llm_kwargs["effort"] = config["anthropic_effort"]
 
+    quick_provider = os.getenv("TRADINGAGENTS_QUICK_LLM_PROVIDER") or config["llm_provider"]
+    quick_model = config["quick_think_llm"]
+    backend_url = config.get("backend_url")
+
     try:
         deep_client = create_llm_client(
             provider=config["llm_provider"],
             model=config["deep_think_llm"],
-            base_url=config.get("backend_url"),
+            base_url=backend_url,
             **llm_kwargs,
         )
-        quick_provider = os.getenv("TRADINGAGENTS_QUICK_LLM_PROVIDER") or config["llm_provider"]
+        # Base quick client (temperature=0.0) for analyst
         quick_client = create_llm_client(
             provider=quick_provider,
-            model=config["quick_think_llm"],
-            base_url=config.get("backend_url"),
+            model=quick_model,
+            base_url=backend_url,
             **llm_kwargs,
+        )
+        # Role-specific quick clients with differentiated temperatures
+        debate_kwargs = {**llm_kwargs, "temperature": config.get("llm_debate_temperature", 0.3)}
+        debate_client = create_llm_client(
+            provider=quick_provider,
+            model=quick_model,
+            base_url=backend_url,
+            **debate_kwargs,
+        )
+        risk_kwargs = {**llm_kwargs, "temperature": config.get("llm_risk_temperature", 0.2)}
+        risk_client = create_llm_client(
+            provider=quick_provider,
+            model=quick_model,
+            base_url=backend_url,
+            **risk_kwargs,
+        )
+        decision_kwargs = {**llm_kwargs, "temperature": config.get("llm_decision_temperature", 0.1)}
+        decision_client = create_llm_client(
+            provider=quick_provider,
+            model=quick_model,
+            base_url=backend_url,
+            **decision_kwargs,
         )
     except Exception as e:
         logger.warning("LLM client creation failed (missing API key?): %s", e)
-        return None, None
+        return None
 
     deep_llm = deep_client.get_llm()
-    quick_llm = quick_client.get_llm()
+    analyst_llm = quick_client.get_llm()
+    debate_llm = debate_client.get_llm()
+    risk_llm = risk_client.get_llm()
+    decision_llm = decision_client.get_llm()
 
-    # FIX-4: wrap deep_llm with automatic retry + fallback to quick_llm
+    # FIX-4: wrap deep_llm with automatic retry + fallback to analyst_llm
     from .llm_clients.resilient_llm import ResilientLLM
     resilient_deep = ResilientLLM(
         primary=deep_llm,
-        fallback=quick_llm,
+        fallback=analyst_llm,
         max_retries=2,
         retry_delay=3.0,
     )
-    return resilient_deep, quick_llm
+    return {
+        "analyst": analyst_llm,
+        "debate": debate_llm,
+        "risk": risk_llm,
+        "decision": decision_llm,
+        "deep": resilient_deep,
+    }
 
 
 def _create_tool_nodes():
@@ -158,18 +196,13 @@ def _create_tool_nodes():
         get_current_price,
         get_indicators,
         get_fundamentals,
-        get_balance_sheet,
-        get_cashflow,
-        get_income_statement,
         get_news,
-        get_insider_transactions,
         get_global_news,
         get_market_context,
     )
     from .agents.utils.social_sentiment_tools import get_social_sentiment_tool
     from .agents.utils.a_stock_data_tools import (
-        get_cls_flash, get_hot_stock_reasons, get_margin_trading,
-        get_institutional_holdings,
+        get_cls_flash, get_hot_stock_reasons,
     )
 
     return {
@@ -188,15 +221,9 @@ def _create_tool_nodes():
         "news": ToolNode([
             get_news,
             get_global_news,
-            get_insider_transactions,
         ]),
         "fundamentals": ToolNode([
             get_fundamentals,
-            get_balance_sheet,
-            get_cashflow,
-            get_income_statement,
-            get_margin_trading,
-            get_institutional_holdings,
         ]),
     }
 

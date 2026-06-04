@@ -13,10 +13,6 @@ def get_fundamentals(
     This tool ALREADY aggregates: real-time stock price + balance sheet
     + income statement + cash flow statement in a single call.
 
-    IMPORTANT: After calling get_fundamentals, you do NOT need to call
-    get_balance_sheet, get_cashflow, or get_income_statement UNLESS you
-    need a specific quarterly/annual breakdown not covered in the report.
-
     Uses the configured fundamental_data vendor.
     Args:
         ticker (str): Ticker symbol of the company

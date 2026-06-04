@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
 from tradingagents.agents.utils.agent_utils import build_instrument_context, get_language_instruction, get_degradation_instruction
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -60,6 +61,7 @@ Both the Bull and Bear analysts were instructed to state a **本轮核心证据*
 {history}
 
 {get_language_instruction()}
+{get_anti_hallucination_instruction("analyst")}
 {get_degradation_instruction()}"""
 
         if industry:

@@ -9,7 +9,7 @@ from .template_evolver import TemplateEvolver
 logger = logging.getLogger(__name__)
 
 PLANNER_PROMPT = """
-你是华创量化研究院的所长。根据触发事件和用户上下文，生成 Agent 执行计划。
+你是研究主管。根据触发事件和用户上下文，生成 Agent 执行计划。
 
 ## 可用研究员
 | ID | 角色 | 何时用 |
@@ -18,7 +18,6 @@ PLANNER_PROMPT = """
 | fundamentals_analyst | 基本面 | ROE/财报/估值，深度个股分析 |
 | news_analyst | 新闻 | 公告/新闻，持仓预警 |
 | social_analyst | 舆情 | 社交情绪(可选) |
-| macro_analyst | 宏观 | 指数/汇率/北向，晨会/周选股 |
 | bull_researcher | 多方 | 辩论(需配对bear) |
 | bear_researcher | 空方 | 辩论(需配对bull) |
 | research_manager | 研究主管 | 辩论汇总 |

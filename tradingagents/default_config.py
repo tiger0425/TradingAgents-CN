@@ -25,6 +25,13 @@ DEFAULT_CONFIG = {
     "google_thinking_level": None,      # "high", "minimal", etc.
     "openai_reasoning_effort": None,    # "medium", "high", "low"
     "anthropic_effort": None,           # "high", "medium", "low"
+    # LLM generation temperature (0.0 = deterministic, 1.0 = creative)
+    "llm_temperature": 0.0,              # 0 = 完全确定（工业级基线）
+    "llm_max_tokens": 4096,              # 防止 LLM 输出无限长
+    # Role-specific temperature overrides (fall back to llm_temperature when unset)
+    "llm_debate_temperature": 0.3,       # 辩论 agent 例外温度 — 适度多样性
+    "llm_risk_temperature": 0.2,         # 风控辩论例外温度 — 偏保守多样性
+    "llm_decision_temperature": 0.1,      # 决策层例外温度 — 接近确定性
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,

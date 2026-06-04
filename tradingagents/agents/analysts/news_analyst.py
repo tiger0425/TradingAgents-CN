@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tradingagents.agents.schemas import NewsReport, render_news_report
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_news,
@@ -10,10 +11,17 @@ from tradingagents.agents.utils.agent_utils import (
     filter_valid_tool_calls,
     _is_first_entry,
 )
+from tradingagents.agents.utils.structured import (
+    bind_structured,
+    invoke_structured_or_freetext,
+)
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.dataflows.config import get_config
 
 
 def create_news_analyst(llm):
+    structured_llm = bind_structured(llm, NewsReport, "News Analyst")
+
     def news_analyst_node(state):
         current_date = state["trade_date"]
         company_name = state.get("company_name", "")
@@ -22,13 +30,17 @@ def create_news_analyst(llm):
         if industry:
             instrument_context += f"\n\n**行业政策关注：** 该公司属于 {industry} 行业，请重点关注该行业的产业政策、监管动态和行业重大新闻。\n"
 
+        # FIX-8 P0: 工具循环计数起点，首次进入时固化
+        if state.get("news_start_idx", -1) < 0:
+            state["news_start_idx"] = len(state["messages"])
+
         tools = [
             get_news,
             get_global_news,
         ]
 
         system_message = (
-            "You are a news researcher tasked with analyzing recent news and macro-economic trends over the past week. Please write a comprehensive report of the current state of the macro environment and news that are most relevant to the company being researched. Look at news and trends across multiple sectors. Make sure to include as much detail as possible. Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            "You are a news researcher tasked with analyzing recent news and macro-economic trends over the past week. Please write a comprehensive report of the current state of the macro environment and news that are most relevant to the company being researched. Look at news and trends across multiple sectors."
             + " Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."
             + """
 **A-Share News Analysis Focus:**
@@ -40,6 +52,7 @@ def create_news_analyst(llm):
    - 大股东增减持: insider buying/selling signals
 """
             + get_language_instruction()
+            + get_anti_hallucination_instruction("analyst")
             + get_degradation_instruction()
             + " Remember: you are the news and macro environment specialist. Your insights inform trading decisions but you are NOT responsible for the final decision.",
         )
@@ -85,9 +98,24 @@ def create_news_analyst(llm):
         if bm:
             content = bm + ("\n\n" + content if content else "")
 
+        if not has_tool_calls and content:
+            try:
+                fmt_prompt = (
+                    f"Reformat the following news analysis for {company_name} "
+                    f"({state['company_of_interest']}) into a structured news report.\n\n"
+                    f"Analysis:\n{content}"
+                )
+                content = invoke_structured_or_freetext(
+                    structured_llm, llm, fmt_prompt,
+                    render_news_report, "News Analyst",
+                )
+            except Exception:
+                pass
+
         return {
             "messages": [result],
             "news_report": content,
+            "news_start_idx": state["news_start_idx"],
         }
 
     return news_analyst_node

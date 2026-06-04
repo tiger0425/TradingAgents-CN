@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from tradingagents.agents.schemas import SocialReport, render_social_report
 from tradingagents.agents.utils.agent_utils import (
     build_instrument_context,
     get_language_instruction,
@@ -9,11 +10,18 @@ from tradingagents.agents.utils.agent_utils import (
     filter_valid_tool_calls,
     _is_first_entry,
 )
+from tradingagents.agents.utils.structured import (
+    bind_structured,
+    invoke_structured_or_freetext,
+)
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.agents.utils.social_sentiment_tools import get_social_sentiment_tool
 from tradingagents.agents.utils.a_stock_data_tools import get_cls_flash, get_hot_stock_reasons
 
 
 def create_social_media_analyst(llm):
+    structured_llm = bind_structured(llm, SocialReport, "Social Media Analyst")
+
     def social_media_analyst_node(state):
         current_date = state["trade_date"]
         company_name = state.get("company_name", "")
@@ -21,6 +29,10 @@ def create_social_media_analyst(llm):
         instrument_context = build_instrument_context(state["company_of_interest"], industry=industry, company_name=company_name, quick_llm=llm)
         if industry:
             instrument_context += f"\n\n**行业舆情特征：** 该公司属于 {industry} 行业，请结合该行业的舆情特点和市场关注焦点进行分析。\n"
+
+        # FIX-8 P0: 工具循环计数起点，首次进入时固化
+        if state.get("social_start_idx", -1) < 0:
+            state["social_start_idx"] = len(state["messages"])
 
         tools = [
             get_social_sentiment_tool,
@@ -53,6 +65,7 @@ def create_social_media_analyst(llm):
             "rely on news analysis to supplement. Do NOT fabricate sentiment data.\n\n"
             "Make sure to append a Markdown table at the end of the report to organize key points."
             + get_language_instruction()
+            + get_anti_hallucination_instruction("analyst")
             + get_degradation_instruction()
         )
 
@@ -96,9 +109,26 @@ def create_social_media_analyst(llm):
         if bm:
             content = bm + ("\n\n" + content if content else "")
 
+        has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
+
+        if not has_tool_calls and content:
+            try:
+                fmt_prompt = (
+                    f"Reformat the following social sentiment analysis for {company_name} "
+                    f"({state['company_of_interest']}) into a structured social report.\n\n"
+                    f"Analysis:\n{content}"
+                )
+                content = invoke_structured_or_freetext(
+                    structured_llm, llm, fmt_prompt,
+                    render_social_report, "Social Media Analyst",
+                )
+            except Exception:
+                pass
+
         return {
             "messages": [result],
             "sentiment_report": content,
+            "social_start_idx": state["social_start_idx"],
         }
 
     return social_media_analyst_node

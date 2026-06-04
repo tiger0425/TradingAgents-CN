@@ -204,6 +204,7 @@ class MiniMaxChatOpenAI(NormalizedChatOpenAI):
 _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "reasoning_effort",
     "api_key", "callbacks", "http_client", "http_async_client",
+    "temperature", "max_tokens",
 )
 
 # Provider base URLs and API key env vars

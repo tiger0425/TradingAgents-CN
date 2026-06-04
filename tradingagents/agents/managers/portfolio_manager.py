@@ -17,6 +17,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_degradation_instruction,
     format_past_context,
 )
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.agents.utils.structured import (
     bind_structured,
     invoke_structured_or_freetext,
@@ -101,7 +102,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_degradation_instruction()}
+Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}{get_anti_hallucination_instruction("analyst")}{get_degradation_instruction()}
 {format_limit_constraint(limit_up, limit_down, market_type)}
 {position_context}
 {format_t_plus_1_constraint(position_opened_date, trade_date, market_type)}"""

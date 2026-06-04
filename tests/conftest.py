@@ -7,7 +7,7 @@ import pytest
 
 
 def pytest_configure(config):
-    for marker in ("unit", "integration", "smoke"):
+    for marker in ("unit", "integration", "smoke", "slow"):
         config.addinivalue_line("markers", f"{marker}: {marker}-level tests")
 
 

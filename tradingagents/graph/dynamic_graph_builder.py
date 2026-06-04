@@ -28,12 +28,10 @@ TOOL_KEY_MAP = {
     "fundamentals_analyst": "fundamentals",
     "news_analyst": "news",
     "social_analyst": "social",
-    "macro_analyst": "market",
 }
 
 _STATE_KEYS = {
     "market_analyst": "market_report",
-    "macro_analyst": "market_report",
     "fundamentals_analyst": "fundamentals_report",
     "news_analyst": "news_report",
     "social_analyst": "sentiment_report",
@@ -42,7 +40,7 @@ _STATE_KEYS = {
 
 ANALYST_AGENTS = {
     "market_analyst", "fundamentals_analyst", "news_analyst",
-    "social_analyst", "macro_analyst",
+    "social_analyst",
 }
 
 
@@ -161,7 +159,6 @@ class DynamicGraphBuilder:
                         "fundamentals_analyst": "should_continue_fundamentals",
                         "news_analyst": "should_continue_news",
                         "social_analyst": "should_continue_social",
-                        "macro_analyst": "should_continue_market",
                     }
                     cond_method = condition_map.get(agent_id)
                     if cond_method:
@@ -200,7 +197,11 @@ class DynamicGraphBuilder:
                 else:
                     graph.add_edge(START, start_node)
 
-            for dep_num in step.get("depends_on", []):
+            for dep in step.get("depends_on", []):
+                # Normalize: dep may be int, dict, or WorkflowStep
+                dep_num = dep.get("step", dep) if isinstance(dep, dict) else (
+                    dep.step if hasattr(dep, 'step') else dep
+                )
                 # 辩论/风控辩论组：跳过 depends_on 边，由条件边接管路由
                 if agent_id in skip_depends_agents:
                     continue
@@ -245,7 +246,6 @@ class DynamicGraphBuilder:
             "fundamentals_analyst": ("tools_fundamentals", "Msg Clear Fundamentals"),
             "news_analyst": ("tools_news", "Msg Clear News"),
             "social_analyst": ("tools_social", "Msg Clear Social"),
-            "macro_analyst": ("tools_market", "Msg Clear Market"),
         }
         return mapping.get(agent_id, ("", ""))
 
@@ -259,7 +259,6 @@ class DynamicGraphBuilder:
             "fundamentals_analyst": "should_continue_fundamentals",
             "news_analyst": "should_continue_news",
             "social_analyst": "should_continue_social",
-            "macro_analyst": "should_continue_market",
         }
         condition_method = condition_map.get(agent_id)
         if condition_method:
@@ -341,7 +340,7 @@ class DynamicGraphBuilder:
     def _known_agents(self):
         return {
             "market_analyst", "fundamentals_analyst", "news_analyst",
-            "social_analyst", "macro_analyst", "bull_researcher",
+            "social_analyst", "bull_researcher",
             "bear_researcher", "research_manager", "trader",
             "risk_aggressive", "risk_conservative", "risk_neutral",
             "portfolio_manager",
@@ -354,8 +353,7 @@ class DynamicGraphBuilder:
             "fundamentals_analyst": create_fundamentals_analyst,
             "news_analyst": create_news_analyst,
             "social_analyst": create_social_media_analyst,
-            "macro_analyst": create_market_analyst,
-            "bull_researcher": create_bull_researcher,
+    "bull_researcher": create_bull_researcher,
             "bear_researcher": create_bear_researcher,
             "research_manager": create_research_manager,
             "trader": create_trader,
@@ -373,8 +371,7 @@ class DynamicGraphBuilder:
     # Agents whose outputs write to the same state key (can't run in parallel)
     _ANALYST_STATE_KEY_MAP = {
         "market_analyst": "market_report",
-        "macro_analyst": "macro_report",
-        "fundamentals_analyst": "fundamentals_report",
+    "fundamentals_analyst": "fundamentals_report",
         "news_analyst": "news_report",
         "social_analyst": "sentiment_report",
     }

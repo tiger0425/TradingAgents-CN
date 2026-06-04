@@ -94,3 +94,10 @@ class AgentState(MessagesState):
     quantity: Annotated[int, "Number of shares held"] = 0
     position_pnl: Annotated[float, "Unrealized P&L amount in quote currency"] = 0.0
     position_pnl_pct: Annotated[Optional[float], "Unrealized P&L percentage (None for zero-cost)"] = None
+
+    # FIX-8 P0: 分析师工具循环检测起点（防止跨节点污染）
+    # sentinel -1 表示未初始化；analyst 节点首次进入时设置，_detect_tool_loop 由此起算
+    market_start_idx: Annotated[int, "market_analyst 启动时 messages 长度"] = -1
+    fundamentals_start_idx: Annotated[int, "fundamentals_analyst 启动时 messages 长度"] = -1
+    news_start_idx: Annotated[int, "news_analyst 启动时 messages 长度"] = -1
+    social_start_idx: Annotated[int, "social_media_analyst 启动时 messages 长度"] = -1

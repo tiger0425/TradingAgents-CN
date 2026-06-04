@@ -7,6 +7,53 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.16-cn] — 2026-06-04
+
+### Overview
+**工业级质量差距修复** — 基于 `docs/工业级质量差距全面诊断.md` (v0.2.14~0.2.16-cn) 的 24 个实施任务，解决 5 个根因和 3 个架构缺口，使系统从"概率性玩具"升级为"工业级确定性流水线"。详见 `.omo/plans/industrial-quality-fix.md`。
+
+### Added
+
+- **全局 LLM temperature 控制** — `default_config.py` 新增 `llm_temperature`(0.0)、`llm_max_tokens`(4096)、`llm_debate_temperature`(0.3)、`llm_risk_temperature`(0.2)、`llm_decision_temperature`(0.1) 五个配置键。
+- **4 层差异化 LLM 实例** — `bootstrap.py:_create_llms()` 从返回 2 LLM 扩展为返回 `{"analyst","debate","risk","decision","deep"}` 5 键字典，辩论/风控/决策层各使用独立 temperature。
+- **4 LLM 客户端 temperature 透传** — `openai/anthropic/azure/google_client.py` 四个文件的 `_PASSTHROUGH_KWARGS`（或内联 tuple）全部添加 `"temperature"` 和 `"max_tokens"`。
+- **`indicator_registry.py` 单一真理源** — 解决 4 个分散位置（market_analyst system prompt、technical_indicators_tools schema、akshare._INDICATOR_DESCRIPTIONS、a_stock_data.col_map）各自硬编码指标名的问题，建为 `tradingagents/agents/utils/indicator_registry.py`。
+- **全局防幻觉指令 (`prompt_constants.py`)** — 中英双语全覆盖（12 个 agent），辩论 agent 使用轻量化版（ADR 选项 B："不要发明新数字，只引用报告"）。
+- **English 模式防幻觉退化修复** — `get_degradation_instruction()` 在 English 模式下从返回空字符串改为返回完整约束文本，消除了国际化场景下所有 agent 防幻觉约束消失的问题。
+- **`IndustryVerifier` 扩展** — 新增 3 个静态方法：`verify_metric_sources()`（数字溯源）、`detect_foreign_terms()`（境外术语检测）、`detect_cross_report_contradictions()`（跨报告矛盾检测）。
+- **4 分析师 Pydantic schema 结构化输出** — `schemas.py` 新增 `MarketReport`/`FundamentalsReport`/`NewsReport`/`SocialReport`，4 个分析师接入 `with_structured_output`。
+- **`ReportRenderer` 统一渲染中间件** — `tradingagents/graph/report_renderer.py` 固定三段式（核心结论→关键数据→风险提示），消除跨标的报告风格漂移（v0.2.15-cn 跨 2 修复）。
+- **`scripts/verify_tool_alignment.py`** — AST 解析 4 分析师 bind_tools 与 bootstrap.py ToolNode 注册表，自动化检测不匹配，CI 可集成。
+- **专项测试套件** — 新增 7 个测试文件（`test_llm_config.py`/`test_determinism.py`/`test_anti_hallucination.py`/`test_agent_tool_binding.py`/`test_indicator_registry.py`/`test_analyst_schemas.py`/`test_verifier_extended.py`），共 41 个测试、全部通过。
+
+### Changed
+
+- **`bootstrap.py:_create_llms()`** — 返回值从 `tuple` 改为 `dict`，调用者同步更新。
+- **`bootstrap.py` ToolNode 注册** — fundamentals ToolNode 从 6 个工具缩减为 1 个（`get_fundamentals`），news ToolNode 从 3 个缩减为 2 个，与 bind_tools 完全对齐（方案 A）。
+- **`agent_utils.py:get_degradation_instruction()`** — English 模式返回完整英文约束文本。
+- **`market_analyst.py` system prompt** — 硬编码 12 个指标名替换为从 `indicator_registry` 动态生成。
+- **`technical_indicators_tools.py`** — tool schema description 从示例改为从注册表枚举完整有效值。
+- **`akshare.py`/`a_stock_data.py`** — `_INDICATOR_DESCRIPTIONS` 和 `col_map` 改为从 `indicator_registry` 导入。
+- **12 个 agent 文件** — system_message 拼接处统一注入 `get_anti_hallucination_instruction()`，删除 3 处鼓励幻觉措辞（"Make sure to include as much detail as possible" 等）。
+
+### Fixed
+
+- **`filter_valid_tool_calls` 反馈噪声** — bind_tools 对齐后消除。
+- **`macro_analyst` 全链路清除** — `dynamic_graph_builder.py` 死代码 + Planner 模板 JSON + Planner prompt 表项，共 3 处残留全部删除。
+- **Planner 晨会模板更新** — `tpl_morning_briefing.json` 删除 macro_analyst step，索引重新编号。
+
+### Removed
+
+- `bootstrap.py` ToolNode 冗余注册：`get_balance_sheet`/`get_cashflow`/`get_income_statement`/`get_margin_trading`/`get_institutional_holdings`/`get_insider_transactions`（6 个仅在 ToolNode 注册但 LLM 永远无法调用的工具）。
+- `dynamic_graph_builder.py:31` — `"macro_analyst": "market"` 死代码映射（agent 不存在但仍有路由映射）。
+- 3 处鼓励幻觉措辞 — `fundamentals_analyst.py:37`/`news_analyst.py:35` 的 "Make sure to include as much detail as possible" 和 `market_analyst.py:55` 的 "Write a very detailed and nuanced report"。
+
+### Documentation
+- `docs/工业级质量差距全面诊断.md` 新增 v0.2.16-cn 第十二章 — P0+P1 修复实施验证报告（3 个微观缺口 + 端到端确定性实测）
+- `.omo/plans/industrial-quality-fix.md` — 28 任务完整执行计划
+- `.omo/evidence/` — F1~F4 审核证据文件
+
+
 ## [0.2.11-cn] — 2026-06-03
 
 ### Added

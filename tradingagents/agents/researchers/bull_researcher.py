@@ -1,3 +1,4 @@
+from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
 from tradingagents.graph.context_manager import ContextWindowManager
 
 
@@ -48,7 +49,9 @@ def create_bull_researcher(llm):
                 anti_str = "、".join(anti_patterns)
                 industry_info += f"\n**⚠️ 严格禁止使用以下不适用于{industry}行业的术语：** {anti_str}"
 
-        prompt = f"""{industry_info}You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
+        prompt = f"""{get_anti_hallucination_instruction("debate")}
+
+{industry_info}You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
 {round_instruction}
 

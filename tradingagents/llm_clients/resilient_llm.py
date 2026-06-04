@@ -161,6 +161,9 @@ class ResilientLLM:
                 return self.fallback.with_structured_output(schema, **kwargs)
             raise
 
+    def bind_tools(self, tools: list, **kwargs: Any) -> Any:
+        return self.primary.bind_tools(tools, **kwargs)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
