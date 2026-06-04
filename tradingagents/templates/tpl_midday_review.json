@@ -7,33 +7,82 @@
   "use_count": 0,
   "success_rate": 0.9,
   "match_patterns": {
-    "keywords": ["午评", "午间", "上午", "盘中", "midday"],
+    "keywords": [
+      "午评",
+      "午间",
+      "上午",
+      "盘中",
+      "midday"
+    ],
     "required_context": [],
     "negative_keywords": [],
     "description": "午间快速评估：上午持仓表现 + 偏离度检查"
   },
   "workflow": [
     {
-      "step": 1, "agent": "market_analyst",
+      "step": 1,
+      "agent": "market_analyst",
       "task": "检查所有持仓股上午表现：谁涨谁跌？谁放量？谁触及关键价位？",
-      "context": ["持仓列表", "上午行情"],
-      "depends_on": [], "expected_output": "持仓股上午表现摘要"
+      "context": [
+        "持仓列表",
+        "上午行情"
+      ],
+      "depends_on": [],
+      "expected_output": "持仓股上午表现摘要"
     },
     {
-      "step": 2, "agent": "risk_conservative",
+      "step": 2,
+      "agent": "risk_conservative",
       "task": "检查持仓偏离度：谁偏离成本超3%？是否需要下午操作？",
-      "context": ["步骤1输出", "持仓成本"],
-      "depends_on": [1],
+      "context": [
+        "步骤1输出",
+        "持仓成本"
+      ],
+      "depends_on": [
+        1
+      ],
       "expected_output": "操作建议：有/无，若有则具体方案"
     },
     {
-      "step": 3, "agent": "portfolio_manager",
+      "step": 3,
+      "agent": "portfolio_manager",
       "task": "汇总上午表现和偏离度检查，生成午评推送",
-      "context": ["步骤1-2输出"],
-      "depends_on": [1, 2],
+      "context": [
+        "步骤1-2输出"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
       "expected_output": "午评推送(简洁格式，重点突出需操作的标的)"
     }
   ],
   "estimated_cost_usd": 0.08,
-  "estimated_time_seconds": 90
+  "estimated_time_seconds": 90,
+  "report_skeleton": {
+    "market_analyst": {
+      "required_sections": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势"
+      ],
+      "section_order": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势"
+      ]
+    },
+    "risk_conservative": {
+      "required_sections": [
+        "偏离度检查",
+        "风险等级",
+        "操作约束"
+      ],
+      "section_order": [
+        "偏离度检查",
+        "风险等级",
+        "操作约束"
+      ]
+    }
+  }
 }

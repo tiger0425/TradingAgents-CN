@@ -15,6 +15,7 @@ from ..agents.utils.agent_states import AgentState, InvestDebateState, RiskDebat
 from ..dataflows.a_stock_data import get_company_name
 from ..industry.verifier import IndustryVerifier
 from ..planner.schemas import Trigger, Context
+from tradingagents.graph.report_renderer import ReportRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -299,36 +300,13 @@ class GraphExecutor:
     def _extract_report(final_state: dict) -> str:
         """Build a complete analysis report from all graph state fields.
 
-        Assembles: analyst reports → investment plan → trader plan → final decision.
-        This mirrors the CLI batch _format_text_output for API consumers.
+        Delegates to ReportRenderer.render() for consistent three-section format
+        (核心结论 → 关键数据 → 风险提示) across all analyst sections.
         """
-        parts: list[str] = []
-
-        analyst_reports = [
-            ("Market Analyst", final_state.get("market_report", "")),
-            ("Fundamentals Analyst", final_state.get("fundamentals_report", "")),
-            ("News Analyst", final_state.get("news_report", "")),
-            ("Social Analyst", final_state.get("sentiment_report", "")),
-        ]
-        for title, content in analyst_reports:
-            if content:
-                parts.append(f"--- {title} ---\n\n{content}")
-
-        investment_plan = final_state.get("investment_plan", "")
-        if investment_plan:
-            parts.append(f"--- Investment Plan ---\n\n{investment_plan}")
-
-        trader_plan = final_state.get("trader_investment_plan", "")
-        if trader_plan:
-            parts.append(f"--- Trader Plan ---\n\n{trader_plan}")
-
-        final_decision = final_state.get("final_trade_decision", "")
-        if final_decision and final_decision != investment_plan:
-            parts.append(f"--- Final Decision ---\n\n{final_decision}")
-
-        return "\n\n".join(parts) if parts else ""
+        return ReportRenderer.render(final_state, plan=None)
 
     @staticmethod
+
     def _build_knowledge_context(plan: dict) -> dict:
         """Build knowledge_context dict for agent consumption."""
         ctx: Dict[str, Any] = {}

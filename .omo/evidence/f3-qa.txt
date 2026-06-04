@@ -1,0 +1,52 @@
+=================================================================
+F3 Final Verification Wave — 实际手动 QA
+执行时间: 2026-06-03
+结果: ALL 5 CHECKS PASSED ✓
+=================================================================
+
+[1] python3 scripts/verify_tool_alignment.py — exit 0
+  结果: YES (exit 0)
+  详情:
+    OK: fundamentals_analyst.py (fundamentals_analyst -> fundamentals) — bind_tools(1) == ToolNode(1)
+    OK: market_analyst.py (market_analyst -> market) — bind_tools(4) == ToolNode(4)
+    OK: news_analyst.py (news_analyst -> news) — bind_tools(2) == ToolNode(2)
+    OK: social_media_analyst.py (social_analyst -> social) — bind_tools(4) == ToolNode(4)
+
+[2] grep temperature 4 client 文件中存在
+  结果: YES (4 unique source files)
+  文件:
+    tradingagents/llm_clients/openai_client.py
+    tradingagents/llm_clients/anthropic_client.py
+    tradingagents/llm_clients/azure_client.py
+    tradingagents/llm_clients/google_client.py
+  计数: 4
+
+[3] grep anti_hallucination agent 文件中 >= 12
+  结果: YES (13 unique source files, excluding pycache)
+  文件:
+    tradingagents/agents/analysts/fundamentals_analyst.py
+    tradingagents/agents/analysts/news_analyst.py
+    tradingagents/agents/analysts/social_media_analyst.py
+    tradingagents/agents/analysts/market_analyst.py
+    tradingagents/agents/managers/research_manager.py
+    tradingagents/agents/managers/portfolio_manager.py
+    tradingagents/agents/risk_mgmt/neutral_debator.py
+    tradingagents/agents/risk_mgmt/aggressive_debator.py
+    tradingagents/agents/risk_mgmt/conservative_debator.py
+    tradingagents/agents/researchers/bear_researcher.py
+    tradingagents/agents/researchers/bull_researcher.py
+    tradingagents/agents/utils/prompt_constants.py
+    tradingagents/agents/trader/trader.py
+  计数: 13 (>= 12)
+
+[4] grep macro_analyst dynamic_graph_builder 无输出
+  结果: YES (no matches)
+  计数: 0
+
+[5] grep "Make sure to include" analyst 文件无输出
+  结果: YES (no matches)
+  计数: 0
+
+=================================================================
+总结: 5/5 验证通过 — F3 波次完成
+=================================================================

@@ -6,14 +6,83 @@
   "created": "2026-05-13T08:00:00",
   "use_count": 0,
   "success_rate": 0.85,
-    "match_patterns": {
-      "keywords": ["分析", "怎么看", "能买吗", "怎么样", "好不好", "能不能", "帮我看看", "研究", "analyze"],
-      "required_context": [],
-      "negative_keywords": ["被套", "解套", "割肉", "亏了", "止损"],
-      "industry_keywords": ["行业", "板块", "业"],
-      "description": "标准个股多维度分析：技术面+基本面+新闻+舆情 → 多空辩论 → 交易方案 → 风控评估 → 最终建议"
-    }
-  ],
+  "match_patterns": {
+    "keywords": [
+      "分析",
+      "怎么看",
+      "能买吗",
+      "怎么样",
+      "好不好",
+      "能不能",
+      "帮我看看",
+      "研究",
+      "analyze"
+    ],
+    "required_context": [],
+    "negative_keywords": [
+      "被套",
+      "解套",
+      "割肉",
+      "亏了",
+      "止损"
+    ],
+    "industry_keywords": [
+      "行业",
+      "板块",
+      "业"
+    ],
+    "description": "标准个股多维度分析：技术面+基本面+新闻+舆情 → 多空辩论 → 交易方案 → 风控评估 → 最终建议"
+  },
   "estimated_cost_usd": 0.85,
-  "estimated_time_seconds": 300
+  "estimated_time_seconds": 300,
+  "report_skeleton": {
+    "market_analyst": {
+      "required_sections": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势"
+      ],
+      "section_order": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势"
+      ]
+    },
+    "fundamentals_analyst": {
+      "required_sections": [
+        "核心财务结论",
+        "关键数据",
+        "估值水平"
+      ],
+      "section_order": [
+        "核心财务结论",
+        "关键数据",
+        "估值水平"
+      ]
+    },
+    "news_analyst": {
+      "required_sections": [
+        "重要公告",
+        "新闻情绪",
+        "事件影响"
+      ],
+      "section_order": [
+        "重要公告",
+        "新闻情绪",
+        "事件影响"
+      ]
+    },
+    "social_analyst": {
+      "required_sections": [
+        "舆情热度",
+        "情感倾向",
+        "关注焦点"
+      ],
+      "section_order": [
+        "舆情热度",
+        "情感倾向",
+        "关注焦点"
+      ]
+    }
+  }
 }

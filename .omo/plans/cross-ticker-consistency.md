@@ -338,7 +338,7 @@ Max Concurrent: 4 (Waves 1 & 2)
 
 ### Wave 2: GREEN — 核心实现 (4 并行)
 
-- [ ] 5. 跨1 GREEN：创建 injection_contract.py + framework.py 集成
+- [x] 5. 跨1 GREEN：创建 injection_contract.py + framework.py 集成
 
   **What to do**:
   - 新建 `tradingagents/industry/injection_contract.py`
@@ -397,7 +397,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-5-empty-input.txt
   ```
 
-- [ ] 6. 跨2 GREEN：executor.py 接入 ReportRenderer
+- [x] 6. 跨2 GREEN：executor.py 接入 ReportRenderer
 
   **What to do**:
   - 修改 `tradingagents/graph/executor.py`:
@@ -457,7 +457,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-6-empty-state.txt
   ```
 
-- [ ] 7. 跨3 GREEN：创建行业字段白名单 + agent_utils 集成
+- [x] 7. 跨3 GREEN：创建行业字段白名单 + agent_utils 集成
 
   **What to do**:
   - 新建 `docs/industry-fields-whitelist.md`：
@@ -529,7 +529,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-7-missing-industry.txt
   ```
 
-- [ ] 8. 跨4 GREEN：6 个模板添加 report_skeleton 字段
+- [x] 8. 跨4 GREEN：6 个模板添加 report_skeleton 字段
 
   **What to do**:
   - 修改 6 个模板文件（`tradingagents/templates/tpl_*.json`）：

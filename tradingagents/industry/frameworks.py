@@ -14,6 +14,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
+from .injection_contract import normalize_injection
 
 logger = logging.getLogger(__name__)
 
@@ -80,18 +81,29 @@ class IndustryFramework:
         # 1-4. Existing fuzzy matching against hand-written frameworks
         result = self._fuzzy_match(name)
         if result is not None:
-            return result
+            return self._with_injection(result)
 
         # 5. Check generated cache (in-memory)
         result = self._generated.get(name)
         if result is not None:
-            return result
+            return self._with_injection(result)
 
         # 6. LLM auto-generation (only when quick_llm is provided)
         if quick_llm is not None:
-            return self._auto_generate(name, quick_llm)
+            result = self._auto_generate(name, quick_llm)
+            if result is not None:
+                return self._with_injection(result)
+            return None
 
         return None
+
+    def _with_injection(self, framework: FrameworkDict) -> FrameworkDict:
+        """Return a copy of framework dict with injection normalization applied."""
+        result = dict(framework)
+        anti_patterns = result.get("anti_patterns", [])
+        correct_metrics = result.get("correct_metrics", [])
+        result["injection"] = normalize_injection(anti_patterns, correct_metrics)
+        return result
 
     def _fuzzy_match(self, name: str) -> FrameworkDict | None:
         # 1. Exact keyword match (fast path)

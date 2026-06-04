@@ -93,6 +93,49 @@ def _get_multi_industry_context(ticker: str, company_name: str) -> str:
     return ctx
 
 
+def _get_whitelist_fields(industry: str) -> str:
+    """Read docs/industry-fields-whitelist.md and extract 必含字段 for the given industry.
+
+    Returns a formatted string like "- 必含字段：xxx、yyy、zzz"
+    or empty string if the whitelist file doesn't exist, the industry section
+    is not found, or no required fields are listed.
+    """
+    from pathlib import Path
+
+    whitelist_path = Path(__file__).resolve().parent.parent.parent.parent / "docs" / "industry-fields-whitelist.md"
+    if not whitelist_path.exists():
+        return ""
+
+    whitelist_content = whitelist_path.read_text(encoding="utf-8")
+    in_section = False
+    in_required = False
+    required_items = []
+
+    for line in whitelist_content.split("\n"):
+        s = line.strip()
+        if s.startswith("## "):
+            section_name = s[3:].strip()
+            if section_name == industry:
+                in_section = True
+            else:
+                if in_section:
+                    break  # Reached next section, stop scanning
+                in_section = False
+                in_required = False
+        elif in_section:
+            if s.startswith("### 必含字段"):
+                in_required = True
+            elif s.startswith("### "):
+                in_required = False
+            elif in_required and s.startswith("- "):
+                required_items.append(s[2:].strip())
+
+    if not required_items:
+        return ""
+
+    return "- 必含字段：" + "、".join(required_items)
+
+
 def build_instrument_context(ticker: str, industry: str = "", company_name: str = "", quick_llm: Any = None) -> str:
     """Describe the exact instrument so agents preserve market-appropriate ticker formats.
 
@@ -147,6 +190,14 @@ def build_instrument_context(ticker: str, industry: str = "", company_name: str 
                     f"🚫 **严禁在分析中使用以下指标：** {anti_list}。"
                     f"这些指标完全不属于 {industry} 行业，如果在报告中提到任何一项，将导致分析无效。\n\n"
                 ) + base
+
+        # ── Whitelist field injection (additive, from docs/industry-fields-whitelist.md) ──
+        try:
+            _whitelist_line = _get_whitelist_fields(industry)
+            if _whitelist_line:
+                base += "\n\n**行业分析框架（白名单字段）：**\n" + _whitelist_line
+        except Exception:
+            pass
 
         base += f"\n\n**行业背景：** 该股票属于 {industry} 行业。分析时请关注该行业的核心指标和竞争格局。"
 

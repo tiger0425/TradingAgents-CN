@@ -6,14 +6,60 @@
   "created": "2026-05-13T08:00:00",
   "use_count": 0,
   "success_rate": 0.88,
-    "match_patterns": {
-      "keywords": ["被套", "解套", "割肉", "止损", "亏了", "怎么办", "要不要卖", "扛不住", "跌了"],
-      "required_context": ["has_holdings"],
-      "negative_keywords": ["加仓", "抄底"],
-      "industry_keywords": ["行业", "板块", "业"],
-      "description": "持仓亏损，需要解套/止损方案分析"
-    }
-  ],
+  "match_patterns": {
+    "keywords": [
+      "被套",
+      "解套",
+      "割肉",
+      "止损",
+      "亏了",
+      "怎么办",
+      "要不要卖",
+      "扛不住",
+      "跌了"
+    ],
+    "required_context": [
+      "has_holdings"
+    ],
+    "negative_keywords": [
+      "加仓",
+      "抄底"
+    ],
+    "industry_keywords": [
+      "行业",
+      "板块",
+      "业"
+    ],
+    "description": "持仓亏损，需要解套/止损方案分析"
+  },
   "estimated_cost_usd": 0.75,
-  "estimated_time_seconds": 240
+  "estimated_time_seconds": 240,
+  "report_skeleton": {
+    "market_analyst": {
+      "required_sections": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势",
+        "支撑压力位"
+      ],
+      "section_order": [
+        "核心技术指标",
+        "趋势判断",
+        "短期走势",
+        "支撑压力位"
+      ]
+    },
+    "fundamentals_analyst": {
+      "required_sections": [
+        "核心财务结论",
+        "关键数据",
+        "估值水平"
+      ],
+      "section_order": [
+        "核心财务结论",
+        "关键数据",
+        "估值水平"
+      ]
+    }
+  }
 }

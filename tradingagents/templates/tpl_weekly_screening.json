@@ -6,14 +6,65 @@
   "created": "2026-05-13T08:00:00",
   "use_count": 0,
   "success_rate": 0.85,
-    "match_patterns": {
-      "keywords": ["推荐", "选股", "有什么好", "买什么", "本周", "下周", "周末", "screening", "pick"],
-      "required_context": [],
-      "negative_keywords": [],
-      "industry_keywords": ["行业", "板块", "业"],
-      "description": "周末选股推荐：宏观预判 + 行业轮动筛选 + 基本面确认 + Top N 推荐"
-    }
-  ],
+  "match_patterns": {
+    "keywords": [
+      "推荐",
+      "选股",
+      "有什么好",
+      "买什么",
+      "本周",
+      "下周",
+      "周末",
+      "screening",
+      "pick"
+    ],
+    "required_context": [],
+    "negative_keywords": [],
+    "industry_keywords": [
+      "行业",
+      "板块",
+      "业"
+    ],
+    "description": "周末选股推荐：宏观预判 + 行业轮动筛选 + 基本面确认 + Top N 推荐"
+  },
   "estimated_cost_usd": 0.35,
-  "estimated_time_seconds": 180
+  "estimated_time_seconds": 180,
+  "report_skeleton": {
+    "market_analyst": {
+      "required_sections": [
+        "板块轮动",
+        "技术面筛选",
+        "资金流向"
+      ],
+      "section_order": [
+        "板块轮动",
+        "技术面筛选",
+        "资金流向"
+      ]
+    },
+    "fundamentals_analyst": {
+      "required_sections": [
+        "财务筛选",
+        "估值对比",
+        "业绩预判"
+      ],
+      "section_order": [
+        "财务筛选",
+        "估值对比",
+        "业绩预判"
+      ]
+    },
+    "macro_analyst": {
+      "required_sections": [
+        "宏观指标",
+        "政策动态",
+        "行业景气度"
+      ],
+      "section_order": [
+        "宏观指标",
+        "政策动态",
+        "行业景气度"
+      ]
+    }
+  }
 }

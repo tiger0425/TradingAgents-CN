@@ -49,3 +49,21 @@
 - **Test results**: 8/8 GREEN (framework), 13/13 GREEN (verifier), 10/11 GREEN (classifier — 1 slow-network timeout)
 - `fw.lookup("通信线缆及配套")` → `comm_cable` ✓, all 5 existing frameworks still match ✓
 - LSP: 0 new warnings
+
+## 2026-06-02: Added `_build_auto_gen_prompt()` dynamic prompt generation
+
+- **File**: `tradingagents/industry/frameworks.py`
+- **Changes**:
+  1. Added `_build_auto_gen_prompt(industry_name: str) -> str` method (L136–198)
+  2. Updated `_auto_generate()`: `self._build_auto_gen_prompt(industry_name)` replaces `_AUTO_GEN_PROMPT.format(industry=industry_name)` (L203)
+- **Behavior**:
+  - When `_type_rules` is non-empty: dynamically generates Step 1 (type list from sorted keys) and Step 2 (per-type anti_patterns + correct_metrics_examples from JSON data)
+  - When `_type_rules` is empty: falls back to hardcoded `_AUTO_GEN_PROMPT` constant
+  - Keys sorted alphabetically for deterministic prompt generation
+  - Prompt structure (3-step flow + JSON schema) remains identical between dynamic and fallback paths
+- **Verification**:
+  - `_build_auto_gen_prompt('测试行业')` → contains 'manufacturing', '禁止指标', '示例正确指标' ✓
+  - Empty `_type_rules` fallback → matches `_AUTO_GEN_PROMPT.format(industry='测试')` character-for-character ✓
+  - All 21 industry tests pass ✓
+  - `_AUTO_GEN_PROMPT` constant preserved (not deleted) ✓
+  - LSP: 0 new warnings, all warnings pre-existing ✓

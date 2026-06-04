@@ -1,43 +1,386 @@
 {
   "schema_version": 2,
-  "active_work_id": "v1-remaining-work-644b651c",
+  "active_work_id": "cross-ticker-consistency-cd9ee111",
   "works": {
     "v1-remaining-work-644b651c": {
       "work_id": "v1-remaining-work-644b651c",
       "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/v1-remaining-work.md",
       "plan_name": "v1-remaining-work",
-      "status": "active",
+      "status": "completed",
       "started_at": "2026-05-30T13:46:13.537Z",
-      "updated_at": "2026-05-30T13:52:14.768Z",
+      "updated_at": "2026-05-30T14:15:01.911Z",
       "session_ids": [
-        "ses_186e7af1affer2ZXj2KoxKnTEN",
-        "ses_186d80100ffexepXQlZTE7f4up",
-        "ses_186d7db00ffeoBHwAXYMS9DGqv"
+        "opencode:ses_186e7af1affer2ZXj2KoxKnTEN",
+        "opencode:ses_186d80100ffexepXQlZTE7f4up",
+        "opencode:ses_186d7db00ffeoBHwAXYMS9DGqv"
       ],
       "session_origins": {
-        "ses_186e7af1affer2ZXj2KoxKnTEN": "direct",
-        "ses_186d80100ffexepXQlZTE7f4up": "appended",
-        "ses_186d7db00ffeoBHwAXYMS9DGqv": "appended"
+        "opencode:ses_186e7af1affer2ZXj2KoxKnTEN": "direct",
+        "opencode:ses_186d80100ffexepXQlZTE7f4up": "appended",
+        "opencode:ses_186d7db00ffeoBHwAXYMS9DGqv": "appended"
       },
       "agent": "atlas",
-      "task_sessions": {}
+      "task_sessions": {},
+      "ended_at": "2026-05-30T14:15:01.911Z",
+      "elapsed_ms": 1728374
+    },
+    "v4-next-phase-83eaa3ce": {
+      "work_id": "v4-next-phase-83eaa3ce",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/v4-next-phase.md",
+      "plan_name": "v4-next-phase",
+      "status": "completed",
+      "started_at": "2026-05-31T02:32:23.449Z",
+      "updated_at": "2026-05-31T02:32:23.449Z",
+      "session_ids": [
+        "opencode:ses_1841fed8dffeX3j3SJxxZMSs56"
+      ],
+      "session_origins": {
+        "opencode:ses_1841fed8dffeX3j3SJxxZMSs56": "direct"
+      },
+      "agent": "atlas",
+      "task_sessions": {},
+      "ended_at": "2026-06-02T14:46:31.000Z"
+    },
+    "v4-next-phase-c7f1ceef": {
+      "work_id": "v4-next-phase-c7f1ceef",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/v4-next-phase.md",
+      "plan_name": "v4-next-phase",
+      "status": "completed",
+      "started_at": "2026-05-31T02:32:23.586Z",
+      "updated_at": "2026-05-31T03:35:25.010Z",
+      "session_ids": [
+        "opencode:ses_1841fed8dffeX3j3SJxxZMSs56",
+        "opencode:ses_1841f7cd0ffec4r5s412oXBNJQ",
+        "opencode:ses_1841f74d8ffee1EhldPcDTLWh4",
+        "opencode:ses_1841f6c77ffeeY6w2np2DA9kxf",
+        "opencode:ses_1841f63dbffenXlGEm0FMGFttV"
+      ],
+      "session_origins": {
+        "opencode:ses_1841fed8dffeX3j3SJxxZMSs56": "direct",
+        "opencode:ses_1841f7cd0ffec4r5s412oXBNJQ": "appended",
+        "opencode:ses_1841f74d8ffee1EhldPcDTLWh4": "appended",
+        "opencode:ses_1841f6c77ffeeY6w2np2DA9kxf": "appended",
+        "opencode:ses_1841f63dbffenXlGEm0FMGFttV": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "`tradingagents/dataflows/a_stock_data.py` - find get_margin_trading() function, show full implementation",
+          "session_id": "opencode:ses_1841f63dbffenXlGEm0FMGFttV",
+          "agent": "explore",
+          "updated_at": "2026-05-31T02:32:58.260Z"
+        }
+      },
+      "ended_at": "2026-05-31T03:35:25.010Z",
+      "elapsed_ms": 3781424
+    },
+    "industrial-quality-fix-1ab51a54": {
+      "work_id": "industrial-quality-fix-1ab51a54",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/industrial-quality-fix.md",
+      "plan_name": "industrial-quality-fix",
+      "status": "completed",
+      "started_at": "2026-06-03T14:28:45.901Z",
+      "updated_at": "2026-06-03T15:48:02.596Z",
+      "session_ids": [
+        "opencode:ses_1723d2fd2ffeydEDv14AVNnme6",
+        "opencode:ses_171e59353ffe0zCZDWBKNDu6oB",
+        "opencode:ses_171e5823bffeI0lZa1OpvDM3eD",
+        "opencode:ses_171e57449ffeLBNDkwusQcBbox",
+        "opencode:ses_171e54895ffeCBREOrcysR43nr"
+      ],
+      "session_origins": {
+        "opencode:ses_1723d2fd2ffeydEDv14AVNnme6": "direct",
+        "opencode:ses_171e59353ffe0zCZDWBKNDu6oB": "appended",
+        "opencode:ses_171e5823bffeI0lZa1OpvDM3eD": "appended",
+        "opencode:ses_171e57449ffeLBNDkwusQcBbox": "appended",
+        "opencode:ses_171e54895ffeCBREOrcysR43nr": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "Must Have: grep temperature 在 llm_clients/*.py 所有 4 文件中存在",
+          "session_id": "opencode:ses_171e54895ffeCBREOrcysR43nr",
+          "agent": "oracle",
+          "started_at": "2026-06-03T14:32:32.514Z",
+          "ended_at": "2026-06-03T15:28:58.860Z",
+          "elapsed_ms": 3386346,
+          "status": "completed",
+          "updated_at": "2026-06-03T15:29:36.605Z"
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "冒烟测试：5 次同输入端到端验证确定性",
+          "session_id": "opencode:ses_17216fdc1ffeGerFheUfDIVbn0",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "updated_at": "2026-06-03T14:42:43.757Z",
+          "started_at": "2026-06-03T14:42:26.990Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T14:42:43.757Z",
+          "elapsed_ms": 16767
+        },
+        "todo:7": {
+          "task_key": "todo:7",
+          "task_label": "7",
+          "task_title": "TDD: 编写 failing test 验证 bind_tools/ToolNode 对齐",
+          "session_id": "opencode:ses_1720fe1a7ffeXxt1rJsG7RSQLw",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T14:45:55.143Z",
+          "started_at": "2026-06-03T14:45:40.690Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T14:45:55.142Z",
+          "elapsed_ms": 14452
+        },
+        "todo:9": {
+          "task_key": "todo:9",
+          "task_label": "9",
+          "task_title": "bootstrap.py 缩减 ToolNode 至 bind_tools 实际使用（方案 A）",
+          "session_id": "opencode:ses_1720d03a8ffeOKoH2yx5C9bNMH",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T14:47:11.390Z",
+          "started_at": "2026-06-03T14:46:59.147Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T14:47:11.390Z",
+          "elapsed_ms": 12243
+        },
+        "todo:10": {
+          "task_key": "todo:10",
+          "task_label": "10",
+          "task_title": "TDD: 编写 failing test 验证 indicator_registry",
+          "session_id": "opencode:ses_1720bc404ffedsx1pftbsMz4j1",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T14:48:14.870Z",
+          "started_at": "2026-06-03T14:48:09.933Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T14:48:14.870Z",
+          "elapsed_ms": 4937
+        },
+        "todo:11": {
+          "task_key": "todo:11",
+          "task_label": "11",
+          "task_title": "新建 indicator_registry.py 单一真理源",
+          "session_id": "opencode:ses_1720aef9affeg8DcJgSMeH8V9N",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T14:49:35.458Z",
+          "started_at": "2026-06-03T14:49:30.379Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T14:49:35.458Z",
+          "elapsed_ms": 5079
+        },
+        "todo:12": {
+          "task_key": "todo:12",
+          "task_label": "12",
+          "task_title": "akshare 和 a_stock_data 改为从注册表导入",
+          "session_id": "opencode:ses_17209b67bffecEPFCuQHrKJVb8",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T15:01:59.913Z",
+          "started_at": "2026-06-03T15:01:52.862Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:01:59.913Z",
+          "elapsed_ms": 7051
+        },
+        "todo:14": {
+          "task_key": "todo:14",
+          "task_label": "14",
+          "task_title": "TDD: 编写 failing test 验证中英双语防幻觉指令",
+          "session_id": "opencode:ses_171fe4a2cffeoQnd36nVTXp4pF",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T15:04:54.896Z",
+          "started_at": "2026-06-03T15:04:46.732Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:04:54.896Z",
+          "elapsed_ms": 8164
+        },
+        "todo:16": {
+          "task_key": "todo:16",
+          "task_label": "16",
+          "task_title": "修复 get_degradation_instruction() 中英双语",
+          "session_id": "opencode:ses_171fba90cffeK6MOKHWHX4PsUj",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T15:05:35.658Z",
+          "started_at": "2026-06-03T15:05:28.324Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:05:35.658Z",
+          "elapsed_ms": 7334
+        },
+        "todo:19": {
+          "task_key": "todo:19",
+          "task_label": "19",
+          "task_title": "TDD: 编写 failing test 验证 industry benchmark 和数字溯源",
+          "session_id": "opencode:ses_171f116adffe2nzRJHV9ABV7T8",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T15:17:49.889Z",
+          "started_at": "2026-06-03T15:17:43.447Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:17:49.889Z",
+          "elapsed_ms": 6442
+        },
+        "todo:20": {
+          "task_key": "todo:20",
+          "task_label": "20",
+          "task_title": "verifier.py 添加 industry benchmark 检查",
+          "session_id": "opencode:ses_171efd4c2ffehoJTyZZH650sh3",
+          "agent": "Sisyphus-Junior",
+          "category": "deep",
+          "updated_at": "2026-06-03T15:21:52.871Z",
+          "started_at": "2026-06-03T15:21:44.472Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:21:52.871Z",
+          "elapsed_ms": 8399
+        },
+        "todo:22": {
+          "task_key": "todo:22",
+          "task_label": "22",
+          "task_title": "TDD: 编写 failing test 验证 Pydantic schema 化",
+          "session_id": "opencode:ses_171ec0ce2ffeLduF2QhWiUJV6L",
+          "agent": "Sisyphus-Junior",
+          "category": "quick",
+          "updated_at": "2026-06-03T15:24:35.870Z",
+          "started_at": "2026-06-03T15:24:30.904Z",
+          "status": "completed",
+          "ended_at": "2026-06-03T15:24:35.870Z",
+          "elapsed_ms": 4966
+        },
+        "final-wave:f1": {
+          "task_key": "final-wave:f1",
+          "task_label": "F1",
+          "task_title": "**Plan Compliance Audit** — `oracle`",
+          "session_id": "opencode:ses_171e59353ffe0zCZDWBKNDu6oB",
+          "agent": "Sisyphus-Junior",
+          "category": "unspecified-high",
+          "started_at": "2026-06-03T15:44:31.189Z",
+          "status": "completed",
+          "updated_at": "2026-06-03T15:46:24.618Z",
+          "ended_at": "2026-06-03T15:46:24.618Z",
+          "elapsed_ms": 113429
+        }
+      },
+      "ended_at": "2026-06-03T15:48:02.596Z",
+      "elapsed_ms": 4756695
+    },
+    "cross-ticker-consistency-cd9ee111": {
+      "work_id": "cross-ticker-consistency-cd9ee111",
+      "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/cross-ticker-consistency.md",
+      "plan_name": "cross-ticker-consistency",
+      "status": "active",
+      "started_at": "2026-06-04T02:41:41.874Z",
+      "updated_at": "2026-06-04T02:52:33.263Z",
+      "session_ids": [
+        "opencode:ses_16f8ed873ffeR49sy8EojeOY2x",
+        "opencode:ses_16f7cf94effeIpQeuqy2NxcB10",
+        "opencode:ses_16f7cd3f6ffe597Df2d1MjWBjw",
+        "opencode:ses_16f7caf8cffeqHWZH4G17S6Au6",
+        "opencode:ses_16f7c858effe62Llwbn54ovr5T",
+        "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ",
+        "opencode:ses_16f765af8ffeVorQa1sAmAuWER",
+        "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc",
+        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH"
+      ],
+      "session_origins": {
+        "opencode:ses_16f8ed873ffeR49sy8EojeOY2x": "direct",
+        "opencode:ses_16f7cf94effeIpQeuqy2NxcB10": "appended",
+        "opencode:ses_16f7cd3f6ffe597Df2d1MjWBjw": "appended",
+        "opencode:ses_16f7caf8cffeqHWZH4G17S6Au6": "appended",
+        "opencode:ses_16f7c858effe62Llwbn54ovr5T": "appended",
+        "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ": "appended",
+        "opencode:ses_16f765af8ffeVorQa1sAmAuWER": "appended",
+        "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc": "appended",
+        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended"
+      },
+      "agent": "atlas",
+      "task_sessions": {
+        "todo:1": {
+          "task_key": "todo:1",
+          "task_label": "1",
+          "task_title": "TDD: 编写 failing test 验证 injection_contract 标准化约束",
+          "session_id": "opencode:ses_16f7c858effe62Llwbn54ovr5T",
+          "agent": "explore",
+          "started_at": "2026-06-04T02:48:40.244Z",
+          "status": "completed",
+          "updated_at": "2026-06-04T02:49:11.248Z",
+          "ended_at": "2026-06-04T02:49:11.248Z",
+          "elapsed_ms": 31004
+        },
+        "todo:5": {
+          "task_key": "todo:5",
+          "task_label": "5",
+          "task_title": "跨1 GREEN：创建 injection_contract.py + framework.py 集成",
+          "session_id": "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH",
+          "agent": "explore",
+          "started_at": "2026-06-04T02:52:16.624Z",
+          "status": "completed",
+          "updated_at": "2026-06-04T02:52:33.263Z",
+          "ended_at": "2026-06-04T02:52:33.263Z",
+          "elapsed_ms": 16639
+        }
+      }
     }
   },
-  "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/v1-remaining-work.md",
-  "started_at": "2026-05-30T13:46:13.537Z",
+  "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/cross-ticker-consistency.md",
+  "started_at": "2026-06-04T02:41:41.874Z",
   "status": "active",
-  "updated_at": "2026-05-30T13:52:14.768Z",
+  "updated_at": "2026-06-04T02:52:33.263Z",
   "session_ids": [
-    "ses_186e7af1affer2ZXj2KoxKnTEN",
-    "ses_186d80100ffexepXQlZTE7f4up",
-    "ses_186d7db00ffeoBHwAXYMS9DGqv"
+    "opencode:ses_16f8ed873ffeR49sy8EojeOY2x",
+    "opencode:ses_16f7cf94effeIpQeuqy2NxcB10",
+    "opencode:ses_16f7cd3f6ffe597Df2d1MjWBjw",
+    "opencode:ses_16f7caf8cffeqHWZH4G17S6Au6",
+    "opencode:ses_16f7c858effe62Llwbn54ovr5T",
+    "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ",
+    "opencode:ses_16f765af8ffeVorQa1sAmAuWER",
+    "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc",
+    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH"
   ],
   "session_origins": {
-    "ses_186e7af1affer2ZXj2KoxKnTEN": "direct",
-    "ses_186d80100ffexepXQlZTE7f4up": "appended",
-    "ses_186d7db00ffeoBHwAXYMS9DGqv": "appended"
+    "opencode:ses_16f8ed873ffeR49sy8EojeOY2x": "direct",
+    "opencode:ses_16f7cf94effeIpQeuqy2NxcB10": "appended",
+    "opencode:ses_16f7cd3f6ffe597Df2d1MjWBjw": "appended",
+    "opencode:ses_16f7caf8cffeqHWZH4G17S6Au6": "appended",
+    "opencode:ses_16f7c858effe62Llwbn54ovr5T": "appended",
+    "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ": "appended",
+    "opencode:ses_16f765af8ffeVorQa1sAmAuWER": "appended",
+    "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc": "appended",
+    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended"
   },
-  "plan_name": "v1-remaining-work",
-  "task_sessions": {},
+  "plan_name": "cross-ticker-consistency",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "TDD: 编写 failing test 验证 injection_contract 标准化约束",
+      "session_id": "opencode:ses_16f7c858effe62Llwbn54ovr5T",
+      "agent": "explore",
+      "started_at": "2026-06-04T02:48:40.244Z",
+      "status": "completed",
+      "updated_at": "2026-06-04T02:49:11.248Z",
+      "ended_at": "2026-06-04T02:49:11.248Z",
+      "elapsed_ms": 31004
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "跨1 GREEN：创建 injection_contract.py + framework.py 集成",
+      "session_id": "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH",
+      "agent": "explore",
+      "started_at": "2026-06-04T02:52:16.624Z",
+      "status": "completed",
+      "updated_at": "2026-06-04T02:52:33.263Z",
+      "ended_at": "2026-06-04T02:52:33.263Z",
+      "elapsed_ms": 16639
+    }
+  },
   "agent": "atlas"
 }
