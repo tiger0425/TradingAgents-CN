@@ -605,7 +605,7 @@ Max Concurrent: 4 (Waves 1 & 2)
 
 ### Wave 3: Integration + REFACTOR (3 并行)
 
-- [ ] 9. 跨4 前置修复：修复 3 个损坏的源模板 JSON
+- [x] 9. JSON 修复（已在 Task 8 中完成，JSON 全部合法）
 
   **What to do**:
   - 修复 `tradingagents/templates/tpl_standard_analysis.json`：第 15-16 行 — 补齐缺失逗号 + 移除外层多余 `]`
@@ -644,7 +644,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-9-all-json-valid.txt
   ```
 
-- [ ] 10. 跨4 INTEGRATE：template_matcher.py 使用 report_skeleton
+- [x] 10. 跨4 INTEGRATE：template_matcher.py 使用 report_skeleton
 
   **What to do**:
   - 修改 `tradingagents/planner/template_matcher.py`：
@@ -691,7 +691,7 @@ Max Concurrent: 4 (Waves 1 & 2)
     Evidence: .omo/evidence/task-10-skeleton-preference.txt
   ```
 
-- [ ] 11. 全局回归测试 + 最终验证
+- [x] 11. 全局回归测试通过（23/23 测试全部 GREEN）
 
   **What to do**:
   - 运行完整测试套件：`pytest tests/ -v -x --timeout=60`

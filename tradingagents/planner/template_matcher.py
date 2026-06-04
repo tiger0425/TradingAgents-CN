@@ -100,6 +100,10 @@ class TemplateMatcher:
         score += 0.1 * min(template.get("use_count", 0) / 50, 1.0)
         score += 0.1 * template.get("success_rate", 0.5)
 
+        # Report skeleton scoring boost
+        if "report_skeleton" in template:
+            score += 0.1
+
         return max(0.0, min(1.0, score))
 
     def register(self, template: Dict):

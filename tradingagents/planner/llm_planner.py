@@ -162,6 +162,16 @@ class LLMPlanner:
             "final_output_type": "report",
             "_generation_mode": "llm_fallback",
             "estimated_cost_usd": 0.05,
+            "report_skeleton": {
+                "market_analyst": {
+                    "required_sections": ["核心技术指标", "趋势判断", "短期走势"],
+                    "section_order": ["核心技术指标", "趋势判断", "短期走势"],
+                },
+                "fundamentals_analyst": {
+                    "required_sections": ["核心财务结论", "关键数据", "估值水平"],
+                    "section_order": ["核心财务结论", "关键数据", "估值水平"],
+                },
+            },
         }
 
     def _substitute_vars(self, workflow: list, context: Context) -> list:

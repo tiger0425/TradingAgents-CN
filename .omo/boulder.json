@@ -277,7 +277,7 @@
       "plan_name": "cross-ticker-consistency",
       "status": "active",
       "started_at": "2026-06-04T02:41:41.874Z",
-      "updated_at": "2026-06-04T02:52:33.263Z",
+      "updated_at": "2026-06-04T02:55:10.198Z",
       "session_ids": [
         "opencode:ses_16f8ed873ffeR49sy8EojeOY2x",
         "opencode:ses_16f7cf94effeIpQeuqy2NxcB10",
@@ -287,7 +287,9 @@
         "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ",
         "opencode:ses_16f765af8ffeVorQa1sAmAuWER",
         "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc",
-        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH"
+        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH",
+        "opencode:ses_16f73c2a9ffe3QsdLd5eGZya2U",
+        "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ"
       ],
       "session_origins": {
         "opencode:ses_16f8ed873ffeR49sy8EojeOY2x": "direct",
@@ -298,7 +300,9 @@
         "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ": "appended",
         "opencode:ses_16f765af8ffeVorQa1sAmAuWER": "appended",
         "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc": "appended",
-        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended"
+        "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended",
+        "opencode:ses_16f73c2a9ffe3QsdLd5eGZya2U": "appended",
+        "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ": "appended"
       },
       "agent": "atlas",
       "task_sessions": {
@@ -325,6 +329,18 @@
           "updated_at": "2026-06-04T02:52:33.263Z",
           "ended_at": "2026-06-04T02:52:33.263Z",
           "elapsed_ms": 16639
+        },
+        "todo:10": {
+          "task_key": "todo:10",
+          "task_label": "10",
+          "task_title": "跨4 INTEGRATE：template_matcher.py 使用 report_skeleton",
+          "session_id": "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ",
+          "agent": "explore",
+          "started_at": "2026-06-04T02:54:59.566Z",
+          "status": "completed",
+          "updated_at": "2026-06-04T02:55:10.198Z",
+          "ended_at": "2026-06-04T02:55:10.198Z",
+          "elapsed_ms": 10632
         }
       }
     }
@@ -332,7 +348,7 @@
   "active_plan": "/home/six/YifuAIForge/tradingagents-cn/.omo/plans/cross-ticker-consistency.md",
   "started_at": "2026-06-04T02:41:41.874Z",
   "status": "active",
-  "updated_at": "2026-06-04T02:52:33.263Z",
+  "updated_at": "2026-06-04T02:55:10.198Z",
   "session_ids": [
     "opencode:ses_16f8ed873ffeR49sy8EojeOY2x",
     "opencode:ses_16f7cf94effeIpQeuqy2NxcB10",
@@ -342,7 +358,9 @@
     "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ",
     "opencode:ses_16f765af8ffeVorQa1sAmAuWER",
     "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc",
-    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH"
+    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH",
+    "opencode:ses_16f73c2a9ffe3QsdLd5eGZya2U",
+    "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ"
   ],
   "session_origins": {
     "opencode:ses_16f8ed873ffeR49sy8EojeOY2x": "direct",
@@ -353,7 +371,9 @@
     "opencode:ses_16f768b81ffeS4ZpbwYx3yFZKZ": "appended",
     "opencode:ses_16f765af8ffeVorQa1sAmAuWER": "appended",
     "opencode:ses_16f7629ccffeLRc5FyvL63S6Wc": "appended",
-    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended"
+    "opencode:ses_16f75f2e7ffeWlDjpgh9Ry7HeH": "appended",
+    "opencode:ses_16f73c2a9ffe3QsdLd5eGZya2U": "appended",
+    "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ": "appended"
   },
   "plan_name": "cross-ticker-consistency",
   "task_sessions": {
@@ -380,6 +400,18 @@
       "updated_at": "2026-06-04T02:52:33.263Z",
       "ended_at": "2026-06-04T02:52:33.263Z",
       "elapsed_ms": 16639
+    },
+    "todo:10": {
+      "task_key": "todo:10",
+      "task_label": "10",
+      "task_title": "跨4 INTEGRATE：template_matcher.py 使用 report_skeleton",
+      "session_id": "opencode:ses_16f73b74bffeosUwgNnpQWiYBZ",
+      "agent": "explore",
+      "started_at": "2026-06-04T02:54:59.566Z",
+      "status": "completed",
+      "updated_at": "2026-06-04T02:55:10.198Z",
+      "ended_at": "2026-06-04T02:55:10.198Z",
+      "elapsed_ms": 10632
     }
   },
   "agent": "atlas"
