@@ -6,8 +6,6 @@ from .setup import GraphSetup
 from .propagation import Propagator
 from .reflection import Reflector
 from .signal_processing import SignalProcessor
-from .context_manager import ContextWindowManager
-
 __all__ = [
     "TradingAgentsGraph",
     "ConditionalLogic",
@@ -15,5 +13,4 @@ __all__ = [
     "Propagator",
     "Reflector",
     "SignalProcessor",
-    "ContextWindowManager",
 ]

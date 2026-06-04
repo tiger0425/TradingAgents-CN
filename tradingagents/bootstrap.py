@@ -27,30 +27,16 @@ def bootstrap(env_file: str = ".env"):
     load_dotenv(".env.enterprise", override=False)
 
     config = DEFAULT_CONFIG.copy()
-    config = _apply_env_overrides(config)
+    from .default_config import apply_env_overrides
+    config = apply_env_overrides(config)
 
-    llms = _create_llms(config)
-    if not llms:
-        logger.warning("LLM clients unavailable — planner and executor disabled")
-        return None
-    tool_nodes = _create_tool_nodes()
-
-    from .planner.llm_planner import LLMPlanner
     from .kb.knowledge_base import KnowledgeBase
-    from .graph.executor import GraphExecutor
+    from .graph.trading_graph import TradingAgentsGraph
 
     kb = KnowledgeBase()
-    planner = LLMPlanner(kb=kb, llm=llms["analyst"])
-    executor = GraphExecutor(
-        quick_thinking_llm=llms["analyst"],
-        deep_thinking_llm=llms["deep"],
-        tool_nodes=tool_nodes,
-        max_debate_rounds=config.get("max_debate_rounds", 1),
-        max_risk_rounds=config.get("max_risk_discuss_rounds", 1),
-        max_recur_limit=config.get("max_recur_limit", 100),
-        fan_out_enabled=config.get("fan_out_enabled", True),
-        enable_checkpoint=config.get("enable_checkpoint", False),
-        data_dir=config.get("data_cache_dir", "~/.tradingagents/cache"),
+    executor = TradingAgentsGraph(
+        debug=False,
+        config=config,
     )
 
     from .portfolio.portfolio_manager import PortfolioManager
@@ -60,32 +46,17 @@ def bootstrap(env_file: str = ".env"):
     cost_tracker = CostTracker()
 
     from .api_server import configure
-    configure(planner, executor, portfolio_mgr, kb, cost_tracker)
+    configure(trading_graph=executor, portfolio_mgr=portfolio_mgr,
+              kb=kb, cost_tracker=cost_tracker)
 
     try:
-        _start_scheduler(kb, planner, portfolio_mgr, executor, config)
+        _start_scheduler(kb, None, portfolio_mgr, executor, config)
     except RuntimeError as e:
         logger.warning("Scheduler skipped (no event loop): %s", e)
     _start_dashboard(kb, config)
 
     logger.info("Bootstrap complete — API server ready")
-    return planner, executor, kb, portfolio_mgr
-
-
-def _apply_env_overrides(config: dict) -> dict:
-    for key in ("llm_provider", "deep_think_llm", "quick_think_llm", "backend_url"):
-        env_key = f"TRADINGAGENTS_{key.upper()}"
-        if os.getenv(env_key):
-            config[key] = os.getenv(env_key)
-    fan_out_env = os.getenv("TRADINGAGENTS_FAN_OUT")
-    if fan_out_env and fan_out_env.lower() == "true":
-        config["fan_out_enabled"] = True
-        logger.info("Fan-out enabled via TRADINGAGENTS_FAN_OUT=true")
-    if os.getenv("OPENAI_API_KEY"):
-        config.setdefault("llm_provider", "openai")
-    if os.getenv("DEEPSEEK_API_KEY"):
-        config.setdefault("llm_provider", "deepseek")
-    return config
+    return None, executor, kb, portfolio_mgr  # planner slot None until Wave 4 removes callers
 
 
 def _create_llms(config: dict):
@@ -189,6 +160,44 @@ def _create_llms(config: dict):
 
 
 def _create_tool_nodes():
+    """Legacy — TradingAgentsGraph creates its own tool nodes."""
+    from langgraph.prebuilt import ToolNode
+
+    from .agents.utils.agent_utils import (
+        get_stock_data,
+        get_current_price,
+        get_indicators,
+        get_fundamentals,
+        get_news,
+        get_global_news,
+        get_market_context,
+    )
+    from .agents.utils.social_sentiment_tools import get_social_sentiment_tool
+    from .agents.utils.a_stock_data_tools import (
+        get_cls_flash, get_hot_stock_reasons,
+    )
+
+    return {
+        "market": ToolNode([
+            get_current_price,
+            get_stock_data,
+            get_indicators,
+            get_market_context,
+        ]),
+        "social": ToolNode([
+            get_social_sentiment_tool,
+            get_news,
+            get_cls_flash,
+            get_hot_stock_reasons,
+        ]),
+        "news": ToolNode([
+            get_news,
+            get_global_news,
+        ]),
+        "fundamentals": ToolNode([
+            get_fundamentals,
+        ]),
+    }
     from langgraph.prebuilt import ToolNode
 
     from .agents.utils.agent_utils import (

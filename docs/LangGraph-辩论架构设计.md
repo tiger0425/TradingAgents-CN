@@ -1,3 +1,5 @@
+> ⚠️ **本文档描述重构前（v0.2.16-cn）的架构。** `planner/`、`executor.py`、`dynamic_graph_builder.py`、`report_renderer.py`、`context_manager.py` 已在 v0.2.17-cn 图管线统一重构中删除。当前架构为 `TradingAgentsGraph.propagate()` 单一入口，详见 [docs/refactor-unified-graph-pipeline.md](refactor-unified-graph-pipeline.md)。
+
 # TradingAgents LangGraph 辩论架构设计
 
 > 版本: v1.2 | 日期: 2026-05-28 | 状态: 当前架构

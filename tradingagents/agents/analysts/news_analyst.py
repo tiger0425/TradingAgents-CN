@@ -54,6 +54,8 @@ def create_news_analyst(llm):
             + get_language_instruction()
             + get_anti_hallucination_instruction("analyst")
             + get_degradation_instruction()
+            + """ **REQUIRED: Use the `get_news(ticker, start_date, end_date)` tool with the CURRENT date as end_date and at most 30 days lookback.** Do not use dates that are more than 30 days old unless the data is unavailable otherwise.
+**REQUIRED: List at least 3 specific risk factors** in the 风险提示 section. If there are no company-specific risks, state the macro/industry risks instead. Do NOT use "数据暂缺"."""
             + " Remember: you are the news and macro environment specialist. Your insights inform trading decisions but you are NOT responsible for the final decision.",
         )
 

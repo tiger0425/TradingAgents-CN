@@ -7,6 +7,53 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Breaking changes within the 0.x line are called out explicitly.
 
 
+## [0.2.17-cn] — 2026-06-04
+
+### Overview
+**图管线统一重构** — 删除 3 层无价值壳层（Planner/Executor/DynamicGraphBuilder），统一为 `TradingAgentsGraph.propagate()` 单一路径。修复 10+ 自创 Bug 和回归。
+
+### Removed
+- `planner/` 整个目录（5 文件 508 行）— 每次返回相同工作流的零价值 LLM 规划层
+- `graph/executor.py`（360 行）— 与 `trading_graph.py` 功能重复的编排器
+- `graph/dynamic_graph_builder.py`（424 行）— 与 `setup.py` 功能重复的图构建
+- `graph/report_renderer.py`（446 行）— 正则重排 LLM 输出导致"列4/列5"表格损坏
+- `graph/context_manager.py`（359 行）— 压缩 4 份分析师报告导致辩论 Agent 失忆
+- `.bak` 重构残留文件（178 行）
+
+### Fixed
+- `interface.py` 静默吞异常：`except Exception: continue` → `logger.warning()`
+- `config.py` 全局竞态：删除 `set_config()`，`get_config()` 返回只读冻结快照
+- 辩论 Agent 看不到完整报告：删除 `ContextWindowManager`，改为 4 字段直接拼接
+- 双路径状态不一致：CLI/API/batch/guping 全部统一走 `propagate()` 单路径
+- 新闻数据时效：`get_news_a()` 默认最近 30 天（LLM 不传日期时不再返回 2025 旧闻）
+- 财务数据时效：`get_financial_statements()` 添加 `curr_date` 客户端过滤
+- 风险提示缺失：Market/Fundamentals/News 分析师 prompt 加入"必须列出 3 个风险因素"
+- Market 指标无数值：market_analyst prompt 加入"每个指标必须报告具体数值"
+- API 路径 ticker 静默替换：`GET /analyze` 不传 ticker 时 raise 400 而非分析 000001
+- API 路径 trade_date 硬编码：`AnalyzeRequest` 新增 `trade_date` 字段支持回测
+- API 路径 industry 注入丢失：恢复 `validate_ticker` + `get_industry` 调用
+
+### Changed
+- 入口统一：`api_server.py` / `cli/batch.py` / `guping/agent_batch.py` 均直接实例化 `TradingAgentsGraph`
+- LLM 客户端：支持 `quick_llm_provider` 独立配置（deep 和 quick 可使用不同供应商）
+- `default_config.py`：新增 `apply_env_overrides()` 标准化函数（bootstrap/batch/guping 统一调用）
+- `propagation.py`：`create_initial_state()` 新增 `display_name` / `industry` 参数（industry 注入 agent prompt）
+- `bull/bear_researcher.py`：恢复直接读取 `state["market_report"]` 等 4 个独立字段
+- `build_report()`：顶部新增行业分析框架段（显示行业分类 + 禁止使用术语）
+
+### Remaining
+- `benchmark_fanout.py` 待重写（原依赖 GraphExecutor）
+- `scheduler/scheduler.py` 待适配 TradingAgentsGraph
+- 6 模板 `report_skeleton` 字段待接入 `propagate()` 路径
+
+### Stats
+```
+删除文件: 12  |  删除代码: 2577 行  |  修改文件: 13  |  净效果: -2222 行
+7/7 A 股批量测试通过  |  所有模块导入验证通过
+```
+
+---
+
 ## [0.2.16-cn] — 2026-06-04
 
 ### Overview

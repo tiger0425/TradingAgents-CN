@@ -1,6 +1,28 @@
 import os
+from copy import deepcopy
 
 _TRADINGAGENTS_HOME = os.path.join(os.path.expanduser("~"), ".tradingagents")
+
+
+def apply_env_overrides(config: dict) -> dict:
+    """Apply TRADINGAGENTS_* env vars on top of a config dict.
+
+    This is the canonical override function — entry points that create
+    TradingAgentsGraph directly (batch, guping) MUST call this.
+    Bootstrap calls this internally during bootstrap().
+    """
+    for key in ("llm_provider", "quick_llm_provider", "deep_think_llm", "quick_think_llm", "backend_url"):
+        env_key = f"TRADINGAGENTS_{key.upper()}"
+        if os.getenv(env_key):
+            config[key] = os.getenv(env_key)
+    fan_out_env = os.getenv("TRADINGAGENTS_FAN_OUT")
+    if fan_out_env and fan_out_env.lower() == "true":
+        config["fan_out_enabled"] = True
+    if os.getenv("OPENAI_API_KEY"):
+        config.setdefault("llm_provider", "openai")
+    if os.getenv("DEEPSEEK_API_KEY"):
+        config.setdefault("llm_provider", "deepseek")
+    return config
 
 DEFAULT_CONFIG = {
     "project_dir": os.path.abspath(os.path.join(os.path.dirname(__file__), ".")),

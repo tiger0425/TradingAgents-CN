@@ -341,7 +341,8 @@ def get_fundamentals_a(ticker: str, curr_date: Optional[str] = None) -> str:
 
     参数:
         ticker:    股票代码，如 "600519"
-        curr_date: 保留兼容性，当前未使用
+        curr_date: 截止日期 "YYYY-MM-DD"，传递到 get_financial_statements
+                   做客户端过滤。为 None 时返回所有 5 期。
 
     返回:
         Markdown 格式字符串，各部分间用空行分隔
@@ -356,7 +357,7 @@ def get_fundamentals_a(ticker: str, curr_date: Optional[str] = None) -> str:
         ("cashflow", "现金流量表"),
     ]:
         try:
-            parts.append(get_financial_statements(ticker, stmt_type))
+            parts.append(get_financial_statements(ticker, stmt_type, curr_date))
         except Exception:
             parts.append(f"## {stmt_label} — {ticker}\n\n_查询失败_")
 
@@ -570,18 +571,17 @@ def get_balance_sheet_a(ticker: str, freq: str = "quarterly", curr_date: Optiona
     """获取 A 股资产负债表。
 
     委托给 get_financial_statements(ticker, "balance")。
-    freq 和 curr_date 参数忽略（新浪返回固定格式）。
 
     参数:
         ticker:    股票代码，如 "600519"
-        freq:      忽略（保留兼容性）
-        curr_date: 忽略（保留兼容性）
+        freq:      保留兼容性（新浪返回固定格式）
+        curr_date: 截止日期 "YYYY-MM-DD"，传递到 get_financial_statements
 
     返回:
         Markdown 格式字符串
     """
     try:
-        return get_financial_statements(ticker, "balance")
+        return get_financial_statements(ticker, "balance", curr_date)
     except Exception as e:
         return f"资产负债表查询失败 ({ticker}): {str(e)}"
 
@@ -590,18 +590,17 @@ def get_cashflow_a(ticker: str, freq: str = "quarterly", curr_date: Optional[str
     """获取 A 股现金流量表。
 
     委托给 get_financial_statements(ticker, "cashflow")。
-    freq 和 curr_date 参数忽略（新浪返回固定格式）。
 
     参数:
         ticker:    股票代码，如 "600519"
-        freq:      忽略（保留兼容性）
-        curr_date: 忽略（保留兼容性）
+        freq:      保留兼容性（新浪返回固定格式）
+        curr_date: 截止日期 "YYYY-MM-DD"，传递到 get_financial_statements
 
     返回:
         Markdown 格式字符串
     """
     try:
-        return get_financial_statements(ticker, "cashflow")
+        return get_financial_statements(ticker, "cashflow", curr_date)
     except Exception as e:
         return f"现金流量表查询失败 ({ticker}): {str(e)}"
 
@@ -610,18 +609,17 @@ def get_income_statement_a(ticker: str, freq: str = "quarterly", curr_date: Opti
     """获取 A 股利润表。
 
     委托给 get_financial_statements(ticker, "income")。
-    freq 和 curr_date 参数忽略（新浪返回固定格式）。
 
     参数:
         ticker:    股票代码，如 "600519"
-        freq:      忽略（保留兼容性）
-        curr_date: 忽略（保留兼容性）
+        freq:      保留兼容性（新浪返回固定格式）
+        curr_date: 截止日期 "YYYY-MM-DD"，传递到 get_financial_statements
 
     返回:
         Markdown 格式字符串
     """
     try:
-        return get_financial_statements(ticker, "income")
+        return get_financial_statements(ticker, "income", curr_date)
     except Exception as e:
         return f"利润表查询失败 ({ticker}): {str(e)}"
 
@@ -629,18 +627,23 @@ def get_income_statement_a(ticker: str, freq: str = "quarterly", curr_date: Opti
 def get_news_a(ticker: str, start_date: str = "", end_date: str = "") -> str:
     """获取 A 股个股相关新闻。
 
-    委托给 get_stock_news(ticker, 10)。start_date 和 end_date 参数忽略。
+    委托给 get_stock_news(ticker, 10)。
+    start_date/end_date 做客户端新闻日期过滤。
+    如果 LLM 未传入日期，默认只返回近 30 天的新闻。
 
     参数:
         ticker:     股票代码，如 "600519"
-        start_date: 忽略（保留兼容性）
-        end_date:   忽略（保留兼容性）
+        start_date: 起始日期 "YYYY-MM-DD"，传递到 get_stock_news
+        end_date:   截止日期 "YYYY-MM-DD"，传递到 get_stock_news
 
     返回:
         Markdown 格式字符串
     """
     try:
-        return get_stock_news(ticker, 10)
+        now_str = datetime.now().strftime("%Y-%m-%d")
+        sd = start_date or (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        ed = end_date or now_str
+        return get_stock_news(ticker, 10, start_date=sd, end_date=ed)
     except Exception as e:
         return f"新闻查询失败 ({ticker}): {str(e)}"
 
@@ -648,18 +651,20 @@ def get_news_a(ticker: str, start_date: str = "", end_date: str = "") -> str:
 def get_global_news_a(curr_date: str = "", look_back_days: int = 7, limit: int = 5) -> str:
     """获取全球财经资讯。
 
-    委托给 get_global_news_em(limit)。curr_date 和 look_back_days 参数忽略。
+    委托给 get_global_news_em(limit, curr_date, look_back_days)。
+    如果 LLM 未传入 curr_date，默认使用当天。
 
     参数:
-        curr_date:      忽略（保留兼容性）
-        look_back_days: 忽略（保留兼容性）
+        curr_date:      截止日期 "YYYY-MM-DD"，传递到 get_global_news_em
+        look_back_days: 向前回看天数，传递到 get_global_news_em
         limit:          返回条数，默认 5
 
     返回:
         Markdown 格式字符串
     """
     try:
-        return get_global_news_em(limit)
+        cd = curr_date or datetime.now().strftime("%Y-%m-%d")
+        return get_global_news_em(limit, curr_date=cd, look_back_days=look_back_days)
     except Exception as e:
         return f"全球资讯查询失败: {str(e)}"
 
@@ -1229,7 +1234,8 @@ def get_dividend_history(code: str, page_size: int = 30) -> str:
 # ============================================================================
 
 
-def get_financial_statements(code: str, report_type: str = "balance") -> str:
+def get_financial_statements(code: str, report_type: str = "balance",
+                             curr_date: Optional[str] = None) -> str:
     """查询新浪财报三表（资产负债表/利润表/现金流量表）。
 
     直连新浪财经 OpenAPI（simonlin1212/a-stock-data v3.1+ 端点），
@@ -1246,6 +1252,9 @@ def get_financial_statements(code: str, report_type: str = "balance") -> str:
                      - "balance"   → 资产负债表
                      - "income"    → 利润表
                      - "cashflow"  → 现金流量表
+        curr_date: 截止日期 "YYYY-MM-DD"。新浪 API 返回最近 5 期，
+                   客户端对报告期 <= curr_date 的结果进行过滤。
+                   为 None 时返回所有 5 期（默认行为）。
 
     返回:
         Markdown 格式字符串，包含最近 5 期财务数据
@@ -1301,6 +1310,18 @@ def get_financial_statements(code: str, report_type: str = "balance") -> str:
 
         # 按报告期倒序（最新在前），取前 5 期
         periods = sorted(report_list.keys(), reverse=True)[:5]
+        if curr_date:
+            # 客户端过滤：只保留报告期 <= curr_date 的期间
+            filtered = []
+            for p in periods:
+                try:
+                    p_date = f"{p[:4]}-{p[4:6]}-{p[6:8]}"
+                    if p_date <= curr_date:
+                        filtered.append(p)
+                except Exception:
+                    filtered.append(p)
+            if filtered:
+                periods = filtered
         rows: List[Dict[str, Any]] = []
         for period in periods:
             period_data = report_list[period]
@@ -1906,14 +1927,19 @@ def get_fund_flow_120d(code: str) -> str:
 # ============================================================================
 
 
-def get_stock_news(code: str, page_size: int = 10) -> str:
+def get_stock_news(code: str, page_size: int = 10,
+                   start_date: str = "", end_date: str = "") -> str:
     """查询个股相关新闻。
 
     直连东财搜索 API，获取个股相关新闻列表。
+    东财 API 不支持服务端日期过滤，这里做客户端过滤：
+    只保留日期在 [start_date, end_date] 范围内的新闻。
 
     参数:
         code: 股票代码，如 "600519"
         page_size: 返回条数，默认 10
+        start_date: 起始日期 "YYYY-MM-DD"（客户端过滤，为空不限制）
+        end_date:   截止日期 "YYYY-MM-DD"（客户端过滤，为空不限制）
 
     返回:
         Markdown 格式字符串，包含新闻标题、日期、摘要。
@@ -1958,6 +1984,15 @@ def get_stock_news(code: str, page_size: int = 10) -> str:
             title = item.get("title", "").strip()
             date = item.get("date", item.get("showDate", ""))
             content = (item.get("content", "") or "")[:80]
+
+            # 客户端日期过滤
+            if start_date or end_date:
+                item_date = str(date)[:10]
+                if start_date and item_date < start_date:
+                    continue
+                if end_date and item_date > end_date:
+                    continue
+
             rows.append({
                 "标题": title,
                 "日期": date,
@@ -1974,14 +2009,18 @@ def get_stock_news(code: str, page_size: int = 10) -> str:
 # ============================================================================
 
 
-def get_global_news_em(count: int = 10) -> str:
+def get_global_news_em(count: int = 10,
+                        curr_date: str = "", look_back_days: int = 7) -> str:
     """查询东财全球财经资讯。
 
     直连东财 np-weblist 快讯接口，获取全球财经资讯列表。
     需要 req_trace UUID 参数（V3.1 新增必填项）。
+    东财 API 返回最新快讯，这里做客户端日期过滤。
 
     参数:
-        count: 返回条数，默认 10
+        count:         返回条数，默认 10
+        curr_date:     截止日期 "YYYY-MM-DD"（客户端过滤，为空不限制）
+        look_back_days:向前回看天数（用于计算 start_date，curr_date 为空时无效）
 
     返回:
         Markdown 格式字符串，包含资讯标题、时间、内容摘要。
@@ -1994,7 +2033,7 @@ def get_global_news_em(count: int = 10) -> str:
         "fastColumn": "102",
         "sortEnd": "",
         "pageIndex": "1",
-        "pageSize": str(count),
+        "pageSize": str(count * 3),  # 多取一些，过滤后保证有 count 条
         "req_trace": uuid.uuid4().hex,
     }
     headers = {
@@ -2005,17 +2044,37 @@ def get_global_news_em(count: int = 10) -> str:
         resp = _get_session().get(url, params=params, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         d = resp.json()
-        data = d.get("data", {}).get("fastNewsList", [])[:count]
+        data = d.get("data", {}).get("fastNewsList", [])
         rows: List[Dict[str, Any]] = []
         for item in data:
             title = item.get("title", "").strip()
             show_time = item.get("showTime", "")
             content = (item.get("content", "") or "")[:80]
+
+            # 客户端日期过滤
+            if curr_date and show_time:
+                try:
+                    # showTime 格式如 "2026-06-04 10:30" 或 "2026-06-04"
+                    item_date = str(show_time)[:10]
+                    if item_date > curr_date:
+                        continue
+                    if look_back_days > 0:
+                        from datetime import datetime, timedelta
+                        end = datetime.strptime(curr_date[:10], "%Y-%m-%d")
+                        start = end - timedelta(days=look_back_days)
+                        item_dt = datetime.strptime(item_date, "%Y-%m-%d")
+                        if item_dt < start:
+                            continue
+                except Exception:
+                    pass
+
             rows.append({
                 "标题": title,
                 "时间": show_time,
                 "摘要": content,
             })
+            if len(rows) >= count:
+                break
         return _format_result(rows, "全球财经资讯")
     except Exception as e:
         return f"全球资讯查询失败: {str(e)}"

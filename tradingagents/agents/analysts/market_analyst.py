@@ -75,6 +75,8 @@ Select indicators that provide diverse and complementary information. Avoid redu
             + get_anti_hallucination_instruction("analyst")
             + get_degradation_instruction()
             + industry_section
+            + """ **REQUIRED: For each indicator you select, report its SPECIFIC numerical value and cross-state interpretation.** For example: "RSI(14)=35.2, 偏弱但未超卖; MACD柱-0.12, 空头动能衰减". Do NOT just list indicator names without values.
+**REQUIRED: List at least 3 specific risk factors** in the 风险提示 section. Do NOT use "数据暂缺" — if you cannot find clear risks from the data, state what typical risks apply to this type of stock based on its price action and volume profile."""
             + " Remember: you are the technical analysis specialist. Your indicators inform the trading decision but you are NOT responsible for the final trading decision."
             + "\n\n**Market Environment Context:**\nThe current market environment data is available via the `get_market_context` tool.\nUse this tool to understand the broader market conditions (index trends, sector rotation, capital flows, market breadth) before interpreting individual stock technical indicators. Factor the market environment into your assessment of whether technical signals indicate genuine trends or market-driven noise.",
         )

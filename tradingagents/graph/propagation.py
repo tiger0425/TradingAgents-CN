@@ -22,12 +22,16 @@ class Propagator:
         cost_price: float = 0.0,
         quantity: int = 0,
         position_opened_date: str = "",
+        display_name: str = "",
+        industry: str = "",
     ) -> Dict[str, Any]:
         """Create the initial state for the agent graph."""
         return {
             "messages": [("human", company_name)],
             "company_of_interest": company_name,
             "trade_date": str(trade_date),
+            "company_name": display_name or company_name,
+            "industry": industry,
             "past_context": past_context,
             "knowledge_context": knowledge_context or {},
             "investment_debate_state": InvestDebateState(

@@ -414,38 +414,13 @@ def batch(
     stats_handler = StatsCallbackHandler()
 
     try:
-        from tradingagents.bootstrap import lazy_bootstrap
-        from tradingagents.planner.schemas import Trigger, Context
-        from tradingagents.dataflows.a_stock_data import get_industry
+        from tradingagents.graph.trading_graph import TradingAgentsGraph
+        from tradingagents.default_config import apply_env_overrides
 
-        boot_result = lazy_bootstrap()
-        if boot_result is None:
-            raise RuntimeError("Bootstrap failed — check API keys and .env")
-        planner, executor, _kb, _pm = boot_result
-
-        industry = ""
-        try:
-            industry = get_industry(ticker)
-        except Exception:
-            pass
-
-        trigger = Trigger(
-            type="customer_message",
-            message=f"分析{ticker}",
-            task="",
-            timeout_minutes=10,
+        graph = TradingAgentsGraph(config=apply_env_overrides(config), debug=False)
+        final_state, decision = graph.propagate(
+            ticker, date, cost_price, quantity, opened_date,
         )
-        context = Context(
-            user_id="cli-batch",
-            ticker=ticker,
-            industry=industry,
-            portfolio_summary="",
-        )
-
-        plan = planner.plan(trigger, context)
-        result = executor.execute(plan, trigger, context, callbacks=[stats_handler])
-        final_state = result.get("raw_state", {})
-        decision = final_state.get("final_trade_decision", "")
 
         # --- Archive the result ---
         save_to_archive(

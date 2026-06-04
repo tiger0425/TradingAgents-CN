@@ -1,5 +1,18 @@
 from tradingagents.agents.utils.prompt_constants import get_anti_hallucination_instruction
-from tradingagents.graph.context_manager import ContextWindowManager
+
+
+def _get_industry_anti_patterns(industry: str) -> list[str]:
+    """Look up industry framework anti_patterns for debate agents."""
+    if not industry:
+        return []
+    try:
+        from tradingagents.industry.frameworks import IndustryFramework
+        framework = IndustryFramework().lookup(industry)
+        if framework:
+            return framework.get("anti_patterns", [])
+    except Exception:
+        pass
+    return []
 
 
 def create_bull_researcher(llm):
@@ -29,22 +42,23 @@ def create_bull_researcher(llm):
             )
             opponent_reference = f"Last bear argument: {current_response}"
 
-        # ---- ContextWindowManager: 三级策略管理上下文 (FIX-7) ----
-        ctx = ContextWindowManager.inject_context(
-            state, agent_type="bull", quick_llm=llm,
-        )
-
-        reports_text = ctx["reports_summary"]
-        debate_history = ctx["debate_history"]
-        market_context = ctx.get("market_context", state.get("market_context", ""))
-        industry = ctx.get("industry", "")
+        # ---- Direct state reads (replaced ContextWindowManager) ----
+        reports_parts = []
+        for rk in ("market_report", "sentiment_report", "news_report", "fundamentals_report"):
+            rv = state.get(rk, "")
+            if rv:
+                reports_parts.append(f"### {rk}\n{rv}")
+        reports_text = "\n\n".join(reports_parts) if reports_parts else "(No analyst reports available)"
+        debate_history = investment_debate_state.get("history", "")
+        market_context = state.get("market_context", "")
+        industry = state.get("industry", "")
 
         industry_info = ""
         if industry:
+            anti_patterns = _get_industry_anti_patterns(industry)
             industry_info = f"""
 **⚠️ 行业锚定约束：** 你正在辩论的标的属于【{industry}】行业。所有论点必须基于该行业实际的商业模式、竞争格局和关键驱动因素。严禁使用与{industry}行业无关的术语或分析框架。
 """
-            anti_patterns = ctx.get("anti_patterns", [])
             if anti_patterns:
                 anti_str = "、".join(anti_patterns)
                 industry_info += f"\n**⚠️ 严格禁止使用以下不适用于{industry}行业的术语：** {anti_str}"

@@ -21,8 +21,12 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tradingagents.bootstrap import bootstrap
-from tradingagents.graph.executor import GraphExecutor
-from tradingagents.planner.schemas import Context, Trigger
+"""
+TODO: This script needs to be rewritten to use TradingAgentsGraph.propagate()
+instead of GraphExecutor.execute(). The GraphExecutor has been deleted as part
+of the graph pipeline unification. See scripts/benchmark_propagate.py (future).
+"""
+from tradingagents.api_types import Context, Trigger
 
 TICKER = "000001"
 

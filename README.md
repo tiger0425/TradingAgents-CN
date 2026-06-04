@@ -26,12 +26,11 @@
 
 # TradingAgents：双层智能金融分析系统
 
-> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（mootdx/a-stock-data + 国信证券）、V1.3 双层调度架构（后台采集 + 事件驱动）、LLM Planner 智能编排、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
+> **⚡ 衍生声明**：本项目基于 [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) 二次开发。主要变更：A 股数据源（mootdx/a-stock-data + 国信证券）、统一图管线架构（删除三层壳层，单一路径）、知识库驱动、HTTP API 服务、Docker Compose 部署。原始版权归属 [原作者](https://arxiv.org/abs/2412.20138)。
 
 ## News
 
-- [2026-06] **IndustryVerifier 接入 + 动态 Prompt**：`executor.py` 接入 verifier（flag-and-continue），每次分析后自动扫描反模式并追加警告。`AnalyzeResponse` 新增 `industry_verification` 字段。`_AUTO_GEN_PROMPT` 改为从 `_type_rules` JSON 动态生成，消除硬编码重复。形成完整 Prompt 约束→分析→扫描保护链。
-- [2026-06] **辩论 Agent 行业反模式注入**：bull/bear 辩论 Agent 和 3 个风控 Agent 现接收 anti_patterns 禁止术语。`ContextWindowManager.inject_context()` 增加 framework lookup。全链路 12 个 Agent 均受行业约束，消除"通信线缆"标的讨论 AEC/铜缆/CPO 等错配问题。
+- [2026-06] **图管线重构完成**：删除三层无价值壳层（Planner/Executor/DynamicGraphBuilder 共 1292 行），统一为单一路径 `TradingAgentsGraph.propagate()`。删除 `ContextWindowManager` 压缩层（辩论 Agent 现直接读取 4 份完整报告）。删除 `ReportRenderer` 正则解析（修复北汽蓝谷"列4/列5"表格损坏）。修复 `interface.py` 静默吞异常、`config.py` 全局竞态、`a_stock_data.py` 日期参数忽略等 10+ Bug。净删除 2577 行，保留全部 A 股能力。
 - [2026-06] **两层行业框架体系升级**：`industry_frameworks.json` 新增 `_type_rules`（6 种行业类型通用反模式规则）+ `comm_cable` 通信线缆及配套框架（基于华泰/国盛/中信建投/天风券商研报）。`_AUTO_GEN_PROMPT` 升级为三步流程（判定类型→继承通用反模式→合并行业特有反模式）。解决 LLM 自动生成时跨行业指标错用问题。新增 `test_industry_framework.py`（8 个 TDD 测试）。21 industry tests 全绿，633 regression tests 通过。
 - [2026-06] **三层行业检测架构上线**：IndustryClassifier 服务（3-level fallback → 结构化分类）、Agent 行业上下文注入（7 Agent 系统提示词）、IndustryFramework 行业→框架映射（5 行业试点 + 反模式规则）、一致性校验器（规则+LLM 二级）、TemplateMatcher 行业评分修复。解决"卡车制造商被 SaaS 框架分析"的问题。
 - [2026-05] **V4 下一阶段完成**：TRADINGAGENTS_FAN_OUT 环境变量支持（灰度开关）；CLI batch 迁移到 GraphExecutor（与 API 路径统一）；概念板块 API 重试+回退；融资融券数据集成到 Agent 工具链；机构持仓数据（akshare）接入；4 个分析师提示词针对 A 股场景定制；600418 端到端回归测试（商用载货车行业检测 + 无 AI 幻觉验证）；性能基准测试脚本。834 测试通过，0 失败。
@@ -46,64 +45,38 @@
 
 ---
 
-## V1.3 架构
+## 架构
 
-TradingAgents V1.3 采用**双层智能系统**，模拟券商研究所的运作方式：
+### 统一图管线（2026-06 重构后）
+
+所有入口点统一经过 `TradingAgentsGraph.propagate()`，单一路径，无重叠壳层：
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    接入层 — OpenClaw                       │
-│  用户消息接收 / 报告推送                                    │
-└────────────────────────┬─────────────────────────────────┘
-                         │  POST /analyze
-┌────────────────────────▼─────────────────────────────────┐
-│              分析引擎层 — TradingAgents (FastAPI)           │
-│                                                          │
-│  🔄 后台采集层   市场(30min) 公告(1h) 政策(2h) 舆情(15min)  │
-│         │ 持续写入                                        │
-│  ┌──────▼─────────────────────────────────────           │
-│  │  📚 知识库 (KB)  市场快照 / 公告摘要 / 政策简报           │
-│  │      时效标签 FRESH → STALE → EXPIRED                  │
-│  └──────┬─────────────────────────────────────           │
-│         │ Planner 先查 KB                                 │
-│  ┌──────▼─────────────────────────────────────           │
-│  │  🧠 LLM Planner  KB查询 → 模板匹配 → 动态图构建          │
-│  └──────┬─────────────────────────────────────           │
-│         │                                                │
-│  ┌──────▼─────────────────────────────────────           │
-│  │  🏭 行业检测层  IndustryClassifier→两层框架匹配（类型规则+行业）→一致性校验   │
-│  └──────┬─────────────────────────────────────           │
-│         │                                                │
-│  ┌──────▼─────────────────────────────────────           │
-│  │  👥 Agent 执行层  13 Agent 按需调度（只跑缺失部分）       │
-│  └────────────────────────────────────────────           │
-│                                                          │
-│  ⏰ 双层调度：采集层 interval / 事件层 cron                   │
-└──────────────────────────────────────────────────────────┘
+CLI main     ─┐
+CLI batch    ─┤
+API server   ─┼── → TradingAgentsGraph.propagate()
+guping batch ─┘        ↓
+                  GraphSetup → 12-Agent LangGraph → final_state
+                       ↓
+                  build_report(final_state)
 ```
 
-**核心差异**：事件触发时先查 KB，已有分析直接复用，大幅降低 LLM 调用成本（约 55%）。
+**重构内容**：删除了 3 层无价值抽象（Planner 508 行、Executor 360 行、DynamicGraphBuilder 424 行），统一为上游原有的 `setup.py` 固定图构建。辩论 Agent 直接读取 4 份分析师完整报告（删除 ContextWindowManager 359 行压缩层）。报告输出采用 `build_report()` 直接拼接（删除 ReportRenderer 446 行正则解析，根治表格损坏）。
 
-| 场景 | V1.0（纯事件驱动） | V1.3（双层架构） |
-|------|-------------------|-----------------|
-| 晨会 | 每次采集外盘+公告 ($0.35) | KB 已有 30min 前快照 ($0.10) |
-| 客户问个股 | 从零全流程 ($0.85) | KB 已有快照，只补辩论 ($0.30) |
-| 盘中突发公告 | 不知道（无监控） | 后台采集已写入 KB |
+### Agent 团队（12 Agent 固定执行）
 
-### Agent 团队（13 Agent 按需调度）
-
-| Agent | 中文名 | 适用场景 |
+| Agent | 中文名 | 工作内容 |
 |-------|--------|---------|
-| market_analyst | 技术面分析师 | 所有分析 |
-| fundamentals_analyst | 基本面分析师 | 个股分析、选股 |
-| news_analyst | 新闻分析师 | 持仓预警、政策 |
-| social_analyst | 舆情分析师 | 个股分析 |
-| macro_analyst | 宏观研究员 | 晨会、周选股 |
-| bull_researcher / bear_researcher | 多/空方研究员 | 辩论 |
-| research_manager | 研究主管 | 辩论汇总 |
-| trader | 交易员 | 四方案/交易计划 |
-| risk_aggressive/conservative/neutral | 三方风控 | 风控辩论 |
-| portfolio_manager | 组合经理 | 最终决策 |
+| market_analyst | 技术面分析师 | 均线/MACD/RSI/布林带/波动率分析 |
+| fundamentals_analyst | 基本面分析师 | PE/PB/ROE/负债率/现金流分析 |
+| news_analyst | 新闻分析师 | 政策/产业/监管动态 |
+| sentiment_analyst | 舆情分析师 | 关注指数/参与意愿/散户情绪 |
+| bull_researcher | 多方研究员 | 辩论看多论据 |
+| bear_researcher | 空方研究员 | 辩论看空论据 |
+| research_manager | 研究主管 | 辩论综合裁决 |
+| trader | 交易员 | 交易方案（买卖/止损/仓位） |
+| aggressive/conservative/neutral | 三方风控 | 风险评估辩论 |
+| portfolio_manager | 组合经理 | 最终投资决策 |
 
 ---
 
@@ -194,20 +167,9 @@ tradingagents mcp serve              # 启动 MCP Server（6 个查询工具）
 
 ---
 
-## 模板系统
+## 模板系统（开发中）
 
-LLM Planner 使用模板匹配优先策略，6 个核心模板：
-
-| 模板 | 场景 | Agent | 辩论 |
-|------|------|:---:|:---:|
-| `morning_briefing` | 晨会 08:50 | 4 | ❌ |
-| `midday_review` | 午评 12:00 | 3 | ❌ |
-| `closing_review` | 收盘复盘 15:10 | 3 | ❌ |
-| `standard_analysis` | 客户个股分析 | 12 | ✅ |
-| `breakeven_recovery` | 解套方案 | 5 | ✅ |
-| `weekly_screening` | 周日选股 | 3 | ❌ |
-
-模板自动进化：根据成功率动态调整匹配权重。
+6 个分析模板已定义（`tradingagents/templates/tpl_*.json`），含 `report_skeleton` 字段定义章节结构和必填段。当前由 `setup.py` 的固定图逻辑直接调度，模板的行 `report_skeleton` 约束尚未接入 `propagate()` 路径（待实现）。
 
 ---
 

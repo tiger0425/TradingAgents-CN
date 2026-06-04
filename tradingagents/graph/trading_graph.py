@@ -26,8 +26,6 @@ from tradingagents.agents.utils.agent_states import (
     InvestDebateState,
     RiskDebateState,
 )
-from tradingagents.dataflows.config import set_config
-
 # Import the new abstract tool methods from agent_utils
 from tradingagents.agents.utils.agent_utils import (
     get_stock_data,
@@ -75,9 +73,6 @@ class TradingAgentsGraph:
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
 
-        # Update the interface's config
-        set_config(self.config)
-
         # Create necessary directories
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
@@ -89,6 +84,14 @@ class TradingAgentsGraph:
         if self.callbacks:
             llm_kwargs["callbacks"] = self.callbacks
 
+        # Quick LLM may use a different provider than the deep LLM.
+        # The env TRADINGAGENTS_QUICK_LLM_PROVIDER is canonical; fall back
+        # to the main llm_provider when unset.
+        quick_provider = (
+            os.getenv("TRADINGAGENTS_QUICK_LLM_PROVIDER")
+            or self.config.get("quick_llm_provider")
+            or self.config["llm_provider"]
+        )
         deep_client = create_llm_client(
             provider=self.config["llm_provider"],
             model=self.config["deep_think_llm"],
@@ -96,7 +99,7 @@ class TradingAgentsGraph:
             **llm_kwargs,
         )
         quick_client = create_llm_client(
-            provider=self.config["llm_provider"],
+            provider=quick_provider,
             model=self.config["quick_think_llm"],
             base_url=self.config.get("backend_url"),
             **llm_kwargs,
@@ -361,7 +364,9 @@ class TradingAgentsGraph:
     def propagate(self, company_name, trade_date,
                   cost_price: float = 0.0,
                   quantity: int = 0,
-                  position_opened_date: str = ""):
+                  position_opened_date: str = "",
+                  display_name: str = "",
+                  industry: str = ""):
         """Run the trading agents graph for a company on a specific date.
 
         When ``checkpoint_enabled`` is set in config, the graph is recompiled
@@ -389,6 +394,8 @@ class TradingAgentsGraph:
         self._pending_cost_price = cost_price
         self._pending_quantity = quantity
         self._pending_position_opened_date = position_opened_date
+        self._pending_display_name = display_name
+        self._pending_industry = industry
 
         # Reset incremental mode flags for each propagate() call
         self._incremental_mode = False
@@ -470,32 +477,6 @@ class TradingAgentsGraph:
                 self._checkpointer_ctx = None
                 self.graph = self.workflow.compile()
 
-    def propagate_with_planner(self, trigger, context):
-        if not hasattr(self, '_planner') or not hasattr(self, '_dynamic_builder'):
-            logger.warning("Planner not configured, falling back to legacy propagate()")
-            return self.propagate(context.ticker, context.trade_date)
-
-        plan = self._planner.plan(trigger, context)
-        graph = self._dynamic_builder.build(plan)
-        init_state = self.propagator.create_initial_state(
-            context.ticker, context.trade_date,
-            past_context=self.memory_log.get_past_context(context.ticker),
-            knowledge_context=getattr(context, 'kb_context', {}),
-        )
-        result = graph.invoke(init_state, self.propagator.get_graph_args())
-        self._log_state(context.trade_date, result)
-        self.memory_log.store_decision(
-            ticker=context.ticker, trade_date=context.trade_date,
-            final_trade_decision=result.get("final_trade_decision", ""),
-        )
-        decision = self.process_signal(result.get("final_trade_decision", ""))
-        return result, decision
-
-    def configure_planner(self, planner, dynamic_builder):
-        self._planner = planner
-        self._dynamic_builder = dynamic_builder
-        logger.info("Planner + DynamicGraphBuilder configured")
-
     def _run_graph(self, company_name, trade_date):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM.
@@ -561,6 +542,8 @@ class TradingAgentsGraph:
             cost_price=getattr(self, '_pending_cost_price', 0.0),
             quantity=getattr(self, '_pending_quantity', 0),
             position_opened_date=getattr(self, '_pending_position_opened_date', ''),
+            display_name=getattr(self, '_pending_display_name', ''),
+            industry=getattr(self, '_pending_industry', ''),
         )
 
         # ★ Inject market context into agent state
@@ -707,6 +690,54 @@ class TradingAgentsGraph:
         log_path = directory / f"full_states_log_{trade_date}.json"
         with open(log_path, "w", encoding="utf-8") as f:
             json.dump(self.log_states_dict[str(trade_date)], f, indent=4)
+
+    def build_report(self, final_state: dict) -> str:
+        """Build a clean Markdown report from the final agent state.
+
+        Replaces the deleted ReportRenderer — simple concatenation,
+        no regex parsing, no risk of table corruption.
+        """
+        parts = []
+
+        # P-新A: show industry analysis framework in report header
+        industry = final_state.get("industry", "")
+        if industry:
+            anti_patterns: list[str] = []
+            try:
+                from tradingagents.industry.frameworks import IndustryFramework
+                framework = IndustryFramework().lookup(industry)
+                if framework:
+                    anti_patterns = framework.get("anti_patterns", [])
+            except Exception:
+                pass
+            header = f"## 🎯 行业分析框架\n\n**行业分类**: {industry}\n"
+            if anti_patterns:
+                header += f"**禁止使用术语**: {'、'.join(anti_patterns)}\n"
+            parts.append(header)
+
+        for title, state_key in [
+            ("Market Analyst", "market_report"),
+            ("Fundamentals Analyst", "fundamentals_report"),
+            ("News Analyst", "news_report"),
+            ("Sentiment Analyst", "sentiment_report"),
+        ]:
+            content = final_state.get(state_key, "")
+            if content:
+                parts.append(f"--- {title} ---\n\n{content}")
+
+        investment_plan = final_state.get("investment_plan", "")
+        if investment_plan:
+            parts.append(f"--- Investment Plan ---\n\n{investment_plan}")
+
+        trader_plan = final_state.get("trader_investment_plan", "")
+        if trader_plan:
+            parts.append(f"--- Trader Plan ---\n\n{trader_plan}")
+
+        final_decision = final_state.get("final_trade_decision", "")
+        if final_decision and final_decision != investment_plan:
+            parts.append(f"--- Final Decision ---\n\n{final_decision}")
+
+        return "\n\n".join(parts) if parts else ""
 
     def process_signal(self, full_signal):
         """Process a signal to extract the core decision."""

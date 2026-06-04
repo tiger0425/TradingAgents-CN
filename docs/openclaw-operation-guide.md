@@ -1,3 +1,5 @@
+> ⚠️ **本文档描述重构前（v0.2.16-cn）的架构。** `planner/`、`executor.py`、`dynamic_graph_builder.py`、`report_renderer.py`、`context_manager.py` 已在 v0.2.17-cn 图管线统一重构中删除。当前架构为 `TradingAgentsGraph.propagate()` 单一入口，详见 [docs/refactor-unified-graph-pipeline.md](refactor-unified-graph-pipeline.md)。
+
 # OpenClaw Agent 操作指南：TradingAgents V1.2
 
 > 本文档面向 OpenClaw 编排 agent，描述如何通过 HTTP API 与 TradingAgents V1.2 交互。
@@ -56,7 +58,13 @@ Content-Type: application/json
 
 ```json
 {
-  "report": "## 贵州茅台（600519）分析报告\n\n### 技术面\n...\n\n### 最终建议\n**买入**，目标价 1750，止损 1550",
+  "report": "## 贵州茅台（600519）分析报告
+
+### 技术面
+...
+
+### 最终建议
+**买入**，目标价 1750，止损 1550",
   "intent": "standard_analysis",
   "generation_mode": "template_exact",
   "template_id": "tpl_standard_analysis",

@@ -1,3 +1,5 @@
+> ⚠️ **本文档描述重构前（v0.2.16-cn）的架构。** `planner/`、`executor.py`、`dynamic_graph_builder.py`、`report_renderer.py`、`context_manager.py` 已在 v0.2.17-cn 图管线统一重构中删除。当前架构为 `TradingAgentsGraph.propagate()` 单一入口，详见 [docs/refactor-unified-graph-pipeline.md](refactor-unified-graph-pipeline.md)。
+
 # 工具循环四层防护体系 (Tool Loop Prevention System)
 
 > 版本：v0.2.11-cn | 日期：2026-06-03 | 关联 FIX：FIX-8（原始检测）+ FIX-11（根本治理）
@@ -197,11 +199,15 @@ def _extract_report(final_state):
     parts = []
     for title, content in [("Market Analyst", market_report), ...]:
         if content:
-            parts.append(f"--- {title} ---\n\n{content}")
+            parts.append(f"--- {title} ---
+
+{content}")
     parts.append(investment_plan)
     parts.append(trader_plan)
     parts.append(final_decision)  # (if != investment_plan)
-    return "\n\n".join(parts)
+    return "
+
+".join(parts)
 ```
 
 ### 4.2 辩论安全上限收窄

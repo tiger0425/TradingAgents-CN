@@ -402,7 +402,8 @@ def route_to_vendor(method: str, *args, **kwargs):
             return result
         except AlphaVantageRateLimitError:
             continue
-        except Exception:
-            continue  # Any error triggers fallback to next vendor
+        except Exception as e:
+            logger.warning("Vendor %s failed for method %s: %s", vendor, method, e)
+            continue
 
     raise RuntimeError(f"No available vendor for '{method}'")

@@ -63,6 +63,7 @@ def create_fundamentals_analyst(llm):
             + get_anti_hallucination_instruction("analyst")
             + get_degradation_instruction()
             + industry_guidance
+            + """ **REQUIRED: List at least 3 specific risk factors** in the 风险提示 section. These should be concrete financial risks (e.g. "资产负债率过高", "现金流为负", "应收账款增速超过营收"). Do NOT use "数据暂缺"."""
             + " Remember: you are the fundamentals specialist. Your analysis feeds into the broader investment thesis but you are NOT responsible for the final trading decision.",
         )
 

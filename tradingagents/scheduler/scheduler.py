@@ -4,7 +4,7 @@ from datetime import date
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from ..collector import MarketDataCollector, AnnouncementCollector, PolicyCollector, SentimentCollector
-from ..planner.schemas import Trigger, Context
+from ..api_types import Trigger, Context
 
 logger = logging.getLogger(__name__)
 
